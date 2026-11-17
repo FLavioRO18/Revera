@@ -71,6 +71,7 @@ class LayerBackdrop internal constructor(
         var layer: GraphicsLayer? = null
         /** Its opacity on screen now ([LocalBackdropSourceAlpha]); read while drawing, so a fade redraws the glass. */
         var alpha: () -> Float = { 1f }
+        val transitionPaint = com.music.spotui.ui.immersive.shell.backdrop.BackdropPaint()
     }
     private val sourceStore = com.music.spotui.ui.immersive.shell.backdrop.BackdropSources<Source>()
     internal val sources: List<Source> get() = sourceStore.snapshot
@@ -156,7 +157,7 @@ class LayerBackdrop internal constructor(
                 else drawContext.canvas.let { canvas ->
                     // The page's fade, as on screen (the recording itself is always opaque).
                     canvas.saveLayer(androidx.compose.ui.geometry.Rect(Offset.Zero, layer.size.let { androidx.compose.ui.geometry.Size(it.width.toFloat(), it.height.toFloat()) }),
-                        androidx.compose.ui.graphics.Paint().apply { alpha = a })
+                        s.transitionPaint.at(a))
                     drawLayer(layer)
                     canvas.restore()
                 }
