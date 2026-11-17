@@ -63,9 +63,13 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
     /** The init chunk and the first segment, for a switch that starts without a network round trip. */
     suspend fun prefetch() {
         if (length == C.LENGTH_UNSET.toLong()) return
-        for (start in bounds.take(minOf(2, bounds.size - 1))) {
-            if (ready.containsKey(start)) continue
-            ready[start] = fetch(chunkAt(start), prefetch = true)
+        val end = bounds[minOf(2, bounds.lastIndex)]
+        if (ready.containsKey(0L)) return
+        val bytes = fetch(0L until end, prefetch = true)
+        for (i in 0 until minOf(2, bounds.size - 1)) {
+            val from = bounds[i].toInt()
+            val to = bounds[i + 1].toInt()
+            ready[bounds[i]] = bytes.copyOfRange(from, to)
         }
     }
 
@@ -82,17 +86,10 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
             val rangeHeader = if (range.last == Long.MAX_VALUE) "bytes=${range.first}-" else "bytes=${range.first}-${range.last}"
             val t0 = System.currentTimeMillis()
             try {
-                val r = http.request(HttpRequest("GET", url, media.cdnHeaders + ("range" to rangeHeader)))
+                val body = RustAudioTransport.fetch(url, media.cdnHeaders, range)
                 val ms = System.currentTimeMillis() - t0
                 val host = url.substringAfter("://").substringBefore('/')
-                log("cdn $rangeHeader -> ${r.status} ${r.body.size} B in $ms ms ($host${if (prefetch) ", preload" else ""})")
-                val body = when (r.status) {
-                    206 -> r.body
-                    // A server that ignores Range sends the whole file: keep the asked part.
-                    200 -> r.body.copyOfRange(range.first.toInt().coerceAtMost(r.body.size),
-                        if (range.last == Long.MAX_VALUE) r.body.size else (range.last + 1).toInt().coerceAtMost(r.body.size))
-                    else -> throw IOException("HTTP ${r.status}")
-                }
+                log("rust cdn $rangeHeader -> ${body.size} B in $ms ms ($host${if (prefetch) ", preload" else ""})")
                 urlIndex = i
                 totalBytes.addAndGet(body.size.toLong())
                 fetchMs.addAndGet(ms)
