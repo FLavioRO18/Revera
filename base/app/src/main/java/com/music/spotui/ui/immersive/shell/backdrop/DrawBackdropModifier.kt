@@ -256,11 +256,7 @@ private class DrawBackdropNode(
     }
 
     private var layoutCoordinates: LayoutCoordinates? by mutableStateOf(null, neverEqualPolicy())
-    private var lastGlobalPosition = Offset.Unspecified
-    private var lastGlobalSize = IntSize.Zero
-    private var lastGlobalCoordinates: LayoutCoordinates? = null
-    private var lastGlobalXAxis = Offset.Unspecified
-    private var lastGlobalYAxis = Offset.Unspecified
+    private val geometry = BackdropGeometry()
 
     private var padding by mutableFloatStateOf(0f)
 
@@ -380,13 +376,7 @@ private class DrawBackdropNode(
             val position = coordinates.localToWindow(Offset.Zero)
             val axisX = coordinates.localToWindow(Offset(1f, 0f))
             val axisY = coordinates.localToWindow(Offset(0f, 1f))
-            if (coordinates === lastGlobalCoordinates && position == lastGlobalPosition &&
-                coordinates.size == lastGlobalSize && axisX == lastGlobalXAxis && axisY == lastGlobalYAxis) return
-            lastGlobalCoordinates = coordinates
-            lastGlobalPosition = position
-            lastGlobalSize = coordinates.size
-            lastGlobalXAxis = axisX
-            lastGlobalYAxis = axisY
+            if (!geometry.changed(coordinates, position, coordinates.size, axisX, axisY)) return
             if (backdrop.isCoordinatesDependent) {
                 layoutCoordinates = coordinates
             } else {
@@ -435,6 +425,7 @@ private class DrawBackdropNode(
         }
 
         effectScope.reset()
+        geometry.reset()
         layoutCoordinates = null
         exportedBackdrop?.layerCoordinates = null
     }
