@@ -50,10 +50,10 @@ object SupportReminder {
         ORANGE("orange", Color(0xFFFF9E3D)),
     }
 
-    /** What the user said ("I've supported"), kept while perks are off. */
     private var storedLevel by mutableStateOf(Level.NONE)
-    /** The supporter level in effect (NONE while perks are off). */
     val level: Level get() = if (PERKS_ENABLED) storedLevel else Level.NONE
+    var serverPerks by mutableStateOf(false)
+        private set
     /** The accent chosen for the Classic look. */
     var classicAccent by mutableStateOf(Accent.GREEN)
         private set
@@ -129,13 +129,20 @@ object SupportReminder {
         }
     }
 
-    /**
-     * Switches the launcher icon: one launcher alias per colour, only the chosen one
-     * enabled (Android has no other way to change an app's icon).
-     */
+    fun setServerPerks(context: Context?, enabled: Boolean) {
+        val wasEnabled = serverPerks
+        serverPerks = enabled
+        if (wasEnabled && !enabled && context != null && icon != Accent.GREEN) {
+            applyIconAliases(context, Accent.GREEN)
+        }
+    }
+
     fun setIcon(context: Context, value: Accent) {
-        // The launcher aliases are commented out in the manifest while perks are off.
-        if (!PERKS_ENABLED || value == icon) return
+        if ((!PERKS_ENABLED && !serverPerks) || value == icon) return
+        applyIconAliases(context, value)
+    }
+
+    private fun applyIconAliases(context: Context, value: Accent) {
         val pm = context.packageManager
         for (a in Accent.entries) {
             val state = if (a == value) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED

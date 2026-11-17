@@ -383,6 +383,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                if (LoginLoad.isSpotifyAccounts(request.url.toString())) LoginErrorDetails.record("network", error.errorCode)
                 if (request.url.host?.contains("spotify") == true)
                     Logbook.log("load error ${error.errorCode} ${error.description} ${Logbook.noQuery(request.url.toString()).take(120)}")
                 // ERR_ABORTED: a load this app stopped itself (a timeout, a newer load) — not a failure.
@@ -395,6 +396,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             }
 
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                if (LoginLoad.isSpotifyAccounts(request.url.toString())) LoginErrorDetails.record("http", response.statusCode)
                 // Licence answers are counted in the 402 summary and their first ones logged below
                 // with their headers; the same 429 three times per song was the bulk of some reports.
                 if (request.url.host?.contains("spotify") == true && request.url.path?.contains("widevine-license") != true)
@@ -824,6 +826,8 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     private fun loginFailed(what: String) {
         if (_loginLoad.value == LoginLoad.FAILED) return
         Logbook.log("sign-in page failed ($what)")
+        if (what.startsWith("no content")) LoginErrorDetails.record("timeout")
+        else if (what.startsWith("blank")) LoginErrorDetails.record("blank")
         runCatching { view.stopLoading() }
         view.alpha = 0f
         setLoginLoad(LoginLoad.FAILED)

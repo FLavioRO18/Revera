@@ -77,6 +77,7 @@ fun LoginHelpDialog(onClose: () -> Unit) {
         title = { Text(stringResource(R.string.login_help_title), color = AppText) },
         text = { Text(stringResource(R.string.login_help_detail), color = AppText.copy(alpha = 0.7f)) },
         confirmButton = {
+            TextButton(onClick = { copyLoginError(ctx) }) { Text(stringResource(R.string.login_copy_error), color = AppAccent) }
             TextButton(onClick = { onClose(); sendLoginReport(ctx) }) {
                 Text(stringResource(R.string.login_help_send), color = AppAccent)
             }
@@ -91,6 +92,14 @@ fun LoginHelpDialog(onClose: () -> Unit) {
 }
 
 /** Under a wait that lasts (the loading screen after the sign-in), the same way to a report. */
+fun copyLoginError(context: android.content.Context) {
+    val webview = android.webkit.WebView.getCurrentWebViewPackage()?.versionName ?: "unknown"
+    val report = "Revera ${app.myspoti.engine.BuildConfig.VERSION_NAME} (${app.myspoti.engine.BuildConfig.VERSION_CODE})\nAndroid ${android.os.Build.VERSION.RELEASE} / SDK ${android.os.Build.VERSION.SDK_INT}\nWebView $webview\n${app.myspoti.host.android.LoginErrorDetails.summary()}"
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Revera login error", report))
+    android.widget.Toast.makeText(context, context.getString(R.string.login_error_copied), android.widget.Toast.LENGTH_SHORT).show()
+}
+
 @Composable
 fun LoginReportLink(modifier: Modifier = Modifier) {
     val ctx = LocalContext.current

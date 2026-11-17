@@ -758,6 +758,11 @@ private fun LoginProblemScreen(onRetry: () -> Unit) {
             Text(stringResource(R.string.retry_button), color = Color.Black, fontFamily = com.music.spotui.ui.theme.AppSans,
                 fontWeight = FontWeight.Bold, fontSize = 17.sp)
         }
+        val errorContext = androidx.compose.ui.platform.LocalContext.current
+        Text(app.myspoti.host.android.LoginErrorDetails.summary(), color = com.music.spotui.ui.theme.AppText, modifier = Modifier.padding(top = 12.dp))
+        androidx.compose.material3.TextButton(onClick = { com.music.spotui.ui.components.copyLoginError(errorContext) }) {
+            Text(stringResource(R.string.login_copy_error))
+        }
         com.music.spotui.ui.components.LoginReportLink(Modifier.padding(top = 12.dp))
     }
 }

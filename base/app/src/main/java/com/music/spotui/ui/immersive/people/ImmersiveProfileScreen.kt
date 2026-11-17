@@ -81,6 +81,7 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
     var failed by remember(userId) { mutableStateOf(false) }
     var following by remember(userId) { mutableStateOf<Boolean?>(null) }
     val me = com.music.spotui.data.api.ProfileCache.id == userId
+    var badgeState by remember(userId) { mutableStateOf(if (me) com.music.spotui.data.api.BadgeClient.myState else null) }
     // Blocking, as on the Classic profile: null until the server has said.
     var blocked by remember(userId) { mutableStateOf<Boolean?>(null) }
     var blockAsk by remember(userId) { mutableStateOf(false) }
@@ -88,6 +89,13 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var attempt by remember(userId) { mutableStateOf(0) }
+    LaunchedEffect(userId) {
+        badgeState = if (me) {
+            com.music.spotui.data.api.BadgeClient.refreshMe(context, userId) ?: com.music.spotui.data.api.BadgeClient.myState
+        } else {
+            com.music.spotui.data.api.BadgeClient.fetchUser(context, userId)
+        }
+    }
     LaunchedEffect(userId, attempt) {
         failed = false
         runCatching { MyspotiRuntime.api.users.profile(uri) }
@@ -129,6 +137,7 @@ fun ImmersiveProfileScreen(navController: NavController, userId: String, userNam
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(horizontal = Immersive.Gutter),
                             )
+                            com.music.spotui.ui.components.UserBadgesRow(badgeState, Modifier.padding(top = 8.dp))
                             if (p != null) {
                                 Row(
                                     Modifier.padding(top = 6.dp),

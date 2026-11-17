@@ -33,6 +33,7 @@ object ProfileCache {
         name = null
         imageUrl = null
         id = null
+        BadgeClient.clearSession()
     }
 
     fun ensure(context: Context) {
@@ -51,6 +52,7 @@ object ProfileCache {
                     name = me.name
                     imageUrl = me.images.best(160)?.url
                     id = me.username
+                    BadgeClient.onAccountLoaded(context.applicationContext, me.username)
                     // The accounts kept on the phone: this profile's name and picture, under the opaque key
                     // of its downloads (no id, no e-mail). The same account in another profile is one account.
                     val key = com.music.spotui.data.offline.OfflineAccounts.keyOf(me.username)

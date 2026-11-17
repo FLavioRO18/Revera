@@ -73,8 +73,16 @@ fun ProfileScreen(navController: NavController, userId: String, userName: String
     var blockAsk by remember(userId) { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val me = com.music.spotui.data.api.ProfileCache.id == userId
+    var badgeState by remember(userId) { mutableStateOf(if (me) com.music.spotui.data.api.BadgeClient.myState else null) }
     val scope = rememberCoroutineScope()
     var attempt by remember(userId) { mutableStateOf(0) }
+    LaunchedEffect(userId) {
+        badgeState = if (me) {
+            com.music.spotui.data.api.BadgeClient.refreshMe(context, userId) ?: com.music.spotui.data.api.BadgeClient.myState
+        } else {
+            com.music.spotui.data.api.BadgeClient.fetchUser(context, userId)
+        }
+    }
     LaunchedEffect(userId, attempt) {
         failed = false
         runCatching { MyspotiRuntime.api.users.profile(uri) }
@@ -152,6 +160,7 @@ fun ProfileScreen(navController: NavController, userId: String, userName: String
                 Spacer(Modifier.height(14.dp))
                 com.music.spotui.ui.components.FitText(p?.name ?: userName, fontSize = 28.sp, minSize = 18.sp,
                     fontWeight = FontWeight.Bold, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                com.music.spotui.ui.components.UserBadgesRow(badgeState, Modifier.padding(top = 8.dp))
                 if (p != null) {
                     Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         p.followers?.let {

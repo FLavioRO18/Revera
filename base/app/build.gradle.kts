@@ -26,7 +26,7 @@ val ABI_NAMES = mapOf("arm64-v8a" to "ARMv8", "armeabi-v7a" to "ARMv7")
  * so their update check, which installs only its own package, opens the release page for these
  * instead of trying an APK it cannot install over itself.
  */
-val APK_NAME = "Orpheon"
+val APK_NAME = "Revera"
 
 android {
     testOptions {
@@ -42,24 +42,28 @@ android {
     // signed with the first key, as "Orpheon Beta"; releases are "app.orpheon",
     // signed with their own key, as "Orpheon". (Provisional ids: the rename from Myspoti.)
     // Local builds (no version given) are on the beta side, like the phone test builds.
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.0"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.1"
     // "-beta" as in UpdateChecker.isBeta, one predicate for the app id, the label and the log stripping.
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        applicationId = if (automixLab) "app.myspoti.automixlab" else if (beta) "app.orpheon.beta" else "app.orpheon"
-        manifestPlaceholders["appLabel"] = if (automixLab) "Myspoti Mix Lab" else if (beta) "Orpheon Beta" else "Orpheon"
+        applicationId = if (automixLab) "app.revera.automixlab" else "app.revera"
+        manifestPlaceholders["appLabel"] = if (automixLab) "Myspoti Mix Lab" else "Revera"
         // The adb command line (com.music.spotui.cli): betas and debug builds only.
         manifestPlaceholders["cliEnabled"] = beta.toString()
         minSdk = 29
         targetSdk = 36
         // CI release builds pass the tag's version (-PappVersionName / -PappVersionCode).
-        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 200
+        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 201
         versionName = version
         // GitHub "owner/repo" whose releases the app checks for updates; empty = off
         // (local builds). CI sets it to the repository it builds.
         // Not in the dev and Mix Lab builds (below): no release carries their app id.
-        buildConfigField("String", "UPDATE_REPO", "\"${if (automixLab) "" else (findProperty("updateRepo") as String?) ?: System.getenv("MYSPOTI_UPDATE_REPO") ?: ""}\"")
+        buildConfigField("String", "UPDATE_REPO", "\"${if (automixLab) "" else (findProperty("updateRepo") as String?) ?: System.getenv("MYSPOTI_UPDATE_REPO") ?: "caruno-git/Revera"}\"")
         buildConfigField("String", "APK_NAME", "\"$APK_NAME\"")
+        val badgeServerUrl = (findProperty("badgeServerUrl") as String?) ?: System.getenv("MYSPOTI_BADGE_SERVER_URL") ?: "https://gta.caruno.wtf:8788"
+        val badgePublicKey = (findProperty("badgePublicKey") as String?) ?: System.getenv("MYSPOTI_BADGE_PUBLIC_KEY") ?: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAErM7FKDnQvgklsfDMvNIt9A95Z8ypT5xShhCWLxDHUkTsGbBRczIvwBx0TLNhn8ywTs7y8rNUi060fMN9zIzRlg=="
+        buildConfigField("String", "BADGE_SERVER_URL", "\"$badgeServerUrl\"")
+        buildConfigField("String", "BADGE_PUBLIC_KEY", "\"$badgePublicKey\"")
         // -Pabis=arm64-v8a: one APK for one phone (the test builds). Without it, the ABI splits below.
         (findProperty("abis") as String?)?.let { ndk { abiFilters += it.split(",") } }
         // On-device tests (codecs): ./gradlew connectedDebugAndroidTest
@@ -99,9 +103,9 @@ android {
         debug {
             // Installs next to the release apps (own data, own sign-in).
             if (!automixLab) applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = if (automixLab) "Myspoti Mix Lab" else "Orpheon dev"
+            manifestPlaceholders["appLabel"] = if (automixLab) "Myspoti Mix Lab" else "Revera dev"
             manifestPlaceholders["cliEnabled"] = "true"
-            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
         }
         release {
             // Real key when provided (CI releases); otherwise the debug key, so a local
@@ -111,8 +115,8 @@ android {
             // beta on the test phone without replacing the signed beta installed there.
             if (findProperty("overDev") != null && !automixLab) {
                 applicationIdSuffix = ".dev"
-                manifestPlaceholders["appLabel"] = "Orpheon dev"
-                buildConfigField("String", "UPDATE_REPO", "\"\"")
+                manifestPlaceholders["appLabel"] = "Revera dev"
+                buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
             }
             // The Mix Lab stays drivable from the CLI in its optimised build, as in its debug one.
             if (automixLab) manifestPlaceholders["cliEnabled"] = "true"
@@ -246,7 +250,7 @@ dependencies {
  */
 tasks.register("collectApks") {
     mustRunAfter("assembleRelease")
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.0"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.1"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     val app = when { findProperty("overDev") != null -> "$APK_NAME-dev"; beta -> "$APK_NAME-Beta"; else -> APK_NAME }
     // Copies: the configuration cache cannot keep a reference to the script's own values.

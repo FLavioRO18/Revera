@@ -853,4 +853,20 @@
     <string name="video_fullscreen_exit">Leave full screen</string>
     <string name="settings_automix_orpheon">New transition planner</string>
     <string name="settings_automix_orpheon_detail">Smoother blends: both songs ease into a shared tempo and back. Off: the earlier planner.</string>
+    <string name="badge_sheet_title">Badges &amp; perks</string>
+    <string name="badge_row_detail">Profile badges, app icon and accent colour</string>
+    <string name="badge_none">No active badges on this account</string>
+    <string name="badge_code_label">Activation code</string>
+    <string name="badge_code_activate">Activate</string>
+    <string name="badge_refresh">Check status</string>
+    <string name="badge_activated">Badge activated</string>
+    <string name="badge_error_invalid">Invalid code</string>
+    <string name="badge_error_exhausted">Code already used</string>
+    <string name="badge_error_expired">Code expired</string>
+    <string name="badge_error_sign_in">Sign in to your account first</string>
+    <string name="badge_error_network">Could not reach badge server</string>
+    <string name="badge_server_label">Badge server URL</string>
+    <string name="badge_server_save">Save</string>
+    <string name="login_copy_error">Copy login error</string>
+    <string name="login_error_copied">Error copied</string>
 </resources>

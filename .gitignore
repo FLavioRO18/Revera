@@ -20,3 +20,10 @@ docs/RESTE-A-FAIRE.md
 tools/handoff_state.sh
 REDDIT-*.md
 tools/qa-results/
+.env
+tools/badge-server/.env
+tools/badge-server/data/
+tools/badge-server/logs/
+tools/badge-firebase/.firebase/
+tools/badge-firebase/functions/node_modules/
+tools/badge-firebase/functions/.env

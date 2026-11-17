@@ -6,11 +6,9 @@
       "path": "base/app/src/main/java/com/music/spotui/ui/components/AboutSheet.kt",
       "composables": [
         "AboutSheet",
-        "GitHubSponsorButton",
-        "SupportSheet",
         "AboutRow"
       ],
-      "lines": 135
+      "lines": 83
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/components/AccountProviderSignIn.kt",
@@ -461,10 +459,10 @@
       "path": "base/app/src/main/java/com/music/spotui/ui/components/SupporterSheet.kt",
       "composables": [
         "SupporterBadge",
-        "SupportChoice",
+        "UserBadgesRow",
         "SupporterSheet"
       ],
-      "lines": 171
+      "lines": 328
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/components/SwipeToQueue.kt",
@@ -842,7 +840,7 @@
         "ImmersiveProfileScreen",
         "CountLink"
       ],
-      "lines": 282
+      "lines": 291
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/immersive/player/ImmersiveMiniPlayer.kt",
@@ -1032,7 +1030,7 @@
         "ImmersiveProfileSheet",
         "SheetRow"
       ],
-      "lines": 235
+      "lines": 224
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/immersive/screens/ImmersiveHomeScreen.kt",
@@ -1715,7 +1713,7 @@
         "WhatsNewBell",
         "ProfileSheet"
       ],
-      "lines": 629
+      "lines": 617
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/screens/LibraryExtras.kt",
@@ -1837,7 +1835,7 @@
       "composables": [
         "ProfileScreen"
       ],
-      "lines": 255
+      "lines": 264
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/screens/QueueScreen.kt",
@@ -2048,7 +2046,7 @@
         "TvSongRow",
         "TvRetry"
       ],
-      "lines": 550
+      "lines": 549
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/tv/TvCaps.kt",
@@ -2110,11 +2108,8 @@
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/tv/TvSupport.kt",
-      "composables": [
-        "TvSupport",
-        "TvQrCode"
-      ],
-      "lines": 91
+      "composables": [],
+      "lines": 13
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/tv/TvTheme.kt",

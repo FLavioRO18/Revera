@@ -825,4 +825,20 @@
     <string name="settings_ytm_sync_note">Прослушивания учитывает сам веб-плеер YouTube Music, без звука. Приложения YouTube Music не могут им управлять.</string>
     <string name="settings_sign_in_close">Закрыть</string>
     <string name="connect_after_ad">Перейдёт на %1$s после рекламы</string>
+    <string name="badge_sheet_title">Значки и бонусы</string>
+    <string name="badge_row_detail">Значки профиля, значок приложения и цвет акцента</string>
+    <string name="badge_none">На этом аккаунте пока нет значков</string>
+    <string name="badge_code_label">Код активации</string>
+    <string name="badge_code_activate">Активировать</string>
+    <string name="badge_refresh">Проверить статус</string>
+    <string name="badge_activated">Значок активирован</string>
+    <string name="badge_error_invalid">Неверный код</string>
+    <string name="badge_error_exhausted">Лимит активаций кода исчерпан</string>
+    <string name="badge_error_expired">Срок действия кода истёк</string>
+    <string name="badge_error_sign_in">Сначала войдите в аккаунт</string>
+    <string name="badge_error_network">Не удалось связаться с сервером значков</string>
+    <string name="badge_server_label">Адрес сервера значков</string>
+    <string name="badge_server_save">Сохранить</string>
+    <string name="login_copy_error">Скопировать ошибку входа</string>
+    <string name="login_error_copied">Ошибка скопирована</string>
 </resources>
