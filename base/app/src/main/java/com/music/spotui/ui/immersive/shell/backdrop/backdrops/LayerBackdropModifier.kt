@@ -124,7 +124,7 @@ private class LayerBackdropNode(
         registeredIn = backdrop
         source.layer = requireGraphicsContext().createGraphicsLayer()
         source.alpha = currentValueOf(LocalBackdropSourceAlpha)
-        backdrop.sources.add(source)
+        backdrop.addSource(source)
         backdrop.signalChange()
         // Reported: after a tab change the glass kept what it showed until the page was scrolled.
         // The glass draws this page's recording inside its own blurred layer, which the renderer
@@ -158,7 +158,7 @@ private class LayerBackdropNode(
             if (registeredIn !== backdrop) {
                 registeredIn?.retire(source)
                 registeredIn = backdrop
-                backdrop.sources.add(source)
+                backdrop.addSource(source)
             }
             backdrop.publish(source)
         }

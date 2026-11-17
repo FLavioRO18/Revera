@@ -72,7 +72,9 @@ class LayerBackdrop internal constructor(
         /** Its opacity on screen now ([LocalBackdropSourceAlpha]); read while drawing, so a fade redraws the glass. */
         var alpha: () -> Float = { 1f }
     }
-    internal val sources = ArrayList<Source>()
+    private val sourceStore = com.music.spotui.ui.immersive.shell.backdrop.BackdropSources<Source>()
+    internal val sources: List<Source> get() = sourceStore.snapshot
+    internal fun addSource(source: Source) { sourceStore.add(source) }
 
     /**
      * Bumped whenever a page records in, leaves or moves. The glass reads it while drawing: a page
@@ -94,7 +96,7 @@ class LayerBackdrop internal constructor(
     }
 
     internal fun retire(source: Source) {
-        sources.remove(source)
+        sourceStore.remove(source)
         // Keep the latest valid coordinates when an outgoing source detaches during a tab transition (#172).
         val remaining = sources.lastOrNull { it.coordinates != null }?.coordinates
         if (remaining != null) layerCoordinates = remaining
@@ -134,7 +136,7 @@ class LayerBackdrop internal constructor(
     internal fun DrawScope.drawSources(offsetOf: (LayoutCoordinates) -> Offset) {
         var drew = false
         var holdover: Pair<LayoutCoordinates, GraphicsLayer>? = null
-        for (s in sources.toList()) {
+        for (s in sources) {
             val c = s.coordinates ?: continue
             val layer = s.layer ?: continue
             if (layer.isReleased) {
