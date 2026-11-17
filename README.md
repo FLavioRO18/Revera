@@ -2,11 +2,13 @@
 
 *Formerly Myspoti. The community chose the new name; version 1.0.0 is the first under it. The icon is a placeholder until the real one is made.*
 
-*Coming from Myspoti? Update it to 2.4.1: it offers to install Orpheon, a new app next to it. Betas are on the [releases page](https://github.com/kota-zo/myspoti/releases).*
+This is the **caruno-git fork** of [kota-zo/Orpheon](https://github.com/kota-zo/Orpheon), formerly Myspoti. Original authorship and GPL-3.0 notices are retained.
 
-[![Orpheon beta: 1.0.0-beta.1](https://img.shields.io/badge/Orpheon-1.0.0--beta.1-blue)](https://github.com/kota-zo/Orpheon/releases/tag/v1.0.0-beta.1)
-[![License: GPL-3.0](https://img.shields.io/github/license/kota-zo/myspoti)](LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/jXKnGVFnGS)
+Download this fork from [our releases](https://github.com/caruno-git/Orpheon/releases/latest). Report fork-specific bugs in [our issues](https://github.com/caruno-git/Orpheon/issues).
+
+[![Download latest](https://img.shields.io/badge/Orpheon-download_latest-blue)](https://github.com/caruno-git/Orpheon/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/github/license/caruno-git/Orpheon)](LICENSE)
+[![Upstream Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/jXKnGVFnGS)
 
 **A music player for Android, Android TV and Wear OS, with your Spotify account.** Your own Spotify account, playlists and Wrapped, in a native Android app, with sound and offline downloads through extensions you install.
 
@@ -15,13 +17,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/kota-zo/Orpheon/releases/tag/v1.0.0-beta.1"><b>⬇ Download Orpheon 1.0.0-beta.1</b></a>
+  <a href="https://github.com/caruno-git/Orpheon/releases/latest"><b>⬇ Download this fork — latest ARM64 APK</b></a>
 </p>
 
 <p align="center"><sub>The Immersive look comes from <a href="https://github.com/kushagrasinghx/BitChord">BitChord</a>: see <a href="#bitchord">Credits</a>.</sub></p>
 
 <p align="center">
-  <a href="https://ko-fi.com/myspoti"><img src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" alt="Support Orpheon on Ko-fi" height="56"></a>
+  <a href="https://ko-fi.com/myspoti"><img src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" alt="Support the upstream author on Ko-fi" height="56"></a>
   <a href="https://github.com/sponsors/kota-zo"><img src="https://img.shields.io/badge/Sponsor_on_GitHub-%E2%9D%A4-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor kota-zo on GitHub" height="56"></a>
 </p>
 
@@ -41,26 +43,15 @@ Under the hood, the official Spotify Web Player plays the music, hidden inside t
 
 ## Get started
 
-1. Download the APK from the [Orpheon 1.0.0-beta.1 release](https://github.com/kota-zo/Orpheon/releases/tag/v1.0.0-beta.1) and open it (Android 10 or later). Android asks once to allow installs from your browser or file manager.
+1. Download `app-release.apk` from [this fork’s latest release](https://github.com/caruno-git/Orpheon/releases/latest) and open it (Android 10 or later, ARM64). Android asks once to allow installs from your browser or file manager.
 2. Tap **Log in with Spotify** and sign in.
 3. Pick the sound quality, allow what you want (notifications, Bluetooth, local files…), and you are in.
 
-New versions are offered inside the app: one tap downloads and installs them.
+For this fork, download updates from [our releases](https://github.com/caruno-git/Orpheon/releases/latest). Local performance builds do not have the upstream in-app updater enabled.
 
-Each release carries four APKs:
-- `Orpheon-<version>-ARMv8.apk`: almost every phone from the last ten years (64-bit). When in doubt, take this one.
-- `Orpheon-<version>-ARMv7.apk`: older or entry-level 32-bit phones (an app such as CPU-Z or Device Info shows which one yours is; if ARMv8 refuses to install, take this one).
-- `Orpheon-<version>-universal.apk`: both in one, larger.
-- `Orpheon-<version>-TV.apk`: Android TV and Google TV (the same app; on a TV it opens its TV screens).
+This fork publishes an **ARM64** `app-release.apk`, installed as **Orpheon dev** (`app.orpheon.beta.dev`). It installs alongside upstream stable/beta packages.
 
-Betas are `Orpheon-Beta-<version>-...`. The in-app update picks the right one by itself.
-
-Orpheon is a new app next to Myspoti 2.4 and earlier (`app.myspoti`, `app.myspoti.stable`): Myspoti's update button opens this page instead of installing it, as Android cannot install one app over the other. Install Orpheon, then uninstall Myspoti when you no longer need it.
-
-Obtainium (add `https://github.com/kota-zo/myspoti`; the stable app and the beta app are two apps):
-- **Stable** (`app.orpheon`): leave "Include prereleases" off and set the APK filter to `^Orpheon-[0-9].*-ARMv8\.apk$` (or `-ARMv7`, `-TV`).
-- **Beta** (`app.orpheon.beta`): turn "Include prereleases" on and set the APK filter to `^Orpheon-Beta-.*-ARMv8\.apk$` (or `-ARMv7`, `-TV`).
-- Betas are named `<next version>-beta.<n>` (`1.0.1-beta.1`, then `1.0.1-beta.2`...), marked prerelease on GitHub, and always newer than the last stable.
+For Obtainium, add `https://github.com/caruno-git/Orpheon` and use the APK filter `^app-release\.apk$`.
 
 ## What you get
 
@@ -135,7 +126,7 @@ Two looks, switched in Settings, Display.
 
 **Is it safe for my account?** Orpheon talks to Spotify the way its web player does, and you sign in on Spotify's own page. Ads play as Spotify sends them, except on a Spotify Connect device you send the music to from the app, where they are muted and their ad hosts refused; blocking ads is against Spotify's Terms of Use (see the disclaimer below).
 
-**"Spotify refused to play this"?** Some new or free accounts get refused by Spotify. Settings → **Export a diagnostic report** and send it on [Discord](https://discord.gg/jXKnGVFnGS) or in an [issue](https://github.com/kota-zo/myspoti/issues): it holds the app's recent log (what Spotify answered) and your phone's model, never your password or your login tokens.
+**"Spotify refused to play this"?** Some new or free accounts get refused by Spotify. Settings → **Export a diagnostic report** and attach it to an [issue](https://github.com/caruno-git/Orpheon/issues): it holds the app's recent log (what Spotify answered) and your phone's model, never your password or your login tokens.
 
 **Do downloads count in my Wrapped?** They always count in Orpheon's own recap. A downloaded song plays only from the phone: it is not played on Spotify and nothing is reported. Streamed songs count as usual.
 
@@ -154,9 +145,9 @@ Not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB
 
 ## Support
 
-Orpheon is free, has no ads and is made in my spare time. If you enjoy it, you can support it on [Ko-fi](https://ko-fi.com/myspoti) or [GitHub Sponsors](https://github.com/sponsors/kota-zo), also from **About** in the app. Nothing is locked behind a donation.
+To support the original author (not this fork’s maintainer), visit [Ko-fi](https://ko-fi.com/myspoti) or [GitHub Sponsors](https://github.com/sponsors/kota-zo), also from **About** in the app. Nothing is locked behind a donation.
 
-News, help and ideas: the [Discord server](https://discord.gg/jXKnGVFnGS). Bugs and requests: [GitHub issues](https://github.com/kota-zo/myspoti/issues).
+Original project community: the [upstream Discord server](https://discord.gg/jXKnGVFnGS). Bugs and requests: [GitHub issues](https://github.com/caruno-git/Orpheon/issues).
 
 ## For developers
 
