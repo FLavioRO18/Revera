@@ -246,9 +246,9 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                                 on = LyricsRomanizationPref.on,
                                 onClick = { LyricsRomanizationPref.set(context, !LyricsRomanizationPref.on) },
                             )
-                            if (canTranslate) LyricsToggle(
+                            if (canTranslate || current.showTranslation) LyricsToggle(
                                 icon = Icons.Rounded.Translate,
-                                description = stringResource(R.string.lyrics_fullscreen_chip_label_translate),
+                                description = stringResource(if (current.showTranslation) R.string.lyrics_hide_translation else R.string.lyrics_fullscreen_chip_label_translate),
                                 on = current.showTranslation,
                                 loading = current.translating && current.translationRequested,
                                 onClick = { vm.toggleTranslation(target) },

@@ -764,7 +764,7 @@ private fun LyricsMenu(
             },
         )
         if (canTranslate) DropdownMenuItem(
-            text = { Text(stringResource(if (translating) R.string.lyrics_fullscreen_translate_button_enabled_readout_value else R.string.lyrics_fullscreen_context_menu_main_page_translate_lyrics_action)) },
+            text = { Text(stringResource(if (translating) R.string.lyrics_hide_translation else R.string.lyrics_fullscreen_context_menu_main_page_translate_lyrics_action)) },
             onClick = { onDismiss(); onTranslate() },
         )
         // The lines in Latin letters, when the lyrics have them.
@@ -852,7 +852,7 @@ private fun LyricsControls(
     Column(modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
             LyricsChip(stringResource(R.string.lyrics_fullscreen_chip_label_share), painterResource(R.drawable.ic_share), false, false, palette, onShare)
-            if (showTranslate) LyricsChip(stringResource(R.string.lyrics_fullscreen_chip_label_translate), painterResource(R.drawable.ic_translate_lyrics), translationActive, translating, palette, onTranslate)
+            if (showTranslate || translationActive) LyricsChip(stringResource(if (translationActive) R.string.lyrics_hide_translation else R.string.lyrics_fullscreen_chip_label_translate), painterResource(R.drawable.ic_translate_lyrics), translationActive, translating, palette, onTranslate)
             if (showRomanize) LyricsChip(stringResource(R.string.lyrics_romanize), rememberVectorPainter(Icons.Rounded.Abc), romanizationActive, false, palette, onRomanize)
         }
         LyricsSeekBar(

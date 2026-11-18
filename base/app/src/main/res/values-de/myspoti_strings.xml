@@ -819,4 +819,5 @@
     <string name="community_discord_open">Discord öffnen</string>
     <string name="community_discord_later">Später</string>
     <string name="community_discord_failed">Discord konnte nicht geöffnet werden</string>
+    <string name="lyrics_hide_translation">Übersetzung ausblenden</string>
 </resources>

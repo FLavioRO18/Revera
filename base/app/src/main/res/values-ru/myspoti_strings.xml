@@ -857,4 +857,5 @@
     <string name="community_discord_open">Открыть Discord</string>
     <string name="community_discord_later">Позже</string>
     <string name="community_discord_failed">Не удалось открыть Discord</string>
+    <string name="lyrics_hide_translation">Скрыть перевод</string>
 </resources>

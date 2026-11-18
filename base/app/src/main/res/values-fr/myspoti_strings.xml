@@ -860,4 +860,5 @@
     <string name="community_discord_open">Ouvrir Discord</string>
     <string name="community_discord_later">Plus tard</string>
     <string name="community_discord_failed">Impossible d’ouvrir Discord</string>
+    <string name="lyrics_hide_translation">Masquer la traduction</string>
 </resources>
