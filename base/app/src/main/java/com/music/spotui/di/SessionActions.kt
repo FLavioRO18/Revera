@@ -1,5 +1,6 @@
 package com.music.spotui.di
 
+import app.myspoti.api.account.AccountProviders
 import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.PlaybackService
@@ -10,8 +11,10 @@ import kotlinx.coroutines.flow.StateFlow
 /** Session-wide actions the screens trigger. */
 object SessionActions {
     private val _signedOut = MutableStateFlow(false)
-    /** True from a logout until the next sign-in: the activity shows the login page, then starts over. */
     val signedOut: StateFlow<Boolean> = _signedOut
+
+    private val _loginRequest = MutableStateFlow(0L)
+    val loginRequest: StateFlow<Long> = _loginRequest
 
     private val _switching = MutableStateFlow(false)
     /**
@@ -27,15 +30,26 @@ object SessionActions {
      * and cache (in the host). Downloads are put aside under the account (OfflineAccounts), not deleted.
      * With other accounts kept on the phone, this one is removed and the one used last takes over.
      */
+    fun openSpotifyLogin(context: android.content.Context) {
+        val app = context.applicationContext
+        com.music.spotui.data.preferences.AccountProviderPref.set(app, AccountProviders.SPOTIFY)
+        Logbook.log("account: opening Spotify sign-in (multiProfile=${MyspotiRuntime.host.multiProfile})")
+        _signedOut.value = true
+        _loginRequest.value += 1L
+        MyspotiRuntime.host.openLogin()
+    }
+
     fun logout(context: android.content.Context) {
         val host = MyspotiRuntime.host
         val list = host.accounts.list.value
+        Logbook.log("account: logout (multiProfile=${host.multiProfile}, others=${list.others.size})")
         if (host.multiProfile && list.others.isNotEmpty()) {
             removeAccount(context, list.active)
             return
         }
         leaveAccount(context.applicationContext, forget = true)
         _signedOut.value = true
+        _loginRequest.value += 1L
         host.logout()
     }
 
@@ -100,13 +114,15 @@ object SessionActions {
         host.switchProfile(profile)
     }
 
-    /** "Add account": this one stays kept, and Spotify's sign-in page opens in a new profile. Without profiles: signs out. */
     fun addAccount(context: android.content.Context) {
+        val app = context.applicationContext
+        com.music.spotui.data.preferences.AccountProviderPref.set(app, AccountProviders.SPOTIFY)
         val host = MyspotiRuntime.host
         if (!host.multiProfile) { logout(context); return }
         Logbook.log("account: adding an account")
-        leaveAccount(context.applicationContext, forget = false)
+        leaveAccount(app, forget = false)
         _signedOut.value = true
+        _loginRequest.value += 1L
         host.addProfile()
     }
 

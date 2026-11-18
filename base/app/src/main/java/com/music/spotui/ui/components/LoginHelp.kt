@@ -93,11 +93,26 @@ fun LoginHelpDialog(onClose: () -> Unit) {
 
 /** Under a wait that lasts (the loading screen after the sign-in), the same way to a report. */
 fun copyLoginError(context: android.content.Context) {
-    val webview = android.webkit.WebView.getCurrentWebViewPackage()?.versionName ?: "unknown"
-    val report = "Revera ${app.myspoti.engine.BuildConfig.VERSION_NAME} (${app.myspoti.engine.BuildConfig.VERSION_CODE})\nAndroid ${android.os.Build.VERSION.RELEASE} / SDK ${android.os.Build.VERSION.SDK_INT}\nWebView $webview\n${app.myspoti.host.android.LoginErrorDetails.summary()}"
-    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Revera login error", report))
-    android.widget.Toast.makeText(context, context.getString(R.string.login_error_copied), android.widget.Toast.LENGTH_SHORT).show()
+    MyspotiRuntime.host.noteLoginPage {
+        val webview = android.webkit.WebView.getCurrentWebViewPackage()?.versionName ?: "unknown"
+        val tail = Logbook.recent().lineSequence().toList().takeLast(80).joinToString("\n")
+        val report = buildString {
+            append("Revera ").append(app.myspoti.engine.BuildConfig.VERSION_NAME)
+                .append(" (").append(app.myspoti.engine.BuildConfig.VERSION_CODE).append(")\n")
+            append("Android ").append(android.os.Build.VERSION.RELEASE)
+                .append(" / SDK ").append(android.os.Build.VERSION.SDK_INT).append('\n')
+            append("WebView ").append(webview)
+                .append(" (multiProfile=").append(MyspotiRuntime.host.multiProfile).append(")\n")
+            append(app.myspoti.host.android.LoginErrorDetails.summary())
+            if (tail.isNotBlank()) {
+                append("\n\n--- Recent Logbook ---\n")
+                append(tail)
+            }
+        }
+        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Revera login error", report))
+        android.widget.Toast.makeText(context, context.getString(R.string.login_error_copied), android.widget.Toast.LENGTH_SHORT).show()
+    }
 }
 
 @Composable

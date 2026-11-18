@@ -1215,7 +1215,14 @@ private fun AccountsPage(back: () -> Unit) {
                 ImmersiveChoiceRow(
                     com.music.spotui.ui.components.accountProviderLabel(id),
                     selected = com.music.spotui.data.preferences.AccountProviderPref.id == id,
-                    onClick = { com.music.spotui.data.preferences.AccountProviderPref.set(ctx, id) },
+                    onClick = {
+                        com.music.spotui.data.preferences.AccountProviderPref.set(ctx, id)
+                        if (id == app.myspoti.api.account.AccountProviders.SPOTIFY &&
+                            !ctx.getSharedPreferences("myspoti_prefs", android.content.Context.MODE_PRIVATE).getBoolean("LoggedIn", false)
+                        ) {
+                            com.music.spotui.di.SessionActions.openSpotifyLogin(ctx)
+                        }
+                    },
                 )
             }
             if (com.music.spotui.data.preferences.AccountProviderPref.id == app.myspoti.api.account.AccountProviders.YTMUSIC) row {

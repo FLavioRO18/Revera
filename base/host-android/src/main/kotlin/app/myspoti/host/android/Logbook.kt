@@ -37,9 +37,20 @@ object Logbook {
      * and `adb logcat -s Myspoti` show the same thing. Safe from any thread.
      */
     fun log(raw: String) {
-        // Secrets are hidden and a huge line cut here, once, for every caller (see LogMask).
         val line = LogMask.shown(raw, MAX_LINE)
-        android.util.Log.d(WebPlayerHost.LOG, line)
+        val important = line.startsWith("sign-in") ||
+            line.startsWith("login") ||
+            line.startsWith("load error") ||
+            line.startsWith("ssl error") ||
+            line.startsWith("http 4") ||
+            line.startsWith("http 5") ||
+            line.startsWith("account:") ||
+            line.startsWith("session") ||
+            line.startsWith("navigation refused") ||
+            line.startsWith("renderer gone") ||
+            line.startsWith("console ERROR")
+        if (important) android.util.Log.w(WebPlayerHost.LOG, line)
+        else android.util.Log.d(WebPlayerHost.LOG, line)
         synchronized(lines) {
             lines.addLast("${stamp.format(Date())} $line")
             while (lines.size > MAX_LINES) lines.removeFirst()

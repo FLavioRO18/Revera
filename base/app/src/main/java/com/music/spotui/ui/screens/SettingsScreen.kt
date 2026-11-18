@@ -976,7 +976,14 @@ private fun AccountProviderRows() {
                     color = if (selected) Color.Black else AppText, fontSize = 14.sp,
                     modifier = Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
                         .background(if (selected) com.music.spotui.ui.theme.AppAccent else tone(0xFF2A2A2A))
-                        .clickable { pref.set(ctx, id) }
+                        .clickable {
+                            pref.set(ctx, id)
+                            if (id == app.myspoti.api.account.AccountProviders.SPOTIFY &&
+                                !ctx.getSharedPreferences("myspoti_prefs", android.content.Context.MODE_PRIVATE).getBoolean("LoggedIn", false)
+                            ) {
+                                com.music.spotui.di.SessionActions.openSpotifyLogin(ctx)
+                            }
+                        }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }

@@ -362,6 +362,12 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             }
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
+                if (mobileLoginBrowser && android.net.Uri.parse(url).host == PLAYER_HOST) {
+                    configurePlayerBrowser(view)
+                    view.stopLoading()
+                    view.loadUrl(PLAYER_URL)
+                    return
+                }
                 Logbook.log("page start ${Logbook.noQuery(url).take(120)}")
                 mainFrameFailed = false
                 // A "finished" comes just before the player's document starts: its wait must not run out on a
@@ -383,20 +389,39 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             }
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
-                if (LoginLoad.isSpotifyAccounts(request.url.toString())) LoginErrorDetails.record("network", error.errorCode)
-                if (request.url.host?.contains("spotify") == true)
-                    Logbook.log("load error ${error.errorCode} ${error.description} ${Logbook.noQuery(request.url.toString()).take(120)}")
-                // ERR_ABORTED: a load this app stopped itself (a timeout, a newer load) — not a failure.
+                val reqUrl = request.url.toString()
+                if (LoginLoad.isSpotifyAccounts(reqUrl) || (request.isForMainFrame && isLoginPage(reqUrl))) {
+                    LoginErrorDetails.record("network", error.errorCode)
+                }
+                if (request.url.host?.contains("spotify") == true || isLoginPage(reqUrl))
+                    Logbook.log("load error ${error.errorCode} ${error.description} ${Logbook.noQuery(reqUrl).take(120)}")
                 if (request.isForMainFrame && request.url.host == PLAYER_HOST && "ERR_ABORTED" !in error.description.toString())
                     playerPageFailed("load error ${error.errorCode}")
-                // The sign-in page itself: the WebView's own error page is not something to leave a user on.
-                if (request.isForMainFrame && _loginLoad.value != LoginLoad.NONE && LoginLoad.isSpotifyAccounts(request.url.toString()) &&
+                if (request.isForMainFrame && _loginLoad.value != LoginLoad.NONE &&
+                    (LoginLoad.isSpotifyAccounts(reqUrl) || isLoginPage(reqUrl)) &&
                     "ERR_ABORTED" !in error.description.toString())
                     loginFailed("load error ${error.errorCode}")
             }
 
+            override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, error: android.net.http.SslError) {
+                val url = error.url.orEmpty()
+                Logbook.log("ssl error ${error.primaryError} ${Logbook.noQuery(url).take(120)}")
+                if (_loginLoad.value != LoginLoad.NONE || isLoginPage(_url.value) || isLoginPage(url)) {
+                    LoginErrorDetails.record("ssl", error.primaryError)
+                    if (url.isEmpty() || url == _url.value || LoginLoad.isSpotifyAccounts(url) || isLoginPage(url)) {
+                        handler.cancel()
+                        loginFailed("ssl error ${error.primaryError}")
+                        return
+                    }
+                }
+                handler.cancel()
+            }
+
             override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
-                if (LoginLoad.isSpotifyAccounts(request.url.toString())) LoginErrorDetails.record("http", response.statusCode)
+                val reqUrl = request.url.toString()
+                if (LoginLoad.isSpotifyAccounts(reqUrl) || (request.isForMainFrame && isLoginPage(reqUrl))) {
+                    LoginErrorDetails.record("http", response.statusCode)
+                }
                 // Licence answers are counted in the 402 summary and their first ones logged below
                 // with their headers; the same 429 three times per song was the bulk of some reports.
                 if (request.url.host?.contains("spotify") == true && request.url.path?.contains("widevine-license") != true)
@@ -648,6 +673,37 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         main.postDelayed(retryPlayerPage, wait)
     }
 
+    private var mobileLoginBrowser = false
+
+    private fun configurePlayerBrowser(target: WebView) {
+        mobileLoginBrowser = false
+        target.settings.userAgentString = fingerprint.userAgent
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.USER_AGENT_METADATA)) {
+            val brands = fingerprint.brands.map {
+                androidx.webkit.UserAgentMetadata.BrandVersion.Builder().setBrand(it.name).setMajorVersion(it.major).setFullVersion(it.fullVersion).build()
+            }
+            androidx.webkit.WebSettingsCompat.setUserAgentMetadata(target.settings, androidx.webkit.UserAgentMetadata.Builder()
+                .setBrandVersionList(brands).setFullVersion(fingerprint.fullVersion).setPlatform("Linux")
+                .setPlatformVersion(fingerprint.kernel).setArchitecture("x86").setBitness(64)
+                .setMobile(false).setModel("").setWow64(false).build())
+        }
+    }
+
+    private fun configureLoginBrowser() {
+        mobileLoginBrowser = true
+        view.settings.userAgentString = WebSettings.getDefaultUserAgent(context).replace("; wv", "").replace(" Version/4.0", "")
+        if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.USER_AGENT_METADATA)) {
+            val match = Regex("Chrome/([0-9.]+)").find(view.settings.userAgentString)?.groupValues?.get(1) ?: "124.0.0.0"
+            val brands = listOf("Chromium", "Google Chrome").map {
+                androidx.webkit.UserAgentMetadata.BrandVersion.Builder().setBrand(it).setMajorVersion(match.substringBefore('.')).setFullVersion(match).build()
+            }
+            androidx.webkit.WebSettingsCompat.setUserAgentMetadata(view.settings, androidx.webkit.UserAgentMetadata.Builder()
+                .setBrandVersionList(brands).setFullVersion(match).setPlatform("Android")
+                .setPlatformVersion(android.os.Build.VERSION.RELEASE).setArchitecture("arm")
+                .setBitness(64).setMobile(true).setModel(android.os.Build.MODEL).setWow64(false).build())
+        }
+    }
+
     fun openLogin() = main.post {
         // A player retry or load timeout still pending would replace the sign-in page just asked for.
         main.removeCallbacks(retryPlayerPage)
@@ -804,6 +860,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
 
     /** The sign-in page was asked for: kept out of sight, with its clocks running, until it has content. */
     private fun beginLoginLoad() {
+        configureLoginBrowser()
         loginProbes = 0
         loginReloaded = false
         main.removeCallbacks(loginProbe)

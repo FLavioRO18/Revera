@@ -5,7 +5,7 @@ object LoginErrorDetails {
     @Volatile private var code = 0
     fun record(stage: String, code: Int = 0) {
         this.stage = when (stage) {
-            "network", "http", "timeout", "blank" -> stage
+            "network", "http", "ssl", "timeout", "blank", "player_bridge_timeout" -> stage
             else -> "unknown"
         }
         this.code = code

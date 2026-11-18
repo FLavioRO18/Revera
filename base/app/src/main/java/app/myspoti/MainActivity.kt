@@ -454,9 +454,12 @@ class MainActivity : AppCompatActivity() {
      * come and gone, the loading screen stayed for ever (nothing else sets [signedIn]).
      */
     private fun sessionConfirmed() {
-        // Another door already started the screens over: this activity is on its way out.
         if (isFinishing) return
         loginProblem = false
+        com.music.spotui.data.preferences.AccountProviderPref.set(
+            applicationContext,
+            app.myspoti.api.account.AccountProviders.SPOTIFY,
+        )
         if (com.music.spotui.di.SessionActions.signedOut.value || com.music.spotui.di.SessionActions.switching.value) {
             // Signed in again after a logout or an account switch, maybe as someone else: start the
             // screens over (a new activity also drops their view models).
@@ -485,12 +488,15 @@ class MainActivity : AppCompatActivity() {
         if (showingLogin) hideLogin()
     }
 
-    /** Logout: leave the app's screens for Spotify's login page. */
     private fun watchLogout() {
+        var seen = com.music.spotui.di.SessionActions.loginRequest.value
         lifecycleScope.launch {
-            com.music.spotui.di.SessionActions.signedOut.collect { out ->
-                if (out && signedIn) {
+            com.music.spotui.di.SessionActions.loginRequest.collect { seq ->
+                if (seq > seen) {
+                    seen = seq
                     signedIn = false
+                    connecting = false
+                    loginProblem = false
                     showingLogin = true
                     MyspotiRuntime.host.attach(root, visible = true)
                 }

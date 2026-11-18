@@ -64,6 +64,7 @@ private fun accountsLook(): AccountsLook =
 fun AccountsList(onLeave: () -> Unit = {}) {
     val look = accountsLook()
     val ctx = LocalContext.current
+    val spotifySignedIn = ctx.getSharedPreferences("myspoti_prefs", android.content.Context.MODE_PRIVATE).getBoolean("LoggedIn", false)
     val host = MyspotiRuntime.host
     val list by host.accounts.list.collectAsStateWithLifecycle()
     val livePlan by app.myspoti.spotify.AccountPlan.premium.collectAsStateWithLifecycle()
@@ -91,7 +92,7 @@ fun AccountsList(onLeave: () -> Unit = {}) {
                 ProfileAvatar(url = image, name = name, size = 40.dp)
                 Column(Modifier.weight(1f).padding(start = 14.dp)) {
                     Text(
-                        name?.takeIf { it.isNotBlank() } ?: stringResource(if (account.known || active) R.string.spotify_account else R.string.accounts_not_signed_in),
+                        name?.takeIf { it.isNotBlank() } ?: stringResource(if (account.known || (active && spotifySignedIn)) R.string.spotify_account else R.string.accounts_not_signed_in),
                         color = look.text, fontSize = 16.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
@@ -100,12 +101,11 @@ fun AccountsList(onLeave: () -> Unit = {}) {
                         false -> stringResource(R.string.accounts_plan_free)
                         null -> null
                     }
-                    val detail = listOfNotNull(plan, if (active) stringResource(R.string.accounts_in_use) else null).joinToString(" · ")
+                    val detail = listOfNotNull(plan, if (active && (spotifySignedIn || account.known)) stringResource(R.string.accounts_in_use) else null).joinToString(" · ")
                     if (detail.isNotEmpty()) Text(detail, color = if (active) look.accent else look.muted, fontSize = 12.sp)
                 }
                 if (active) Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.accounts_in_use), tint = look.accent,
                     modifier = Modifier.padding(horizontal = 12.dp).size(22.dp))
-                // The account in use is removed by "Log out"; the others from here.
                 else IconButton(onClick = { remove = account }) {
                     Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.accounts_remove), tint = look.muted, modifier = Modifier.size(20.dp))
                 }
@@ -115,7 +115,12 @@ fun AccountsList(onLeave: () -> Unit = {}) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
                 .clickable(role = Role.Button) {
-                    if (host.multiProfile) { onLeave(); SessionActions.addAccount(Graph.app) } else addSingle = true
+                    if (host.multiProfile || (!spotifySignedIn && list.accounts.none { it.known })) {
+                        onLeave()
+                        SessionActions.addAccount(Graph.app)
+                    } else {
+                        addSingle = true
+                    }
                 }
                 .padding(horizontal = 20.dp, vertical = 10.dp),
         ) {
