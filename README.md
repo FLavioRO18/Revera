@@ -8,7 +8,7 @@ Download this fork from [our releases](https://github.com/caruno-git/Revera/rele
 
 [![Download latest](https://img.shields.io/badge/Revera-download_latest-blue)](https://github.com/caruno-git/Revera/releases/latest)
 [![License: GPL-3.0](https://img.shields.io/github/license/caruno-git/Revera)](LICENSE)
-[![Upstream Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/jXKnGVFnGS)
+[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/S5gdMChKfY)
 
 **A music player for Android, Android TV and Wear OS, with your Spotify account.** Your own Spotify account, playlists and Wrapped, in a native Android app, with sound and offline downloads through extensions you install.
 
@@ -22,10 +22,6 @@ Download this fork from [our releases](https://github.com/caruno-git/Revera/rele
 
 <p align="center"><sub>The Immersive look comes from <a href="https://github.com/kushagrasinghx/BitChord">BitChord</a>: see <a href="#bitchord">Credits</a>.</sub></p>
 
-<p align="center">
-  <a href="https://ko-fi.com/myspoti"><img src="https://storage.ko-fi.com/cdn/kofi6.png?v=6" alt="Support the upstream author on Ko-fi" height="56"></a>
-  <a href="https://github.com/sponsors/kota-zo"><img src="https://img.shields.io/badge/Sponsor_on_GitHub-%E2%9D%A4-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor kota-zo on GitHub" height="56"></a>
-</p>
 
 ## Why Revera
 
@@ -145,9 +141,7 @@ Not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB
 
 ## Support
 
-To support the original author (not this fork’s maintainer), visit [Ko-fi](https://ko-fi.com/myspoti) or [GitHub Sponsors](https://github.com/sponsors/kota-zo), also from **About** in the app. Nothing is locked behind a donation.
-
-Original project community: the [upstream Discord server](https://discord.gg/jXKnGVFnGS). Bugs and requests: [GitHub issues](https://github.com/caruno-git/Revera/issues).
+Join the [Revera Discord](https://discord.gg/S5gdMChKfY). Bugs and requests: [Revera issues](https://github.com/caruno-git/Revera/issues).
 
 ## For developers
 
