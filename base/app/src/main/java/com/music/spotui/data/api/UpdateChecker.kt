@@ -193,7 +193,9 @@ object UpdateChecker {
             val x = a.getOrElse(i) { 0 }; val y = b.getOrElse(i) { 0 }
             if (x != y) return x > y
         }
-        // Same version number: release > beta, then the higher beta.
+        fun revision(v: String) = v.substringAfter('-', "").toLongOrNull() ?: 0L
+        val ra = revision(candidate); val rb = revision(current)
+        if (ra != rb) return ra > rb
         fun beta(v: String) = if (!v.contains('-')) Int.MAX_VALUE else Regex("(\\d+)$").find(v)?.value?.toIntOrNull() ?: 0
         return beta(candidate) > beta(current)
     }

@@ -6,6 +6,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UpdateCheckerTest {
+    @Test fun numericHotfixIsNewerThanItsBase() {
+        assertFalse(UpdateChecker.isNewer("1.0.4", "1.0.4-2"))
+        assertTrue(UpdateChecker.isNewer("1.0.4-2", "1.0.4"))
+        assertTrue(UpdateChecker.isNewer("1.0.4-10", "1.0.4-2"))
+        assertFalse(UpdateChecker.isNewer("1.0.4-2", "1.0.4-2"))
+        assertTrue(UpdateChecker.isNewer("1.0.5", "1.0.4-10"))
+    }
+
     private val arm64 = listOf("arm64-v8a", "armeabi-v7a", "armeabi")
     @Test fun comparesNumericallyNotAsText() {
         assertTrue(UpdateChecker.isNewer("1.10.0", "1.9.2"))
