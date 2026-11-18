@@ -19,6 +19,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * longer than its own limit.
  */
 object HookDispatch {
+    suspend fun <C, R : Any> audioSource(candidates: List<C>, ask: suspend (C) -> R?): Pair<C, R>? =
+        firstInOrder(candidates, ask)
+
     /**
      * The first non-null answer in [candidates]' order. Answers behind it are not waited for
      * (they are cancelled); a failure is no answer.

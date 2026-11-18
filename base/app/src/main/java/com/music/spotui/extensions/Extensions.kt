@@ -971,8 +971,8 @@ object Extensions {
         Logbook.log("audio: asked ${asked.joinToString { it.first }} for $label")
         val t0 = System.currentTimeMillis()
         val answers = ConcurrentHashMap<String, PlayAttempt.Ask>()
-        // All asked at once; a slow source above one that answered is waited for briefly, not to its limit.
-        val found = HookDispatch.firstInOrderWithin(asked, AUDIO_GRACE_MS) { (id, rt) ->
+
+        val found = HookDispatch.audioSource(asked) { (id, rt) ->
             val a = ask(id, rt, Hook.AUDIO_SOURCE, input, timeoutMs, AudioStream::parse)
             answers[id] = PlayAttempt.Ask(id, a.outcome.key, a.ms, detail = a.outcome.detail)
             a.value
@@ -1178,8 +1178,7 @@ object Extensions {
     private const val START_WAIT_MS = 20_000L
     /** How long a song picked right after launch waits for them (then plays from Spotify). */
     private const val START_AUDIO_MS = 5_000L
-    /** How long a source above one that answered is still waited for (see [HookDispatch.firstInOrderWithin]). */
-    private const val AUDIO_GRACE_MS = 1_500L
+
     /** How old a probe may be: asked again after it while the app is in sight or plays, and before a source is asked. */
     private const val STATUS_EVERY_MS = 5 * 60_000L
     private val SOURCE_HOOKS = setOf(Hook.AUDIO_SOURCE, Hook.DOWNLOAD_SOURCE)

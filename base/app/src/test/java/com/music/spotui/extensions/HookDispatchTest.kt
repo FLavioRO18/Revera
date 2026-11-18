@@ -178,6 +178,14 @@ class HookDispatchTest {
         assertEquals("LRCLIB", LyricsMerge.choose(duet, backs.copy(lines = lines("x", "y", "z")))?.provider)
     }
 
+    @Test fun playbackPrefersDelayedLosslessOverFastYoutube() = runTest {
+        val result = HookDispatch.audioSource(listOf("FLAC", "YouTube")) { source ->
+            delay(if (source == "FLAC") 2_000L else 10L)
+            source
+        }
+        assertEquals("FLAC" to "FLAC", result)
+    }
+
     @Test fun withinTakesTheLowerAnswerWhenTheOneAboveIsSlow() = runTest {
         val t0 = currentTime
         val r = HookDispatch.firstInOrderWithin(listOf("slow", "quick"), graceMs = 100) { c ->
