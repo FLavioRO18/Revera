@@ -432,6 +432,10 @@ class NativeEngine(
         acknowledgeAtMs: Long? = null,
     ) {
         if (track.contentType == "AD") {
+            if (blockedAdUri != null && current != null) {
+                if (acknowledgeAtMs != null) ackCommand(acknowledgeAtMs)
+                return
+            }
             // No ad request is made and nothing is reported as played (decision of 2026-10-16).
             current = null
             try {
@@ -440,7 +444,7 @@ class NativeEngine(
                 if (acknowledgeAtMs != null) ackCommand(acknowledgeAtMs)
                 finalizeOutgoing(outgoing, state.id)
             }
-            if (blockedAdUri == track.metadata.uri) {
+            if (blockedAdUri != null) {
                 if (!adRecoverySent) {
                     adRecoverySent = true
                     val sm = machine
@@ -457,8 +461,10 @@ class NativeEngine(
                         }
                     }
                     val uri = target?.metadata?.uri
-                    if (uri != null) scope.launch {
-                        runCatching { play(uri) }.onFailure { emit(EngineEvent.Failure("ad recovery failed: ${it.message}")) }
+                    if (uri != null && sm != null) {
+                        stateIndex = sm.states.indexOfFirst { it.id == next.id }
+                        load(next, target, 0, paused, "remote", previousPosition)
+                        blockedAdUri = track.metadata.uri
                     } else emit(EngineEvent.Failure("ad stalled: no music transition in server queue"))
                 }
                 return

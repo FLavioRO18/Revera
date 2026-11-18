@@ -492,7 +492,23 @@ class SessionTest {
         )))).toString()
         repeat(4) { rig.engine.handleDealerFrame(frame); runCurrent() }
         val commands = rig.http.requests.filter { "/player/command/" in it.url }.map { rig.http.json(it).str("command", "endpoint") }
-        assertEquals(listOf("skip_next", "play"), commands)
+        assertEquals(listOf("skip_next"), commands)
+        assertTrue(rig.player.loaded?.trackUri != null)
+        assertTrue(rig.player.loaded?.trackUri != rig.trackUriOf(2))
+    }
+
+    @Test
+    fun rotating_ad_ids_do_not_restart_the_recovery_budget() = runTest {
+        val rig = Rig(backgroundScope)
+        rig.start()
+        val raw = rig.replaceState(2, paused = false, seekTo = 0)
+            .replace("\"content_type\":\"TRACK\"", "\"content_type\":\"AD\"")
+        repeat(12) { i ->
+            val frame = raw.replace(rig.trackUriOf(2), "spotify:ad:rotating-$i")
+            rig.engine.handleDealerFrame(frame)
+            runCurrent()
+        }
+        assertEquals(1, rig.http.count("/player/command/"))
     }
 
     @Test
