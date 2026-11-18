@@ -942,7 +942,15 @@ object LocalPlayer {
             run.go = true
             com.music.spotui.automix.AutoMix.journal("segue armed: the chain is $lead ms before the cue and ${stageA.positionUs / 1000 - pos} ms ahead of the player, the cue ${exitMs - pos} ms away")
         } else if (lead < MixPreparation.SEGUE_ARM_MIN_MS) {
-            cancelMix("segue not ready $lead ms before the cue (chain ${stageA?.marked}/${stageB?.marked}, buffered ${d.totalBufferedDuration} ms); replanning")
+            val fade = run.plan.volumeFallback()
+            if (fade != null && pos <= exitMs && d.playbackState == Player.STATE_READY) {
+                d.volume = 0f
+                stageB?.disarm()
+                run.plan = fade
+                com.music.spotui.automix.AutoMix.journal("segue chain not ready: keeping the prepared deck for a volume fade at the original cue")
+            } else {
+                cancelMix("segue not ready $lead ms before the cue (chain ${stageA?.marked}/${stageB?.marked}, buffered ${d.totalBufferedDuration} ms); replanning")
+            }
         }
     }
 
