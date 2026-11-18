@@ -233,6 +233,24 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
                 if (ev is EngineEvent.Failure && ev.message.startsWith("player:")) setAside(ev.message)
                 // The dealer closed: no command reaches the engine any more; the next use starts it again.
                 if (ev is EngineEvent.Disconnected) dropped(e)
+                if (ev is EngineEvent.ContextEnded && com.music.spotui.data.preferences.AutoplayPref.on) {
+                    val ended = e.now.value
+                    if (ended != null) scope.launch {
+                        runCatching {
+                            val radio = kotlinx.coroutines.withTimeout(10_000) {
+                                spotify.extras.radio(ended.uri) ?: error("radio unavailable")
+                            }
+                            if (engine !== e || e.now.value != ended) return@runCatching
+                            val tracks = kotlinx.coroutines.withTimeout(10_000) {
+                                spotify.playlists.tracks(radio, 0, 30).items
+                            }.filter { it.uri != ended.uri && it.uri.startsWith("spotify:track:") }
+                            if (engine !== e || e.now.value != ended) return@runCatching
+                            val first = tracks.firstOrNull() ?: error("radio returned no next song")
+                            log("autoplay: continuing in song radio")
+                            e.play(radio, first.uri)
+                        }.onFailure { log("autoplay failed: ${it.javaClass.simpleName}") }
+                    }
+                }
             }
         }
         log("starting: widevine ${WidevineInfo.summary}, ${config.deviceName}, app ${config.appVersion}")

@@ -476,6 +476,55 @@ class SessionTest {
     }
 
     @Test
+    fun repeated_ad_plays_the_next_music_track_once() = runTest {
+        val rig = Rig(backgroundScope)
+        rig.start()
+        val raw = EngineJson.parseToJsonElement(rig.replaceState(2, paused = false)).jsonObject
+        val payload = raw["payloads"]!!.jsonArray[0].jsonObject
+        val sm = payload["state_machine"]!!.jsonObject
+        val index = rig.states[2].jsonObject["track"]!!.jsonPrimitive.content.toInt()
+        val tracks = sm["tracks"]!!.jsonArray.mapIndexed { i, t ->
+            if (i == index) kotlinx.serialization.json.JsonObject(t.jsonObject + ("content_type" to kotlinx.serialization.json.JsonPrimitive("AD"))) else t
+        }
+        val patched = kotlinx.serialization.json.JsonObject(sm + ("tracks" to kotlinx.serialization.json.JsonArray(tracks)))
+        val frame = kotlinx.serialization.json.JsonObject(raw + ("payloads" to kotlinx.serialization.json.JsonArray(listOf(
+            kotlinx.serialization.json.JsonObject(payload + ("state_machine" to patched))
+        )))).toString()
+        repeat(4) { rig.engine.handleDealerFrame(frame); runCurrent() }
+        val commands = rig.http.requests.filter { "/player/command/" in it.url }.map { rig.http.json(it).str("command", "endpoint") }
+        assertEquals(listOf("skip_next"), commands)
+        assertTrue(rig.player.loaded?.trackUri != null)
+        assertTrue(rig.player.loaded?.trackUri != rig.trackUriOf(2))
+    }
+
+    @Test
+    fun rotating_ad_ids_do_not_restart_the_recovery_budget() = runTest {
+        val rig = Rig(backgroundScope)
+        rig.start()
+        val raw = rig.replaceState(2, paused = false, seekTo = 0)
+            .replace("\"content_type\":\"TRACK\"", "\"content_type\":\"AD\"")
+        repeat(12) { i ->
+            val frame = raw.replace(rig.trackUriOf(2), "spotify:ad:rotating-$i")
+            rig.engine.handleDealerFrame(frame)
+            runCurrent()
+        }
+        assertEquals(1, rig.http.count("/player/command/"))
+    }
+
+    @Test
+    fun repeated_ad_state_does_not_flood_skip_commands() = runTest {
+        val rig = Rig(backgroundScope)
+        rig.start()
+        val frame = rig.replaceState(2, paused = false, seekTo = 0)
+            .replace("\"content_type\":\"TRACK\"", "\"content_type\":\"AD\"")
+        repeat(5) {
+            rig.engine.handleDealerFrame(frame)
+            runCurrent()
+        }
+        assertEquals(1, rig.http.count("/player/command/"))
+    }
+
+    @Test
     fun an_ad_is_neither_fetched_nor_reported() = runTest {
         val rig = Rig(backgroundScope)
         val events = ArrayList<EngineEvent>()
