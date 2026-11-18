@@ -514,6 +514,12 @@ private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 )
             }
             row {
+                ImmersiveSwitchRow(
+                    stringResource(R.string.lyrics_show_translate_button), checked = com.music.spotui.data.preferences.LyricsTranslateButtonPref.on,
+                    onChecked = { com.music.spotui.data.preferences.LyricsTranslateButtonPref.set(ctx, it) }, detail = stringResource(R.string.lyrics_button_detail),
+                )
+            }
+            row {
                 val translateTo = com.music.spotui.data.preferences.getLyricTranslateLang(ctx)
                 ImmersiveGroupRow(
                     stringResource(R.string.lyrics_translation_title), detail = stringResource(R.string.lyrics_translation_detail),

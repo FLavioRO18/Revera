@@ -229,7 +229,8 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                     val target = com.music.spotui.ui.components.readerLanguage()
                     val canRomanize = current.lyrics.hasRomanization
                     val canTranslate = !LyricsViewModel.sameLanguage(current.sourceLanguage, target)
-                    if (!selecting && (canRomanize || canTranslate)) {
+                    val showTranslateButton = com.music.spotui.data.preferences.LyricsTranslateButtonPref.on && (canTranslate || current.showTranslation)
+                    if (!selecting && (canRomanize || showTranslateButton)) {
                         val layoutDirection = LocalLayoutDirection.current
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -246,7 +247,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                                 on = LyricsRomanizationPref.on,
                                 onClick = { LyricsRomanizationPref.set(context, !LyricsRomanizationPref.on) },
                             )
-                            if (canTranslate || current.showTranslation) LyricsToggle(
+                            if (showTranslateButton) LyricsToggle(
                                 icon = Icons.Rounded.Translate,
                                 description = stringResource(if (current.showTranslation) R.string.lyrics_hide_translation else R.string.lyrics_fullscreen_chip_label_translate),
                                 on = current.showTranslation,

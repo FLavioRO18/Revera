@@ -62,6 +62,17 @@ object LyricsRomanizationPref {
     }
 }
 
+object LyricsTranslateButtonPref {
+    private const val KEY = "lyrics_translate_button_visible"
+    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))
+        private set
+
+    fun set(c: Context, value: Boolean) {
+        on = value
+        prefs(c).edit().putBoolean(KEY, value).apply()
+    }
+}
+
 /** The bottom bar: fading into the list (the default), or solid black. Read by the bar as state. */
 object SolidNavBar {
     private const val KEY = "solid_nav_bar"

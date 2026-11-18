@@ -861,4 +861,6 @@
     <string name="community_discord_later">Plus tard</string>
     <string name="community_discord_failed">Impossible d’ouvrir Discord</string>
     <string name="lyrics_hide_translation">Masquer la traduction</string>
+    <string name="lyrics_show_translate_button">Afficher le bouton de traduction</string>
+    <string name="lyrics_button_detail">Sur l’écran des paroles</string>
 </resources>

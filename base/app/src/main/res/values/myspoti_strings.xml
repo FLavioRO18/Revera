@@ -886,4 +886,6 @@
     <string name="community_discord_later">Later</string>
     <string name="community_discord_failed">Could not open Discord</string>
     <string name="lyrics_hide_translation">Hide translation</string>
+    <string name="lyrics_show_translate_button">Show translation button</string>
+    <string name="lyrics_button_detail">On the lyrics screen</string>
 </resources>

@@ -820,4 +820,6 @@
     <string name="community_discord_later">Später</string>
     <string name="community_discord_failed">Discord konnte nicht geöffnet werden</string>
     <string name="lyrics_hide_translation">Übersetzung ausblenden</string>
+    <string name="lyrics_show_translate_button">Übersetzungsschaltfläche anzeigen</string>
+    <string name="lyrics_button_detail">Im Liedtext</string>
 </resources>

@@ -820,4 +820,6 @@
     <string name="community_discord_later">Αργότερα</string>
     <string name="community_discord_failed">Αδυναμία ανοίγματος του Discord</string>
     <string name="lyrics_hide_translation">Απόκρυψη μετάφρασης</string>
+    <string name="lyrics_show_translate_button">Εμφάνιση κουμπιού μετάφρασης</string>
+    <string name="lyrics_button_detail">Στην οθόνη στίχων</string>
 </resources>

@@ -333,6 +333,12 @@ fun SettingsScreen(navController: NavController) {
                 checked = com.music.spotui.data.preferences.LyricsRomanizationPref.on,
                 onChecked = { com.music.spotui.data.preferences.LyricsRomanizationPref.set(ctx, it) },
             )
+            OptionRow(
+                label = stringResource(R.string.lyrics_show_translate_button),
+                detail = stringResource(R.string.lyrics_button_detail),
+                checked = com.music.spotui.data.preferences.LyricsTranslateButtonPref.on,
+                onChecked = { com.music.spotui.data.preferences.LyricsTranslateButtonPref.set(ctx, it) },
+            )
             LyricsTranslationRow()
             }
             if (tab == TAB_DOWNLOADS) {
