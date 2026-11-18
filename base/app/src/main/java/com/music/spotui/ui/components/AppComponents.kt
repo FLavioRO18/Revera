@@ -259,7 +259,7 @@ fun MiniPlayer() {
         androidx.compose.runtime.snapshotFlow { pager.settledPage }.collect { page ->
             when (page) {
                 2 -> SongPlayer.swipeNext()
-                0 -> SongPlayer.previous()
+                0 -> SongPlayer.swipePrevious()
             }
         }
     }

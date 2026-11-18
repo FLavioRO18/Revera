@@ -282,7 +282,7 @@ fun PlayerScreen(navController: NavController) {
                 artworkSwiped = false
                 when (page) {
                     2 -> SongPlayer.swipeNext()
-                    0 -> SongPlayer.previous()
+                    0 -> SongPlayer.swipePrevious()
                 }
             }
     }

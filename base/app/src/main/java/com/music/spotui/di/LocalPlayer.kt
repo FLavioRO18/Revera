@@ -1692,7 +1692,7 @@ object LocalPlayer {
         exo?.let {
             if (it.hasNextMediaItem()) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward"); it.seekToNextMediaItem() }
             else if (repeat == LocalRepeat.ALL) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward"); it.seekTo(0, 0L) }
-            else if (atEnd(it, manual = true)) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward") }
+            else if (atEnd(it)) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward") }
         }
     }
     private var lastRestartAtMs = 0L
@@ -1942,13 +1942,11 @@ object LocalPlayer {
      * goes on with) is asked now, in the background, and added after it, each song asked to the
      * extensions when it plays as any other, so the queue goes on as Spotify's would.
      */
-    private fun continueIfLast(p: ExoPlayer, manual: Boolean = false) {
+    private fun continueIfLast(p: ExoPlayer) {
         if (p.mediaItemCount == 0 || p.currentMediaItemIndex != p.mediaItemCount - 1) return
         val id = spotifyId(current())
-        if (id.isBlank()) return
-        if (!manual && (id == radioOf || !com.music.spotui.extensions.AudioRoute.continues(continues, id,
-                repeatAll = repeat == LocalRepeat.ALL, autoplay = com.music.spotui.data.preferences.AutoplayPref.on))) return
-        if (manual && id == radioOf && radio?.isActive == true) return
+        if (!radioAllowed(id)) { forgetRadio(); return }
+        if (id == radioOf) return
         forgetRadio(); radioOf = id
         radio = prefetch.launch {
             val songs = kotlinx.coroutines.withTimeoutOrNull(10_000L) {
@@ -1958,10 +1956,13 @@ object LocalPlayer {
         }
     }
 
+    private fun radioAllowed(id: String) = com.music.spotui.extensions.AudioRoute.continues(continues, id,
+        repeatAll = repeat == LocalRepeat.ALL, autoplay = com.music.spotui.data.preferences.AutoplayPref.on)
+
     private fun radioCame(p: ExoPlayer, id: String, songs: List<com.music.spotui.data.entity.SongsModel>) {
         if (!active.value || radioOf != id) return
         // Repeat all tapped meanwhile: the queue plays again from its first song instead.
-        if (repeat == LocalRepeat.ALL) { log("song radio not added: repeat all plays the queue again"); forgetRadio(); return }
+        if (p !== exo || !radioAllowed(id) || spotifyId(current()) != id || p.hasNextMediaItem()) { forgetRadio(); return }
         val more = com.music.spotui.extensions.AudioRoute.continuation(songs, tracks.map(::spotifyId))
         if (more.isEmpty()) {
             radioEmpty = true
@@ -1984,8 +1985,9 @@ object LocalPlayer {
      * No song after the current one (it ended, or Next): its song radio plays, now or when it
      * comes, or Spotify goes on when it had none. False: the queue just ends (see AudioRoute.continues).
      */
-    private fun atEnd(p: ExoPlayer, manual: Boolean = false): Boolean {
-        continueIfLast(p, manual = manual)
+    private fun atEnd(p: ExoPlayer): Boolean {
+            if (p.hasNextMediaItem()) return false
+            continueIfLast(p)
         if (radioOf == null || radioOf != spotifyId(current())) return false
         if (radioEmpty) spotifyContinues() else moveOnWhenReady = true
         return true

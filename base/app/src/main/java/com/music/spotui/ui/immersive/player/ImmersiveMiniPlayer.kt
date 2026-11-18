@@ -267,7 +267,7 @@ private fun animateMiniTrackStep(
     slideOut: Float,
     scope: CoroutineScope,
 ) {
-    if (dir < 0) SongPlayer.swipeNext() else SongPlayer.previous()
+    if (dir < 0) SongPlayer.swipeNext() else SongPlayer.swipePrevious()
     scope.launch {
         dragX.animateTo(dir * slideOut, tween(durationMillis = 155, easing = FastOutSlowInEasing))
         dragX.snapTo(-dir * slideOut * 0.6f)

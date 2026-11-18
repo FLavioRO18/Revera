@@ -196,7 +196,7 @@ private fun ArtistOverviewContent(
         val songs = tracks.map { it.song }
         artistViewModel.updateQueue(songs)
         val s = songs[index]
-        SongPlayer.playSong(s.url, context, songs = songs)
+        SongPlayer.playSong(s.url, context, contextUri = "spotify:artist:${overview.id}", songs = songs)
         artistViewModel.updateSongState(s.coverUri, s.title, s.singer, true, s.id, index)
     }
 

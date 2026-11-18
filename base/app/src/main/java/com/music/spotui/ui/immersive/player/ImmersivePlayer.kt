@@ -514,7 +514,7 @@ private fun Modifier.swipeToChangeTrack(
             }
             when (commitDir) {
                 -1 -> swipe.commit(-1, spanPx, curCover, nextCover) { current.next() }
-                1 -> swipe.commit(1, spanPx, curCover, prevCover) { current.previous() }
+                1 -> swipe.commit(1, spanPx, curCover, prevCover) { current.swipePrevious() }
                 else -> swipe.springBack()
             }
         }

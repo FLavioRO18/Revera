@@ -96,6 +96,7 @@ class ImmersivePlayerActions(
     val playPause: () -> Unit = {},
     val next: () -> Unit = {},
     val previous: () -> Unit = {},
+    val swipePrevious: () -> Unit = previous,
     val seekTo: (Long) -> Unit = {},
     val toggleShuffle: () -> Unit = {},
     val cycleRepeat: () -> Unit = {},
@@ -204,6 +205,7 @@ fun rememberImmersivePlayer(navController: NavController): ImmersivePlayerBridge
             },
             next = { SongPlayer.swipeNext() },
             previous = { SongPlayer.previous() },
+            swipePrevious = { SongPlayer.swipePrevious() },
             seekTo = { SongPlayer.seekTo(it) },
             // As in the Classic player: off → shuffle → smart shuffle (playlists, Liked Songs) → off.
             toggleShuffle = {

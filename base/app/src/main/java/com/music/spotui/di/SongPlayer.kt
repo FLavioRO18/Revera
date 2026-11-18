@@ -1420,7 +1420,7 @@ object SongPlayer {
         }
     }
 
-    private fun stepWhileRoutingOrCold(forward: Boolean): Boolean {
+    private fun stepWhileRoutingOrCold(forward: Boolean, restartAllowed: Boolean = true): Boolean {
         val wasRouting = routing
         val coldLocal = !LocalPlayer.active.value && !wasRouting && _activeDevice.value == null &&
             (restoredLocal || (!playing && !stateSeen && com.music.spotui.extensions.Extensions.hasAudioSource()))
@@ -1432,7 +1432,7 @@ object SongPlayer {
         val target = when {
             forward && idx >= 0 -> list?.getOrNull(idx + 1)
             forward -> _nowPlaying.value.next ?: _queue.value.let { it.queued + it.nextUp }.firstOrNull()?.song
-            !forward && !wasRouting && getCurrentPosition() > 3_000L -> {
+            !forward && restartAllowed && !wasRouting && getCurrentPosition() > 3_000L -> {
                 seekTo(0L)
                 return true
             }
@@ -2598,6 +2598,19 @@ object SongPlayer {
 
     /** The in-app swipe and button: [next], which shows the song it lands on at once. */
     fun swipeNext() = next()
+
+    fun swipePrevious() {
+        userActed()
+        Haptics.click()
+        if (stepWhileRoutingOrCold(forward = false, restartAllowed = false)) return
+        if (LocalPlayer.active.value) { LocalPlayer.previousItem(); return }
+        val np = _nowPlaying.value
+        val target = np.prev ?: return
+        val uri = target.url.takeIf { it.startsWith("spotify:") || it.startsWith("episode:") }
+            ?: target.spotifyTrackId.takeIf { it.isNotBlank() }?.let { SPOTIFY_TRACK_PREFIX + it } ?: return
+        cancelBurst()
+        playSong(uri, contextUri = np.contextUri.ifBlank { null }, songs = upcomingSongs(target))
+    }
 
     /**
      * A seek the page has not shown yet: the song, the position asked for, when it was asked and
