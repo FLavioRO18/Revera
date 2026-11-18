@@ -24,26 +24,25 @@ import java.nio.ByteOrder
 @androidx.annotation.OptIn(UnstableApi::class)
 object TrackDecoder {
     const val RATE = app.myspoti.automix.Features.RATE
-    /** Longer songs are never analysed (memory: 4 bytes × 2 signals × 22 050 per second). */
-    const val MAX_SECONDS = 15 * 60
+    const val MAX_SECONDS = 18 * 60
 
-    /**
-     * The longest song analysed with this app's heap: both signals within a third of it. Reported:
-     * an OutOfMemoryError on the analysis thread (a 49 MB allocation, 256 MB heap) killed the app;
-     * 15 minutes alone took 159 MB. About 8 minutes with a 256 MB heap, 15 with 512 MB.
-     */
-    internal fun maxSeconds(heapBytes: Long = Runtime.getRuntime().maxMemory()): Int =
+    internal fun stereoMaxSeconds(heapBytes: Long = Runtime.getRuntime().maxMemory()): Int =
         (heapBytes / 3 / (2L * 4 * RATE)).toInt().coerceIn(60, MAX_SECONDS)
 
-    /** [mid] and [side] hold the song in their first [length] samples (the buffers are not copied to size). */
-    class Pcm(val mid: FloatArray, val side: FloatArray, val length: Int) {
-        /** Of the decode, the time spent waiting for the bytes (network, decryption), ms; and their size. */
+    internal fun maxSeconds(heapBytes: Long = Runtime.getRuntime().maxMemory()): Int =
+        (heapBytes / 3 / (4L * RATE)).toInt().coerceIn(60, MAX_SECONDS)
+
+    internal fun signalBytes(seconds: Int, heapBytes: Long = Runtime.getRuntime().maxMemory()): Long {
+        val channels = if (seconds <= stereoMaxSeconds(heapBytes)) 2L else 1L
+        return seconds.toLong() * RATE * channels * 4L
+    }
+
+    class Pcm(val mid: FloatArray, val side: FloatArray?, val length: Int) {
         var readMs = 0L; var bytes = 0L
-        /** Of the decode, the time spent turning the codec's output into these signals, ms; reads elsewhere. */
         var convertMs = 0L; var restarts = 0
     }
 
-    fun decode(uri: Uri, cancelled: () -> Boolean): Pcm {
+    fun decode(uri: Uri, cancelled: () -> Boolean, hintDurationUs: Long = -1L): Pcm {
         val source = ByteSource(uri, cancelled)
         val extractor = MediaExtractor()
         try {
@@ -54,17 +53,31 @@ object TrackDecoder {
             extractor.selectTrack(track)
             val format = extractor.getTrackFormat(track)
             val mime = format.getString(MediaFormat.KEY_MIME) ?: throw IOException("no audio codec")
-            val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else -1L
-            if (durationUs > maxSeconds() * 1_000_000L) throw IOException("song too long to analyse")
-            return run(extractor, format, mime, durationUs, cancelled).also { it.readMs = source.readNs / 1_000_000; it.bytes = source.readBytes; it.restarts = source.restarts }
+            val formatDurationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else -1L
+            val durationUs = if (formatDurationUs > 0L) formatDurationUs else hintDurationUs
+            val maxSec = maxSeconds()
+            if (durationUs > maxSec * 1_000_000L) throw IOException("song too long to analyse")
+            return run(extractor, format, mime, durationUs, maxSec, stereoMaxSeconds(), cancelled).also {
+                it.readMs = source.readNs / 1_000_000
+                it.bytes = source.readBytes
+                it.restarts = source.restarts
+            }
         } finally {
             runCatching { extractor.release() }
             source.close()
         }
     }
 
-    private fun run(extractor: MediaExtractor, format: MediaFormat, mime: String, durationUs: Long, cancelled: () -> Boolean): Pcm {
-        val out = Resampler(format.getInteger(MediaFormat.KEY_SAMPLE_RATE), durationUs)
+    private fun run(
+        extractor: MediaExtractor,
+        format: MediaFormat,
+        mime: String,
+        durationUs: Long,
+        maxSec: Int,
+        stereoMaxSec: Int,
+        cancelled: () -> Boolean,
+    ): Pcm {
+        val out = Resampler(format.getInteger(MediaFormat.KEY_SAMPLE_RATE), durationUs, maxSec, stereoMaxSec)
         var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         var encoding = if (format.containsKey(MediaFormat.KEY_PCM_ENCODING)) format.getInteger(MediaFormat.KEY_PCM_ENCODING) else AudioFormat.ENCODING_PCM_16BIT
         var shorts = ShortArray(0); var floats = FloatArray(0)
@@ -148,9 +161,19 @@ object TrackDecoder {
      * Down to 22.05 kHz: a box average over the source samples of each output sample (enough
      * against aliasing for onsets and the mel bands up to 11 kHz), linear between them.
      */
-    private class Resampler(private var inRate: Int, durationUs: Long) {
-        private var mid = FloatArray(if (durationUs > 0) (durationUs * RATE / 1_000_000L).toInt() + RATE else minOf(RATE * 240, maxSeconds() * RATE))
-        private var side = FloatArray(mid.size)
+    private class Resampler(
+        private var inRate: Int,
+        durationUs: Long,
+        private val maxSec: Int,
+        stereoMaxSec: Int,
+    ) {
+        private val mostSamples = maxSec * RATE
+        private val stereoMostSamples = stereoMaxSec * RATE
+        private var mid = FloatArray(
+            if (durationUs > 0) ((durationUs * RATE / 1_000_000L).toInt() + RATE).coerceAtMost(mostSamples)
+            else minOf(RATE * 240, mostSamples),
+        )
+        private var side: FloatArray? = if (durationUs > stereoMaxSec * 1_000_000L || mid.size > stereoMostSamples) null else FloatArray(mid.size)
         private var n = 0
         private var pos = 0.0
         private var accM = 0.0; private var accS = 0.0; private var cnt = 0
@@ -164,11 +187,17 @@ object TrackDecoder {
             while (pos >= 1.0) {
                 pos -= 1.0
                 if (n >= mid.size) {
-                    val most = maxSeconds() * RATE
-                    if (n >= most) throw IOException("song too long to analyse")
-                    mid = mid.copyOf(minOf(mid.size * 3 / 2, most)); side = side.copyOf(mid.size)
+                    if (n >= mostSamples) throw IOException("song too long to analyse")
+                    val grown = minOf(mid.size * 3 / 2, mostSamples)
+                    if (grown > stereoMostSamples) {
+                        side = null
+                    }
+                    mid = mid.copyOf(grown)
+                    side = side?.copyOf(grown)
                 }
-                mid[n] = (accM / cnt).toFloat(); side[n] = (accS / cnt).toFloat(); n++
+                mid[n] = (accM / cnt).toFloat()
+                side?.set(n, (accS / cnt).toFloat())
+                n++
                 if (pos < 1.0) { accM = 0.0; accS = 0.0; cnt = 0 }
             }
         }

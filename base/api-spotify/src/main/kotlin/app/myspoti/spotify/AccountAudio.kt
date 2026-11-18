@@ -36,4 +36,9 @@ interface AccountAudio {
     suspend fun seek(positionMs: Long)
     suspend fun next()
     suspend fun previous()
+    suspend fun skipTo(item: app.myspoti.api.NowPlaying, contextUri: String? = null, order: List<String>? = null, shuffle: Boolean? = null) {
+        if (item.provider == "queue" || contextUri.isNullOrBlank()) next()
+        else play(contextUri, item.uri, null, null, order, shuffle)
+    }
+    suspend fun setSpeed(speed: Double) {}
 }

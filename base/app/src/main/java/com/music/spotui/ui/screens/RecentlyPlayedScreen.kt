@@ -129,9 +129,11 @@ fun RecentlyPlayedScreen(navController: NavController) {
 
     // Grouping runs on the raw rows, then the pill drops what the tab does not show: a heading
     // whose rows are all gone disappears with them.
-    val sections = remember(entries, podcasts) {
+    val podcastsShown = com.music.spotui.data.api.Features.PODCASTS
+    val effectivePodcasts = podcasts && podcastsShown
+    val sections = remember(entries, effectivePodcasts) {
         groupRecents(entries.orEmpty()).mapNotNull { section ->
-            val groups = section.groups.filter { it.music != podcasts }
+            val groups = section.groups.filter { it.music != effectivePodcasts }
             if (groups.isEmpty()) null else RecentSection(section.dayMs, groups)
         }
     }
@@ -154,12 +156,14 @@ fun RecentlyPlayedScreen(navController: NavController) {
                 overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 4.dp),
             )
         }
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            Pill(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
-            Pill(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+        if (podcastsShown) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                Pill(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
+                Pill(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+            }
         }
         when {
             entries == null && failure != null -> Text(

@@ -371,21 +371,22 @@ object AutoMix {
         val cancelled = { epoch != cacheEpoch || id !in wanted }
         var cacheKey = key(uri)
         try {
+            var hintDurationUs = -1L
             if (uri.scheme == ExtensionAudio.SCHEME) {
                 val saver = com.music.spotui.data.DataSaver.active
                 if (com.music.spotui.data.DataSaver.metered && (saver || !analyzeOnMobileData)) {
                     synchronized(memory) { refused[id] = Reason.MobileData }
                     return null
                 }
-                if (ExtensionAudio.resolve(uri, ahead = true) == null) throw java.io.IOException("no stream")
+                val resolved = ExtensionAudio.resolve(uri, ahead = true) ?: throw java.io.IOException("no stream")
+                if ((resolved.durationMs ?: 0L) > 0L) hintDurationUs = resolved.durationMs!! * 1_000L
                 prepareStreamKey(uri)
                 cacheKey = key(uri)
-                // A source had not answered at the cache pass: its old analysis may now be usable.
                 load(cacheKey)?.let { return cacheKey to it }
             }
             if (cancelled()) return null
             val t0 = System.currentTimeMillis()
-            val pcm = TrackDecoder.decode(uri, cancelled)
+            val pcm = TrackDecoder.decode(uri, cancelled, hintDurationUs)
             val t1 = System.currentTimeMillis()
             // On battery 3: measured on the S24, 5 made the same song's analysis slower (7.6 s against 5.5 s),
             // the extra cores being small ones and the next song's decode running meanwhile.
@@ -399,15 +400,16 @@ object AutoMix {
                 (if (a.note.isNotEmpty()) " | grids refused: ${a.note}" else ""))
             return cacheKey to a
         } catch (e: Exception) {
-            // MediaExtractor can wrap the data source's cancellation IOException.
             if (cancelled() || e is InterruptedException) return null
-            synchronized(memory) { retry.failed(cacheKey, android.os.SystemClock.elapsedRealtime()); refused[id] = Reason.NotAnalyzed }
-            journal("analysis deferred for ${label(uri)}: ${e.javaClass.simpleName} ${e.message?.take(120)}")
+            val permanent = e.message == "song too long to analyse" || e.message == "decoded audio too short"
+            synchronized(memory) {
+                if (permanent) retry.giveUp(cacheKey) else retry.failed(cacheKey, android.os.SystemClock.elapsedRealtime())
+                refused[id] = Reason.NotAnalyzed
+            }
+            journal("analysis ${if (permanent) "given up" else "deferred"} for ${label(uri)}: ${e.javaClass.simpleName} ${e.message?.take(120)}")
             return null
         } catch (e: OutOfMemoryError) {
-            // The song's signals are this thread's own (dropped with this frame): the analysis
-            // is given up, the app goes on. Reported: this error, uncaught here, closed the app.
-            synchronized(memory) { retry.failed(cacheKey, android.os.SystemClock.elapsedRealtime()); refused[id] = Reason.NotAnalyzed }
+            synchronized(memory) { retry.giveUp(cacheKey); refused[id] = Reason.NotAnalyzed }
             journal("analysis given up for ${label(uri)}: out of memory (heap ${Runtime.getRuntime().maxMemory() / 1_000_000} MB)")
             return null
         }

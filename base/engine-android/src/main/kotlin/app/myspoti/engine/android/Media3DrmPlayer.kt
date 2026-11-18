@@ -130,6 +130,7 @@ class Media3DrmPlayer(
     private var seekPending = false
     private var loadAtMs = 0L
     private var volume = 1f
+    private var playbackSpeed = 1f
     private var muted = false
     /** The audio renderer, decoding or silent (see [MirrorAudioRenderer]); set when the player is built. */
     private var audioRenderer: MirrorAudioRenderer? = null
@@ -253,6 +254,7 @@ class Media3DrmPlayer(
             loadAtMs = System.currentTimeMillis()
             item.loadedAtMs = loadAtMs
             exo.setMediaSource(sources.createMediaSource(MediaItem.Builder().setUri(item.uri).setMediaId(media.fileId).build()), positionMs)
+            exo.setPlaybackSpeed(playbackSpeed)
             exo.volume = if (muted) 0f else volume
             wantsPlay = playWhenReady
             exo.playWhenReady = playWhenReady
@@ -320,6 +322,11 @@ class Media3DrmPlayer(
     override fun setVolume(volume: Int) = onPlayer {
         this.volume = volume.coerceIn(0, 65535) / 65535f
         exo.volume = if (muted) 0f else this.volume
+    }
+
+    override fun setSpeed(speed: Double) = onPlayer {
+        this.playbackSpeed = speed.toFloat().coerceIn(0.5f, 3.5f)
+        exo.setPlaybackSpeed(this.playbackSpeed)
     }
 
     /**

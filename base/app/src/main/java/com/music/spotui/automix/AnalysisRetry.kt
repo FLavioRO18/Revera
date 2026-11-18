@@ -15,5 +15,6 @@ internal class AnalysisRetry {
     }
 
     fun succeeded(key: String) { failures.remove(key) }
+    fun giveUp(key: String) { failures[key] = Failure(Int.MAX_VALUE, Long.MAX_VALUE) }
     fun clear() { failures.clear() }
 }

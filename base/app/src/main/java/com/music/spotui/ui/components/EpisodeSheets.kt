@@ -238,7 +238,6 @@ fun speedLabel(speed: Double): String =
     if (speed == Math.floor(speed)) speed.toInt().toString()
     else String.format(java.util.Locale.getDefault(), "%.2f", speed).trimEnd('0').trimEnd('.')
 
-/** The stock app's speed sheet: the current value, its scale, then the presets. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PodcastSpeedSheet(onDismiss: () -> Unit) {
@@ -253,16 +252,33 @@ fun PodcastSpeedSheet(onDismiss: () -> Unit) {
             Text(
                 text = stringResource(R.string.player_speed_chip, speedLabel(current)),
                 color = Accent, fontSize = 40.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
+            androidx.compose.material3.Slider(
+                value = current.toFloat().coerceIn(0.5f, 3.0f),
+                onValueChange = { v ->
+                    val stepped = kotlin.math.round(v * 10f) / 10.0
+                    if (kotlin.math.abs(stepped - current) >= 0.04) {
+                        com.music.spotui.di.Haptics.tick()
+                        SongPlayer.setSpeed(stepped)
+                    }
+                },
+                valueRange = 0.5f..3.0f,
+                steps = 24,
+                colors = androidx.compose.material3.SliderDefaults.colors(
+                    thumbColor = Accent,
+                    activeTrackColor = Accent,
+                    inactiveTrackColor = AppText.copy(alpha = 0.18f),
+                ),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            )
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
             ) {
-                // The presets of the official sheet: 3× exists for podcasts.
-                listOf(1.0, 1.2, 1.5, 2.0, 3.0).forEach { speed ->
-                    val selected = kotlin.math.abs(current - speed) < 0.01
+                listOf(0.8, 1.0, 1.2, 1.5, 2.0, 3.0).forEach { speed ->
+                    val selected = kotlin.math.abs(current - speed) < 0.03
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
@@ -271,6 +287,7 @@ fun PodcastSpeedSheet(onDismiss: () -> Unit) {
                             .clip(CircleShape)
                             .background(if (selected) AppText else AppText.copy(alpha = 0.12f))
                             .clickable {
+                                com.music.spotui.di.Haptics.click()
                                 SongPlayer.setSpeed(speed)
                                 onDismiss()
                             },

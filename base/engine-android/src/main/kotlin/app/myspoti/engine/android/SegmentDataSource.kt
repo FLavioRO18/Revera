@@ -86,10 +86,17 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
             val rangeHeader = if (range.last == Long.MAX_VALUE) "bytes=${range.first}-" else "bytes=${range.first}-${range.last}"
             val t0 = System.currentTimeMillis()
             try {
-                val body = RustAudioTransport.fetch(url, media.cdnHeaders, range)
+                val body = if (RustAudioTransport.available && range.last != Long.MAX_VALUE) {
+                    RustAudioTransport.fetch(url, media.cdnHeaders, range)
+                } else {
+                    val res = http.request(HttpRequest("GET", url, media.cdnHeaders + ("range" to rangeHeader)))
+                    if (res.status !in listOf(200, 206)) throw IOException("CDN HTTP ${res.status}")
+                    res.body
+                }
                 val ms = System.currentTimeMillis() - t0
                 val host = url.substringAfter("://").substringBefore('/')
-                log("rust cdn $rangeHeader -> ${body.size} B in $ms ms ($host${if (prefetch) ", preload" else ""})")
+                val via = if (RustAudioTransport.available && range.last != Long.MAX_VALUE) "rust cdn" else "cdn"
+                log("$via $rangeHeader -> ${body.size} B in $ms ms ($host${if (prefetch) ", preload" else ""})")
                 urlIndex = i
                 totalBytes.addAndGet(body.size.toLong())
                 fetchMs.addAndGet(ms)

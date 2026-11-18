@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.ArrowDownward
@@ -488,6 +489,13 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                     onToggleSaved = { vm.toggleContextSaved(p) },
                     onToggleSmart = ::toggleSmart,
                     onAskRemoveDownloads = { askRemoveDownloads = true },
+                    onShare = if ((p.type == "playlist" || p.type == "album") && p.uri.isNotBlank()) {
+                        {
+                            com.music.spotui.ui.components.SpotifyCode.show(
+                                com.music.spotui.ui.components.ShareTarget(p.uri, p.name, p.ownerName, p.coverUri),
+                            )
+                        }
+                    } else null,
                     members = crew,
                     onMembers = { showMembers = true },
                     moving = moving.takeIf { canMove },
@@ -648,8 +656,8 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                             onSort = { sort = it; TrackOrder.save(context, p.uri, it) },
                         )
                     }
-                    if (!com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri) &&
-                        (p.type == "playlist" || p.type == "album" || p.type == "liked" || p.type == "liked-artist")) ImmersiveBarAction(
+                    if (p.type == "playlist" || (!com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri) &&
+                        (p.type == "album" || p.type == "liked" || p.type == "liked-artist"))) ImmersiveBarAction(
                         icon = Icons.Rounded.MoreHoriz,
                         contentDescription = stringResource(R.string.content_description_context_menu),
                         onClick = { if (p.type == "playlist") playlistMenu = true else albumMenu = true },
@@ -697,6 +705,7 @@ private fun ContextHeader(
     onToggleSaved: () -> Unit,
     onToggleSmart: () -> Unit,
     onAskRemoveDownloads: () -> Unit,
+    onShare: (() -> Unit)? = null,
     members: List<app.myspoti.api.PlaylistMember> = emptyList(),
     onMembers: () -> Unit = {},
     /** Whether the songs' handles are out; null: the songs cannot be moved here (no "Move" button). */
@@ -833,49 +842,61 @@ private fun ContextHeader(
                 )
             }
             Spacer(Modifier.height(14.dp))
-            // An album of another provider is read only: Spotify can neither save nor download it.
             val onSpotify = !com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri)
-            if (onSpotify) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (p.type != "liked") ImmersiveCircleButton(
+            if (onSpotify || onShare != null) Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onSpotify && p.type != "liked") ImmersiveCircleButton(
                     icon = if (saved) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     contentDescription = stringResource(if (saved) R.string.immersive_detail_unsave else R.string.immersive_detail_save),
                     onClick = onToggleSaved,
                     tint = if (saved) Immersive.Accent else Immersive.Text,
                 )
-                // The page's own songs, downloaded as a whole stay in step with the catalogue.
-                val ids = p.tracks.map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct()
-                // Songs with no matching recording count as settled: the list can still be removed.
-                val downloadedCount = ids.count {
-                    OfflineStore.isDownloaded(it) || OfflineStore.status[it] == OfflineStatus.Unavailable
-                }
-                val busy = ids.any {
-                    val st = OfflineStore.status[it]
-                    st == OfflineStatus.Queued || st is OfflineStatus.Downloading
-                }
-                val listKept = OfflineCollections.isDownloaded(p.uri)
-                LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) OfflineCollections.sync(p) }
-                DownloadCircle(downloadedCount, ids.size, busy, listKept) {
-                    if (listKept) onAskRemoveDownloads()
-                    else DownloadAsk.start(context) { q ->
-                        com.music.spotui.di.Haptics.confirm()
-                        OfflineCollections.download(p, q)
-                        Toast.makeText(context, context.getString(R.string.download_notification_downloading), Toast.LENGTH_SHORT).show()
+                if (onSpotify) {
+                    val ids = p.tracks.map { it.spotifyTrackId }.filter { it.isNotBlank() }.distinct()
+                    val downloadedCount = ids.count {
+                        OfflineStore.isDownloaded(it) || OfflineStore.status[it] == OfflineStatus.Unavailable
                     }
+                    val busy = ids.any {
+                        val st = OfflineStore.status[it]
+                        st == OfflineStatus.Queued || st is OfflineStatus.Downloading
+                    }
+                    val listKept = OfflineCollections.isDownloaded(p.uri)
+                    LaunchedEffect(listKept, p.complete, p.tracks.size) { if (listKept && p.complete) OfflineCollections.sync(p) }
+                    DownloadCircle(downloadedCount, ids.size, busy, listKept) {
+                        if (listKept) onAskRemoveDownloads()
+                        else DownloadAsk.start(context) { q ->
+                            com.music.spotui.di.Haptics.confirm()
+                            OfflineCollections.download(p, q)
+                            Toast.makeText(context, context.getString(R.string.download_notification_downloading), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    if (SmartShuffle.canPlay(p.uri)) ImmersiveCircleButton(
+                        icon = Icons.Rounded.AutoAwesome,
+                        contentDescription = stringResource(R.string.smart_shuffle_title),
+                        onClick = onToggleSmart,
+                        tint = if (smart) Immersive.Accent else Immersive.Text,
+                    )
+                    if (moving != null) ImmersiveCircleButton(
+                        icon = Icons.Rounded.DragHandle,
+                        contentDescription = stringResource(if (moving) R.string.done else R.string.edit_playlist_items_move_chip),
+                        onClick = onMove,
+                        tint = if (moving) Immersive.Accent else Immersive.Text,
+                    )
                 }
-                if (SmartShuffle.canPlay(p.uri)) ImmersiveCircleButton(
-                    icon = Icons.Rounded.AutoAwesome,
-                    contentDescription = stringResource(R.string.smart_shuffle_title),
-                    onClick = onToggleSmart,
-                    tint = if (smart) Immersive.Accent else Immersive.Text,
-                )
-                // "Move": a handle on each song, to put them in another order (again: done).
-                if (moving != null) ImmersiveCircleButton(
-                    icon = Icons.Rounded.DragHandle,
-                    contentDescription = stringResource(if (moving) R.string.done else R.string.edit_playlist_items_move_chip),
-                    onClick = onMove,
-                    tint = if (moving) Immersive.Accent else Immersive.Text,
+                if (onShare != null) ImmersiveCircleButton(
+                    icon = Icons.Rounded.Share,
+                    contentDescription = stringResource(R.string.context_menu_share),
+                    onClick = onShare,
+                    tint = Immersive.Text,
                 )
             }
+        } else if (onShare != null) {
+            Spacer(Modifier.height(14.dp))
+            ImmersiveCircleButton(
+                icon = Icons.Rounded.Share,
+                contentDescription = stringResource(R.string.context_menu_share),
+                onClick = onShare,
+                tint = Immersive.Text,
+            )
         }
     }
 }

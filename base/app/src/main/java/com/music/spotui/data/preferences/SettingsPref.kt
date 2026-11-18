@@ -267,6 +267,19 @@ object HideDjPref {
     }
 }
 
+object HidePodcastsPref {
+    private const val KEY = "hide_podcasts"
+    var on by androidx.compose.runtime.mutableStateOf(
+        runCatching { prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, false) }.getOrDefault(false)
+    )
+        private set
+
+    fun set(c: Context, value: Boolean) {
+        on = value
+        prefs(c).edit().putBoolean(KEY, value).apply()
+    }
+}
+
 fun getCrossfadeSeconds(c: Context): Int =
     prefs(c).getInt(KEY_CROSSFADE, 0).coerceIn(0, CrossfadePref.MAX)
 

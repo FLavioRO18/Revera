@@ -26,14 +26,20 @@ object LibraryChips {
         myId: String? = null,
         shows: List<LibraryEntry> = emptyList(),
         podcastIds: Set<String> = emptySet(),
-    ): Pair<List<LibraryEntry>, List<ArtistsModel>> = when (chip) {
-        LibraryChip.ALL -> entries to artists
-        LibraryChip.ARTISTS -> emptyList<LibraryEntry>() to artists
-        LibraryChip.SONGS -> entries.filter { it.spotifyId in songIds } to emptyList()
-        LibraryChip.PLAYLISTS -> entries.filter { it.spotifyId !in songIds && (it.isPlaylist || it.isFolder) } to emptyList()
-        LibraryChip.BY_ME -> entries.filter { myId != null && it.ownerUri == "spotify:user:$myId" } to emptyList()
-        LibraryChip.PODCASTS -> (entries.filter { it.spotifyId in podcastIds } + shows) to emptyList()
-        LibraryChip.ALBUMS -> entries.filter { it.spotifyId !in songIds && !it.isPlaylist && !it.isFolder } to emptyList()
+        podcastsShown: Boolean = true,
+    ): Pair<List<LibraryEntry>, List<ArtistsModel>> {
+        val visibleEntries = if (podcastsShown) entries else entries.filter {
+            it.spotifyId !in podcastIds && !it.spotifyId.startsWith("show:")
+        }
+        return when (chip) {
+            LibraryChip.ALL -> visibleEntries to artists
+            LibraryChip.ARTISTS -> emptyList<LibraryEntry>() to artists
+            LibraryChip.SONGS -> visibleEntries.filter { it.spotifyId in songIds } to emptyList()
+            LibraryChip.PLAYLISTS -> visibleEntries.filter { it.spotifyId !in songIds && (it.isPlaylist || it.isFolder) } to emptyList()
+            LibraryChip.BY_ME -> visibleEntries.filter { myId != null && it.ownerUri == "spotify:user:$myId" } to emptyList()
+            LibraryChip.PODCASTS -> if (!podcastsShown) emptyList<LibraryEntry>() to emptyList() else (entries.filter { it.spotifyId in podcastIds } + shows) to emptyList()
+            LibraryChip.ALBUMS -> visibleEntries.filter { it.spotifyId !in songIds && !it.isPlaylist && !it.isFolder } to emptyList()
+        }
     }
 
     /** A tap on [tapped] while [current] is chosen. */

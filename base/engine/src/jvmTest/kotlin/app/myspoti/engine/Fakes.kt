@@ -81,7 +81,9 @@ class FakePlayer : DrmPlayer {
     override fun resume() { calls += "resume" }
     override fun seekTo(positionMs: Long) { calls += "seek $positionMs" }
     override fun stop() { calls += "stop" }
+    var lastSpeed = 1.0
     override fun setVolume(volume: Int) { calls += "volume $volume" }
+    override fun setSpeed(speed: Double) { this.lastSpeed = speed; calls += "speed $speed" }
     override fun setMuted(muted: Boolean) { calls += "muted $muted" }
     override fun metrics() = PlaybackMetrics(totalBytes = 2_542_290, firstBytesLatencyMs = 110)
 }

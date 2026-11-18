@@ -10,13 +10,13 @@ android {
     namespace = "app.myspoti.wear"
     compileSdk = 37
 
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.3"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.4"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
         applicationId = "app.revera"
         minSdk = 30
         targetSdk = 36
-        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 203
+        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 204
         versionName = version
     }
     buildTypes {

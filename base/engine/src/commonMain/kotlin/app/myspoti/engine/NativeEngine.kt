@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 /** What the engine tells its caller (UI, media session, logs). */
 sealed class EngineEvent {
@@ -67,28 +68,43 @@ class NativeEngine(
     data class Now(
         val uri: String, val name: String, val artists: String, val album: String, val imageUrl: String?,
         val durationMs: Long, val playing: Boolean,
-        /** The position at [atMs] (this clock); it advances from there while [playing]. */
         val positionMs: Long, val atMs: Long,
-        /** The list the song plays in, as the state machine says. */
         val contextUri: String? = null,
-        /** Waiting for audio (loading, a seek, a stall): [playing] is false meanwhile. */
         val buffering: Boolean = false,
-        /** The song's artists, (uri, name) each, as the state machine names them; [artists] joins their names. */
         val authors: List<Pair<String, String>> = emptyList(),
-        /** The album's uri, when the state machine gives it. */
         val albumUri: String? = null,
+        val speed: Double = 1.0,
     )
 
     private val _now = kotlinx.coroutines.flow.MutableStateFlow<Now?>(null)
     val now: kotlinx.coroutines.flow.StateFlow<Now?> = _now
+    @Volatile private var episodeSpeed: Double = 1.0
+    private var appliedPlayerSpeed: Double = 1.0
+
+    private fun effectiveSpeed(uri: String?, contentType: String? = null): Double =
+        if (contentType == "EPISODE" || uri?.startsWith("spotify:episode:") == true) episodeSpeed else 1.0
+
+    private fun applySpeedFor(uri: String?, contentType: String? = null): Double {
+        val target = effectiveSpeed(uri, contentType)
+        if (target != appliedPlayerSpeed) {
+            appliedPlayerSpeed = target
+            player.setSpeed(target)
+        }
+        return target
+    }
 
     private fun publishNow(p: Playback?, positionMs: Long, playing: Boolean, buffering: Boolean = false) {
-        val m = p?.track?.metadata
+        publishNowTrack(p?.track, positionMs, playing, buffering)
+    }
+
+    private fun publishNowTrack(track: SmTrack?, positionMs: Long, playing: Boolean, buffering: Boolean = false) {
+        val m = track?.metadata
         _now.value = if (m == null) null else Now(
             m.uri, m.name.orEmpty(), m.authors.mapNotNull { it.name }.joinToString(", "), m.groupName.orEmpty(),
             m.images.filter { it.url != null }.minByOrNull { kotlin.math.abs((it.width ?: 0) - 300) }?.url,
             m.duration, playing, positionMs, env.nowMs(), m.contextUri, buffering,
             m.authors.mapNotNull { a -> a.name?.let { (a.uri ?: "") to it } }, m.groupUri,
+            effectiveSpeed(m.uri, track.contentType),
         )
     }
 
@@ -108,6 +124,19 @@ class NativeEngine(
 
     /** Silences the player without changing the volume the account sees (and, on Android, without the audio focus). */
     fun setMuted(muted: Boolean) { this.muted = muted; player.setMuted(muted) }
+
+    fun setSpeed(speed: Double) {
+        episodeSpeed = speed.coerceIn(0.5, 3.5)
+        val curTrack = current?.track
+        val uri = curTrack?.metadata?.uri ?: _now.value?.uri
+        val applied = applySpeedFor(uri, curTrack?.contentType)
+        _now.value?.let { n ->
+            val nowMs = env.nowMs()
+            val curPos = if (n.playing && !n.buffering) n.positionMs + ((nowMs - n.atMs) * n.speed).toLong() else n.positionMs
+            val clampedPos = if (n.durationMs > 0) curPos.coerceAtMost(n.durationMs) else curPos
+            _now.value = n.copy(positionMs = clampedPos, atMs = nowMs, speed = applied)
+        }
+    }
 
     /** The player is silenced ([setMuted]): what it plays is a listen mirror, never heard here. */
     @Volatile var muted = false
@@ -138,8 +167,30 @@ class NativeEngine(
     @Volatile private var current: Playback? = null
     private var flushOnFirstPlay = false
     private val pendingCommands = ArrayDeque<SentCommand>()
+    private var lastCommandEndpoint: String = ""
+    private var lastSkippedFromTrack: SmTrack? = null
+    private var duplicateSkipsInRow = 0
+    private var lastRestartAtMs = 0L
 
-    private class SentCommand(val type: String, val id: String, val sentAt: Long, var latency: Long, var status: Int)
+    private class SentCommand(
+        val type: String,
+        val id: String,
+        val sentAt: Long,
+        var latency: Long,
+        var status: Int,
+        val unlocks: Boolean = type != "transfer",
+        var unlocked: Boolean = false,
+        var guard: Job? = null,
+    )
+
+    private fun releaseCommandLockLocked(c: SentCommand) {
+        c.guard?.cancel()
+        c.guard = null
+        if (c.unlocks && !c.unlocked) {
+            c.unlocked = true
+            commandLock.unlock()
+        }
+    }
     private class OutgoingPlayback(
         val playback: Playback,
         val machineId: String?,
@@ -173,7 +224,12 @@ class NativeEngine(
             publishPlayerEvent(playback, e)
             playerInputs.trySend(playback to e)
         }
-        jobs += scope.launch { for ((playback, e) in playerInputs) processPlayerEvent(playback, e) }
+        jobs += scope.launch {
+            for ((playback, e) in playerInputs) {
+                runCatching { processPlayerEvent(playback, e) }
+                    .onFailure { emit(EngineEvent.Failure("player event: ${it.message}")) }
+            }
+        }
         jobs += scope.launch { readDealer(ws) }
         jobs += scope.launch { while (true) { delay(30_000); runCatching { ws.send("""{"type":"ping"}""") } } }
 
@@ -202,6 +258,9 @@ class NativeEngine(
         // A report the server refuses must not keep the device registered and the socket open.
         current?.let { runCatching { finalize(it, "endplay", null) }; player.stop() }
         current = null
+        while (pendingCommands.isNotEmpty()) {
+            releaseCommandLockLocked(pendingCommands.removeFirst())
+        }
         runCatching { flushTimeline() }
         runCatching {
             sp.send(
@@ -254,6 +313,15 @@ class NativeEngine(
     }
     suspend fun resume() = command("resume")
     suspend fun skipNext() = command("skip_next")
+    suspend fun skipTo(uri: String, uid: String? = null) = command(
+        "skip_next",
+        buildJsonObject {
+            putJsonObject("track") {
+                put("uri", uri)
+                if (!uid.isNullOrBlank()) put("uid", uid)
+            }
+        },
+    )
     /**
      * A seek of the song loaded here. Sent once a load under way is reported (its
      * `before_track_load` answered): the server applies a seek to the state the device last
@@ -283,8 +351,15 @@ class NativeEngine(
 
     /** The Web Player's previous button: back to 0 past ~3 s, else the previous track (connect capture 2026-10-26). */
     suspend fun previous() {
+        val now = env.nowMs()
         val pos = current?.lastPosition ?: 0
-        if (pos > 3_000) seekTo(0) else command("skip_prev")
+        if (pos > 3_000 && now - lastRestartAtMs > 3_000) {
+            lastRestartAtMs = now
+            seekTo(0)
+        } else {
+            lastRestartAtMs = 0L
+            command("skip_prev")
+        }
     }
 
     /** Takes the account's playback onto this device (what a page load with a paused session did). */
@@ -303,19 +378,40 @@ class NativeEngine(
         var sent: SentCommand? = null
         try {
             lock.withLock {}
+            lastCommandEndpoint = if ("track" in fields) "jump" else endpoint
             val id = env.randomHex(32)
             val t0 = env.nowMs()
-            sent = SentCommand(endpoint, id, t0, 0, 0)
-            lock.withLock { pendingCommands.addLast(sent) }
+            val cmd = SentCommand(endpoint, id, t0, 0, 0)
+            sent = cmd
+            lock.withLock { pendingCommands.addLast(cmd) }
             val r = sp.send(
                 "POST", "$spclient/connect-state/v1/player/command/from/$deviceId/to/$deviceId", HeaderProfile.PLAYER,
                 body = Bodies.command(endpoint, id, fields).toString().encodeToByteArray(), contentType = "application/json",
             )
-            sent.latency = env.nowMs() - t0
-            sent.status = r.status
+            cmd.latency = env.nowMs() - t0
+            cmd.status = r.status
+            lock.withLock {
+                if (!cmd.unlocked && cmd in pendingCommands) {
+                    val guardJob = scope.launch {
+                        delay(COMMAND_ACK_TIMEOUT_MS)
+                        lock.withLock {
+                            pendingCommands.remove(cmd)
+                            releaseCommandLockLocked(cmd)
+                        }
+                    }
+                    cmd.guard = guardJob
+                }
+            }
         } catch (t: Throwable) {
-            sent?.let { c -> lock.withLock { pendingCommands.remove(c) } }
-            commandLock.unlock()
+            val failed = sent
+            if (failed != null) {
+                lock.withLock {
+                    pendingCommands.remove(failed)
+                    releaseCommandLockLocked(failed)
+                }
+            } else {
+                commandLock.unlock()
+            }
             throw t
         }
     }
@@ -362,11 +458,49 @@ class NativeEngine(
         val seekTo = cmd.seekTo?.toLong()
         val cur = current
         if (cur == null || cur.stateId != state.id) {
-            val track = sm.tracks.getOrNull(state.track) ?: throw EngineException.Protocol("state ${state.id}: no track ${state.track}")
+            val track = sm.tracks.getOrNull(state.track) ?: run {
+                ackCommand()
+                throw EngineException.Protocol("state ${state.id}: no track ${state.track}")
+            }
             val outgoing = cur?.let { OutgoingPlayback(it, machine?.id, player.metrics(), env.nowMs(), licences.lastLicenceLatencyMs) }
+            val prevTrack = cur?.track ?: lastSkippedFromTrack
+            val stepCmd = lastCommandEndpoint.takeIf { it == "skip_next" || it == "skip_prev" }
+            if (stepCmd != null &&
+                duplicateSkipsInRow < 3 &&
+                state.trackProvider != "queue" &&
+                state.options?.repeatingTrack != true &&
+                isDuplicateRelease(prevTrack, track)
+            ) {
+                duplicateSkipsInRow++
+                lastSkippedFromTrack = prevTrack
+                current = null
+                machine = sm
+                stateIndex = index
+                try {
+                    if (cur != null) player.stop()
+                } finally {
+                    ackCommand(env.nowMs())
+                    finalizeOutgoing(outgoing, state.id)
+                }
+                val file = Resolver.chooseFile(track, formatFilter, lowestQuality)
+                if (file != null) {
+                    val sub = Bodies.SubState(0, 0, track.metadata.duration, file.bitrate, file.format, file.audioQuality)
+                    putState(machine?.id, state.id, paused, sub, cur?.lastPosition, "before_track_load")
+                }
+                scope.launch {
+                    runCatching { command(stepCmd) }
+                        .onFailure { emit(EngineEvent.Failure("duplicate skip failed: ${it.message}")) }
+                }
+                return
+            }
+            duplicateSkipsInRow = 0
+            lastSkippedFromTrack = null
             machine = sm
             stateIndex = index
-            load(state, track, seekTo ?: state.initialPlaybackPosition ?: 0, paused, "remote", cur?.lastPosition, outgoing, acknowledgeAtMs = env.nowMs())
+            val initial = (state.initialPlaybackPosition ?: 0L).let { pos ->
+                if (track.metadata.duration > 0L && pos >= track.metadata.duration) 0L else pos
+            }
+            load(state, track, seekTo ?: initial, paused, "remote", cur?.lastPosition, outgoing, acknowledgeAtMs = env.nowMs())
             return
         }
         ackCommand()
@@ -411,7 +545,7 @@ class NativeEngine(
             val msg = Reports.connectCommand(c.type, c.id, atMs - c.sentAt, c.latency, tokens.accessToken().clientId, deviceId, c.status)
             melody(listOf(Bodies.melodyMessage("jssdk_connect_command", msg)), config.harmonyVersion)
         } finally {
-            if (c.type != "transfer") commandLock.unlock()
+            releaseCommandLockLocked(c)
         }
     }
 
@@ -479,12 +613,14 @@ class NativeEngine(
         blockedAdUri = null
         emit(EngineEvent.TrackLoading(track.metadata.uri, state.id))
         val file = Resolver.chooseFile(track, formatFilter, lowestQuality) ?: throw EngineException.Protocol("no playable file for ${track.metadata.uri}")
+        publishNowTrack(track, position, false, buffering = !paused)
         val t0 = env.nowMs()
         val p = try {
             val media = resolver.resolve(track, formatFilter, lowestQuality)
             val playback = Playback(state.id, track, file, media, position, paused, reasonStart, t0, env.nowMs() - t0)
             current = playback
             publishNow(playback, position, false, buffering = !paused)
+            applySpeedFor(track.metadata.uri, track.contentType)
             player.load(media, position, !paused, licences.channel())
             playback
         } finally {
@@ -648,13 +784,47 @@ class NativeEngine(
         if (lead != null && p.started && p.durationMs - position <= lead) preloadNext(p)
     }
 
+    private fun isDuplicateRelease(a: SmTrack?, b: SmTrack?): Boolean {
+        if (a == null || b == null) return false
+        if (a.contentType == "AD" || b.contentType == "AD") return false
+        val ma = a.metadata
+        val mb = b.metadata
+        if (!ma.uri.startsWith("spotify:track:") || !mb.uri.startsWith("spotify:track:") || ma.uri == mb.uri) return false
+        val na = ma.name?.trim()?.lowercase().orEmpty()
+        val nb = mb.name?.trim()?.lowercase().orEmpty()
+        if (na.isEmpty() || na != nb) return false
+        if (ma.duration <= 0L || mb.duration <= 0L || kotlin.math.abs(ma.duration - mb.duration) > 2_500L) return false
+        val aa = ma.authors.mapNotNull { it.uri?.takeIf(String::isNotBlank) ?: it.name?.trim()?.lowercase()?.takeIf(String::isNotBlank) }.toSet()
+        val ab = mb.authors.mapNotNull { it.uri?.takeIf(String::isNotBlank) ?: it.name?.trim()?.lowercase()?.takeIf(String::isNotBlank) }.toSet()
+        return aa.isEmpty() || ab.isEmpty() || aa.intersect(ab).isNotEmpty()
+    }
+
+    private fun resolveTransition(sm: StateMachine?, ref: StateIndexRef?): Triple<StateIndexRef, SmState, SmTrack>? {
+        if (sm == null || ref == null) return null
+        val st = ref.stateIndex?.let { sm.states.getOrNull(it) } ?: return null
+        val tr = sm.tracks.getOrNull(st.track) ?: return null
+        return Triple(ref, st, tr)
+    }
+
+    private fun nextAfter(sm: StateMachine?, state: SmState?, currentTrack: SmTrack? = null): Triple<StateIndexRef, SmState, SmTrack>? {
+        val repeatOne = state?.options?.repeatingTrack == true
+        val adv = resolveTransition(sm, state?.transitions?.advance)
+        if (adv != null && adv.third.contentType != "AD" && (repeatOne || adv.second.trackProvider == "queue" || !isDuplicateRelease(currentTrack, adv.third))) return adv
+        val skip = resolveTransition(sm, state?.transitions?.skipNext)
+        if (skip != null && skip.third.contentType != "AD" && (repeatOne || skip.second.trackProvider == "queue" || !isDuplicateRelease(currentTrack, skip.third))) return skip
+        if (adv != null && adv.third.contentType != "AD") return adv
+        if (skip != null && skip.third.contentType != "AD") return skip
+        return adv ?: skip
+    }
+
     /** The natural end: finalize, then follow `advance` of the current state like the Web Player. */
     private suspend fun trackEnded(p: Playback, shownPosition: Long) {
         val sm = machine
         val state = sm?.states?.getOrNull(stateIndex)?.takeIf { it.id == p.stateId } ?: sm?.states?.firstOrNull { it.id == p.stateId }
-        val next = state?.transitions?.advance
-        val nextState = next?.stateIndex?.let { sm?.states?.getOrNull(it) }
-        val nextTrack = nextState?.let { sm?.tracks?.getOrNull(it.track) }
+        val resolved = nextAfter(sm, state, p.track)
+        val next = resolved?.first
+        val nextState = resolved?.second
+        val nextTrack = resolved?.third
         finalize(p, "trackdone", nextState?.id, shownPosition, keepMachine = true)
         current = null
         if (next == null || nextState == null || nextTrack == null) {
@@ -663,6 +833,21 @@ class NativeEngine(
             return
         }
         stateIndex = machine?.states?.indexOfFirst { it.id == nextState.id } ?: -1
+        if (state?.options?.repeatingTrack != true && nextState.trackProvider != "queue" && isDuplicateRelease(p.track, nextTrack)) {
+            player.stop()
+            duplicateSkipsInRow = 1
+            lastSkippedFromTrack = p.track
+            val file = Resolver.chooseFile(nextTrack, formatFilter, lowestQuality)
+            if (file != null) {
+                val sub = Bodies.SubState(0, 0, nextTrack.metadata.duration, file.bitrate, file.format, file.audioQuality)
+                putState(machine?.id, nextState.id, next.paused, sub, shownPosition, "before_track_load")
+            }
+            scope.launch {
+                runCatching { command("skip_next") }
+                    .onFailure { emit(EngineEvent.Failure("duplicate advance skip failed: ${it.message}")) }
+            }
+            return
+        }
         flushOnFirstPlay = true
         load(nextState, nextTrack, nextState.initialPlaybackPosition ?: 0, next.paused, "trackdone", shownPosition)
     }
@@ -673,9 +858,10 @@ class NativeEngine(
         p.preloaded = true
         val sm = machine ?: return
         val state = sm.states.firstOrNull { it.id == p.stateId } ?: return
-        val ref = state.transitions.advance ?: state.transitions.skipNext ?: return
-        val next = ref.stateIndex?.let { sm.states.getOrNull(it) } ?: return
-        val track = sm.tracks.getOrNull(next.track)?.takeIf { it.contentType != "AD" } ?: return
+        val resolved = nextAfter(sm, state, p.track) ?: return
+        val track = resolved.third.takeIf {
+            it.contentType != "AD" && (state.options?.repeatingTrack == true || resolved.second.trackProvider == "queue" || !isDuplicateRelease(p.track, it))
+        } ?: return
         runCatching {
             val media = resolver.resolve(track, formatFilter, lowestQuality)
             player.preload(media, licences.channel())
@@ -700,13 +886,20 @@ class NativeEngine(
         debugSource: String, stats: JsonObject? = null, applyAnswer: Boolean = true,
     ) {
         val body = Bodies.state(++seq, machineId, stateId, paused, sub, previousPosition, debugSource, stats)
-        val r = sp.send(
-            "PUT", "$spclient/track-playback/v1/devices/$deviceId/state", HeaderProfile.PLAYER,
-            body = body.toString().encodeToByteArray(), contentType = "application/json",
-        )
+        val r = try {
+            sp.send(
+                "PUT", "$spclient/track-playback/v1/devices/$deviceId/state", HeaderProfile.PLAYER,
+                body = body.toString().encodeToByteArray(), contentType = "application/json",
+            )
+        } catch (e: EngineException.HttpStatus) {
+            if (e.status in 400..499 && e.status != 401 && e.status != 429) {
+                emit(EngineEvent.Failure("state $debugSource refused (${e.status}): ${e.body.take(160)}"))
+                return
+            }
+            throw e
+        }
         emit(EngineEvent.StateReported(debugSource, sub?.position))
         if (!applyAnswer) return
-        // The answer is the server's next state machine; later reports refer to it.
         val next = runCatching { EngineJson.decodeFromString(PutStateResponse.serializer(), r.text()) }.getOrNull() ?: return
         val sm = next.stateMachine ?: return
         machine = sm
@@ -730,7 +923,7 @@ class NativeEngine(
     internal val seqNum get() = seq
 
     companion object {
-        /** `started_playing` came 1066-1245 ms into real playback in every capture (four tracks). */
         const val STARTED_AFTER_MS = 1_000L
+        private const val COMMAND_ACK_TIMEOUT_MS = 2_500L
     }
 }

@@ -974,11 +974,13 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 ImmersiveSwitchRow(stringResource(R.string.settings_hide_dj_title), checked = com.music.spotui.data.preferences.HideDjPref.on,
                     onChecked = { com.music.spotui.data.preferences.HideDjPref.set(ctx, it) }, detail = stringResource(R.string.settings_hide_dj_detail))
             }
-            if (look == com.music.spotui.data.preferences.Look.CLASSIC) {
-                row {
-                    ImmersiveSwitchRow(stringResource(R.string.settings_player_lyrics_card_title), checked = com.music.spotui.data.preferences.PlayerLyricsCardPref.on,
-                        onChecked = { com.music.spotui.data.preferences.PlayerLyricsCardPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_lyrics_card_detail))
-                }
+            row {
+                ImmersiveSwitchRow(stringResource(R.string.settings_hide_podcasts_title), checked = com.music.spotui.data.preferences.HidePodcastsPref.on,
+                    onChecked = { com.music.spotui.data.preferences.HidePodcastsPref.set(ctx, it) }, detail = stringResource(R.string.settings_hide_podcasts_detail))
+            }
+            row {
+                ImmersiveSwitchRow(stringResource(R.string.settings_player_lyrics_card_title), checked = com.music.spotui.data.preferences.PlayerLyricsCardPref.on,
+                    onChecked = { com.music.spotui.data.preferences.PlayerLyricsCardPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_lyrics_card_detail))
             }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_player_source_title), checked = com.music.spotui.data.preferences.PlayerSourceLinePref.on,

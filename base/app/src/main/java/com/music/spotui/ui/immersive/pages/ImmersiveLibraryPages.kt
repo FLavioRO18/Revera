@@ -11,6 +11,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -176,7 +177,20 @@ fun ImmersiveLocalPlaylistScreen(navController: NavController, id: String) {
         LaunchedEffect(Unit) { navController.navigateUp() }
         return
     }
+    val context = LocalContext.current
     if (menu) ImmersiveSheet(onDismiss = { menu = false }) {
+        ImmersiveSheetRow(Icons.Rounded.Share, stringResource(R.string.context_menu_share), onClick = {
+            menu = false
+            val body = buildString {
+                appendLine(playlist.name)
+                playlist.items.forEachIndexed { idx, it ->
+                    val line = if (it.artist.isNotBlank()) "${it.artist} — ${it.title}" else it.title
+                    appendLine("${idx + 1}. $line")
+                }
+            }.trim()
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, body)
+            context.startActivity(android.content.Intent.createChooser(send, context.getString(R.string.action_share_label)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        })
         ImmersiveSheetRow(Icons.Rounded.Edit, stringResource(R.string.local_rename), onClick = { menu = false; renaming = true })
         ImmersiveSheetRow(Icons.Rounded.DeleteOutline, stringResource(R.string.local_delete_playlist), destructive = true, onClick = {
             menu = false

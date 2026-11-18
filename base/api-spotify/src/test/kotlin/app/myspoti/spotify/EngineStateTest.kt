@@ -46,6 +46,10 @@ class EngineStateTest {
         override suspend fun seek(positionMs: Long) { calls += "seek $positionMs" }
         override suspend fun next() { calls += "next" }
         override suspend fun previous() { calls += "previous" }
+        override suspend fun setSpeed(speed: Double) {
+            calls += "speed $speed"
+            now.value = now.value?.copy(speed = speed)
+        }
     }
 
     private val time = VirtualTime()
@@ -161,6 +165,8 @@ class EngineStateTest {
         player.resume()
         player.seek(10_000)
         player.next()
-        assertEquals(listOf("pause", "resume", "seek 10000", "next"), engine.calls)
+        player.setSpeed(1.5)
+        assertEquals(listOf("pause", "resume", "seek 10000", "next", "speed 1.5"), engine.calls)
+        assertEquals(1.5, player.state.value!!.speed, 0.001)
     }
 }

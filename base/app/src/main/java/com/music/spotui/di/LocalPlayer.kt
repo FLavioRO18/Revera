@@ -135,7 +135,8 @@ object LocalPlayer {
 
     private fun tune(p: ExoPlayer) {
         val pref = com.music.spotui.data.preferences.EqualizerPref
-        if (p.playbackParameters.speed != pref.speed) p.playbackParameters = androidx.media3.common.PlaybackParameters(pref.speed)
+        val spd = rate()
+        if (p.playbackParameters.speed != spd) p.playbackParameters = androidx.media3.common.PlaybackParameters(spd)
         if (p.skipSilenceEnabled != pref.skipSilence) p.skipSilenceEnabled = pref.skipSilence
         offload(p)
     }
@@ -152,7 +153,7 @@ object LocalPlayer {
         val pref = com.music.spotui.data.preferences.EqualizerPref
         val on = LocalOffload.allowed(
             eqFlat = Equalizer.current?.flat ?: true, spatialWidth = Spatial.current, autoMix = com.music.spotui.automix.AutoMix.on,
-            crossfadeSeconds = CrossfadePref.seconds, speed = pref.speed, skipSilence = pref.skipSilence,
+            crossfadeSeconds = CrossfadePref.seconds, speed = rate(), skipSilence = pref.skipSilence,
         )
         val mode = if (on) androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
             else androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
@@ -183,8 +184,16 @@ object LocalPlayer {
         autoMixSettingsChanged()
     }
 
-    /** The speed the local player plays at (the settings', 1 by default). */
-    fun rate(): Float = com.music.spotui.data.preferences.EqualizerPref.speed
+    @Volatile private var episodeSpeed: Float? = null
+
+    fun setEpisodeSpeed(value: Float?) {
+        episodeSpeed = value?.coerceIn(0.5f, 3.5f)
+        android.os.Handler(android.os.Looper.getMainLooper()).post { applyPlayback() }
+    }
+
+    fun rate(): Float =
+        if (current()?.speech == true && episodeSpeed != null) episodeSpeed!!
+        else com.music.spotui.data.preferences.EqualizerPref.speed
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun player(): ExoPlayer = exo ?: build(true).also { p ->
@@ -199,7 +208,10 @@ object LocalPlayer {
     private var mainListener: Player.Listener? = null
 
     private fun listenerFor(p: ExoPlayer): Player.Listener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) = publish()
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (exo === p && mix == null && p.playbackParameters.speed != rate()) tune(p)
+            publish()
+        }
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
             if (exo !== p || !com.music.spotui.automix.AutoMix.on || !com.music.spotui.automix.AutoMix.djEq) return
             deckEq?.release()
@@ -1670,18 +1682,27 @@ object LocalPlayer {
         endFade()
         cancelOnce("next")
         exo?.let {
-            if (it.hasNextMediaItem()) { com.music.spotui.extensions.Extensions.skipAsked("forward"); it.seekToNextMediaItem() }
-            // A queue of one song repeated (see LocalRepeat): Next plays it again, as the queue's wrap would.
-            else if (repeat == LocalRepeat.ALL) { com.music.spotui.extensions.Extensions.skipAsked("forward"); it.seekTo(0, 0L) }
-            else if (atEnd(it)) com.music.spotui.extensions.Extensions.skipAsked("forward")
+            if (it.hasNextMediaItem()) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward"); it.seekToNextMediaItem() }
+            else if (repeat == LocalRepeat.ALL) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward"); it.seekTo(0, 0L) }
+            else if (atEnd(it, manual = true)) { lastRestartAtMs = 0L; com.music.spotui.extensions.Extensions.skipAsked("forward") }
         }
     }
+    private var lastRestartAtMs = 0L
     fun previous() {
         endFade()
         cancelOnce("previous")
         exo?.let {
-            if (position() > 3000 || !it.hasPreviousMediaItem()) seekTo(0)
-            else { com.music.spotui.extensions.Extensions.skipAsked("backward"); it.seekToPreviousMediaItem() }
+            val now = android.os.SystemClock.elapsedRealtime()
+            val canStepBack = it.hasPreviousMediaItem()
+            val recentRestart = now - lastRestartAtMs <= 3_000L
+            if (canStepBack && (position() <= 3000 || recentRestart)) {
+                lastRestartAtMs = 0L
+                com.music.spotui.extensions.Extensions.skipAsked("backward")
+                it.seekToPreviousMediaItem()
+            } else {
+                lastRestartAtMs = now
+                seekTo(0)
+            }
         }
     }
     /** Back to the song before the current one, wherever this one is (a previous asked on another device). */
@@ -1913,14 +1934,18 @@ object LocalPlayer {
      * goes on with) is asked now, in the background, and added after it, each song asked to the
      * extensions when it plays as any other, so the queue goes on as Spotify's would.
      */
-    private fun continueIfLast(p: ExoPlayer) {
+    private fun continueIfLast(p: ExoPlayer, manual: Boolean = false) {
         if (p.mediaItemCount == 0 || p.currentMediaItemIndex != p.mediaItemCount - 1) return
         val id = spotifyId(current())
-        if (id == radioOf || !com.music.spotui.extensions.AudioRoute.continues(continues, id,
-                repeatAll = repeat == LocalRepeat.ALL, autoplay = com.music.spotui.data.preferences.AutoplayPref.on)) return
+        if (id.isBlank()) return
+        if (!manual && (id == radioOf || !com.music.spotui.extensions.AudioRoute.continues(continues, id,
+                repeatAll = repeat == LocalRepeat.ALL, autoplay = com.music.spotui.data.preferences.AutoplayPref.on))) return
+        if (manual && id == radioOf && radio?.isActive == true) return
         forgetRadio(); radioOf = id
         radio = prefetch.launch {
-            val songs = runCatching { Graph.api.getRecommendations(listOf(id)) }.getOrDefault(emptyList())
+            val songs = kotlinx.coroutines.withTimeoutOrNull(10_000L) {
+                runCatching { Graph.api.getRecommendations(listOf(id)) }.getOrNull()
+            }.orEmpty()
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { radioCame(p, id, songs) }
         }
     }
@@ -1951,8 +1976,8 @@ object LocalPlayer {
      * No song after the current one (it ended, or Next): its song radio plays, now or when it
      * comes, or Spotify goes on when it had none. False: the queue just ends (see AudioRoute.continues).
      */
-    private fun atEnd(p: ExoPlayer): Boolean {
-        continueIfLast(p)
+    private fun atEnd(p: ExoPlayer, manual: Boolean = false): Boolean {
+        continueIfLast(p, manual = manual)
         if (radioOf == null || radioOf != spotifyId(current())) return false
         if (radioEmpty) spotifyContinues() else moveOnWhenReady = true
         return true

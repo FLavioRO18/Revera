@@ -29,7 +29,7 @@ object EngineStates {
         isBuffering = n.buffering,
         positionMs = n.positionMs,
         timestampMs = n.atMs,
-        speed = 1.0,
+        speed = n.speed,
         shuffle = false,
         repeat = Repeat.OFF,
         restrictions = PlayerRestrictions(),
@@ -83,8 +83,7 @@ object EngineStates {
             isBuffering = own.isBuffering,
             positionMs = own.positionMs,
             timestampMs = own.timestampMs,
-            // The engine's player runs at its own pace: the clock moves at 1x from its position.
-            speed = 1.0,
+            speed = n.speed,
         )
         val movedOn = page.next?.uri == n.uri
         return own.copy(

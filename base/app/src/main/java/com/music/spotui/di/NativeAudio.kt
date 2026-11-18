@@ -129,18 +129,28 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     override val current: kotlinx.coroutines.flow.StateFlow<NativeEngine?> = _current
 
     override suspend fun play(contextUri: String, trackUri: String?, index: Int?, positionMs: Long?, order: List<String>?, shuffle: Boolean?) {
+        queuedSteps.set(0)
         val e = runCatching { ready() }.getOrElse { setAside("it did not start (${it.message})"); throw it }
         foreground()
         commandAtMs = System.currentTimeMillis()
         val since = e.clockMs()
-        // A song played alone is its own context.
         if (trackUri != null && trackUri != contextUri) e.play(contextUri, trackUri, index, order = order?.takeIf { it.isNotEmpty() }, shuffle = shuffle)
         else e.play(contextUri, shuffle = shuffle)
-        // The seek once the song is loaded and reported here: sent before, it put the song played before back.
         if (positionMs != null && positionMs > 0 && e.awaitLoaded(trackUri ?: contextUri.takeIf { it.startsWith("spotify:track:") }, since, LOAD_WAIT_MS)) e.seekTo(positionMs)
     }
-    override suspend fun pause() { engine?.pause() }
-    override suspend fun resume() { val e = ready(); foreground(); e.resume() }
+    override suspend fun pause() { queuedSteps.set(0); engine?.pause() }
+    override suspend fun resume() {
+        val e = ready()
+        foreground()
+        if (ensureActiveSession(e)) e.resume() else SongPlayer.playColdResumeFromNative()
+    }
+
+    private suspend fun ensureActiveSession(e: NativeEngine): Boolean {
+        if (e.now.value != null) return true
+        val since = e.clockMs()
+        runCatching { e.transfer("restore") }
+        return e.awaitLoaded(null, since, 2_500L) || e.now.value != null
+    }
 
     /** The playback service in the foreground before the engine's player asks for the audio (Android refuses it otherwise). */
     private suspend fun foreground() {
@@ -151,9 +161,77 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     }
     private const val FOREGROUND_MS = 2_000L
     private const val LOAD_WAIT_MS = 6_000L
-    override suspend fun seek(positionMs: Long) { engine?.seekTo(positionMs) }
+    override suspend fun seek(positionMs: Long) { queuedSteps.set(0); engine?.seekTo(positionMs) }
+    override suspend fun setSpeed(speed: Double) { commandAtMs = System.currentTimeMillis(); ready().setSpeed(speed) }
     override suspend fun next() { commandAtMs = System.currentTimeMillis(); ready().skipNext() }
-    override suspend fun previous() { ready().previous() }
+    override suspend fun previous() { commandAtMs = System.currentTimeMillis(); ready().previous() }
+    override suspend fun skipTo(item: app.myspoti.api.NowPlaying, contextUri: String?, order: List<String>?, shuffle: Boolean?) {
+        queuedSteps.set(0)
+        val e = runCatching { ready() }.getOrElse { setAside("it did not start (${it.message})"); throw it }
+        foreground()
+        commandAtMs = System.currentTimeMillis()
+        if (item.provider == "queue" || !item.uid.isNullOrBlank()) {
+            e.skipTo(item.uri, item.uid)
+        } else if (!contextUri.isNullOrBlank() && item.uri != contextUri) {
+            e.play(contextUri, item.uri, null, order = order?.takeIf { it.isNotEmpty() }, shuffle = shuffle)
+        } else {
+            e.play(item.uri, shuffle = shuffle)
+        }
+    }
+
+    private val queuedSteps = java.util.concurrent.atomic.AtomicInteger(0)
+    private val drainingSteps = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    fun skipNextQueued() {
+        queuedSteps.incrementAndGet()
+        commandAtMs = System.currentTimeMillis()
+        drainSteps()
+    }
+
+    fun skipPrevQueued() {
+        val cur = queuedSteps.get()
+        if (cur > 0) {
+            queuedSteps.decrementAndGet()
+            return
+        }
+        queuedSteps.decrementAndGet()
+        commandAtMs = System.currentTimeMillis()
+        drainSteps()
+    }
+
+    private fun drainSteps() {
+        if (!drainingSteps.compareAndSet(false, true)) return
+        scope.launch {
+            try {
+                while (true) {
+                    val delta = queuedSteps.getAndSet(0)
+                    if (delta == 0) break
+                    if (delta > 0) {
+                        repeat(delta) {
+                            commandAtMs = System.currentTimeMillis()
+                            runCatching {
+                                foreground()
+                                val e = ready()
+                                if (ensureActiveSession(e)) e.skipNext() else SongPlayer.playColdStepFromNative(forward = true)
+                            }.onFailure { log("skipNext failed: ${it.message}") }
+                        }
+                    } else {
+                        repeat(-delta) {
+                            commandAtMs = System.currentTimeMillis()
+                            runCatching {
+                                foreground()
+                                val e = ready()
+                                if (ensureActiveSession(e)) e.previous() else SongPlayer.playColdStepFromNative(forward = false)
+                            }.onFailure { log("previous failed: ${it.message}") }
+                        }
+                    }
+                }
+            } finally {
+                drainingSteps.set(false)
+                if (queuedSteps.get() != 0) drainSteps()
+            }
+        }
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()

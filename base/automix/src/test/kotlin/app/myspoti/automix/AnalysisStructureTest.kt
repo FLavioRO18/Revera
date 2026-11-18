@@ -116,4 +116,18 @@ class AnalysisStructureTest {
             assertTrue("cancellation happened after work began", checks >= 3)
         }
     }
+
+    @Test fun melChunkMatchesFullSpectrogramBitForBit() {
+        val n = Features.RATE * 12
+        val mono = FloatArray(n) { i -> kotlin.math.sin(i * 0.037).toFloat() * 0.6f }
+        val full = MelFrontend.spectrogram(mono, 0, n)
+        val chunkFrames = 768
+        val flat = FloatArray(chunkFrames * MelFrontend.MELS)
+        MelFrontend.fillChunk(mono, 0, n, full.size, -6, chunkFrames, flat) { false }
+        for (i in 0 until chunkFrames) {
+            val expected = if (i - 6 in full.indices) full[i - 6] else FloatArray(MelFrontend.MELS)
+            val actual = flat.copyOfRange(i * MelFrontend.MELS, (i + 1) * MelFrontend.MELS)
+            assertArrayEquals(expected, actual, 0f)
+        }
+    }
 }

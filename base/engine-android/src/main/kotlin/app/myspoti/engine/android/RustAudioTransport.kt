@@ -5,7 +5,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 internal object RustAudioTransport {
-    init { System.loadLibrary("orpheon_audio") }
+    val available: Boolean = runCatching {
+        System.loadLibrary("orpheon_audio")
+        true
+    }.getOrDefault(false)
 
     private external fun fetchNative(url: String, headers: String, start: Long, end: Long): ByteArray
 

@@ -262,7 +262,9 @@ internal fun whatsNewDate(item: WhatsNewItem): String {
 fun WhatsNewScreen(navController: NavController) {
     var content by remember { mutableStateOf(WhatsNewContent.ALL) }
     var attempt by remember { mutableStateOf(0) }
-    val feed = rememberWhatsNewFeed(content, attempt)
+    val podcastsShown = com.music.spotui.data.api.Features.PODCASTS
+    val effectiveContent = if (podcastsShown) content else WhatsNewContent.MUSIC
+    val feed = rememberWhatsNewFeed(effectiveContent, attempt)
 
     Column(Modifier.fillMaxSize().background(com.music.spotui.ui.theme.AppBackground).statusBarsPadding()) {
         Row(
@@ -286,15 +288,17 @@ fun WhatsNewScreen(navController: NavController) {
             stringResource(R.string.whats_new_subtitle),
             color = AppMuted, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            FilterPill(stringResource(R.string.recents_filter_music), content == WhatsNewContent.MUSIC) {
-                content = content.toggled(WhatsNewContent.MUSIC)
-            }
-            FilterPill(stringResource(R.string.recents_filter_podcasts), content == WhatsNewContent.PODCASTS) {
-                content = content.toggled(WhatsNewContent.PODCASTS)
+        if (podcastsShown) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                FilterPill(stringResource(R.string.recents_filter_music), content == WhatsNewContent.MUSIC) {
+                    content = content.toggled(WhatsNewContent.MUSIC)
+                }
+                FilterPill(stringResource(R.string.recents_filter_podcasts), content == WhatsNewContent.PODCASTS) {
+                    content = content.toggled(WhatsNewContent.PODCASTS)
+                }
             }
         }
         val sections = feed.sections

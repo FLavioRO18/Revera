@@ -17,7 +17,7 @@ Download this fork from [our releases](https://github.com/caruno-git/Revera/rele
 </p>
 
 <p align="center">
-  <a href="https://github.com/caruno-git/Revera/releases/latest"><b>⬇ Download this fork — latest ARM64 APK</b></a>
+  <a href="https://github.com/caruno-git/Revera/releases/latest"><b>⬇ Download this fork — ARM64 (ARMv8) &amp; 32-bit (ARMv7) APKs</b></a>
 </p>
 
 <p align="center"><sub>The Immersive look comes from <a href="https://github.com/kushagrasinghx/BitChord">BitChord</a>: see <a href="#bitchord">Credits</a>.</sub></p>
@@ -39,15 +39,15 @@ Under the hood, the official Spotify Web Player plays the music, hidden inside t
 
 ## Get started
 
-1. Download `app-release.apk` from [this fork’s latest release](https://github.com/caruno-git/Revera/releases/latest) and open it (Android 10 or later, ARM64). Android asks once to allow installs from your browser or file manager.
+1. Download the APK matching your device (`ARMv8` for 64-bit, `ARMv7` for 32-bit, or `universal` / `TV`) from [this fork’s latest release](https://github.com/caruno-git/Revera/releases/latest) and open it (Android 10 or later). Android asks once to allow installs from your browser or file manager.
 2. Tap **Log in with Spotify** and sign in.
 3. Pick the sound quality, allow what you want (notifications, Bluetooth, local files…), and you are in.
 
-For this fork, download updates from [our releases](https://github.com/caruno-git/Revera/releases/latest). Local performance builds do not have the upstream in-app updater enabled.
+For this fork, download updates from [our releases](https://github.com/caruno-git/Revera/releases/latest) or check for updates directly inside Settings.
 
-This fork publishes an **ARM64** `app-release.apk`, installed as **Revera dev** (`app.revera.dev`). It installs alongside upstream stable/beta packages.
+This fork publishes **ARM64 (`ARMv8`)**, **32-bit (`ARMv7`)**, **universal**, and **Android TV (`TV`)** APKs.
 
-For Obtainium, add `https://github.com/caruno-git/Revera` and use the APK filter `^app-release\.apk$`.
+For Obtainium, add `https://github.com/caruno-git/Revera` and pick `ARMv8` (64-bit) or `ARMv7` (32-bit).
 
 ## What you get
 

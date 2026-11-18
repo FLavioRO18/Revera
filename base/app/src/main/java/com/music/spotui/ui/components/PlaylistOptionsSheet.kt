@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
@@ -147,9 +149,9 @@ fun PlaylistOptionsSheet(
         com.music.spotui.data.api.SpotifySync.setPlaylistPublished(page.uri, on) { ok -> if (!ok) restore() }
     }
 
+    val onSpotify = !com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(page.uri)
     com.music.spotui.ui.components.LookSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828)) {
-        Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
-            // As the official app: the playlist itself on top (cover, name, owner), then one action a row.
+        Column(Modifier.navigationBarsPadding().verticalScroll(rememberScrollState()).padding(bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(20.dp, 0.dp, 20.dp, 12.dp)) {
                 com.bumptech.glide.integration.compose.GlideImage(
                     model = page.coverUri, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop,
@@ -164,14 +166,16 @@ fun PlaylistOptionsSheet(
             androidx.compose.material3.HorizontalDivider(color = AppText.copy(alpha = 0.08f))
             Spacer(Modifier.height(6.dp))
             val share = { SpotifyCode.show(ShareTarget(page.uri, page.name, page.ownerName, page.coverUri)); onDismiss() }
-            // The whole playlist into the queue, in its order (a long one is read to its end first).
-            QueueListRows(page.uri, page, onDismiss)
-            // Every song of this playlist into another one of yours (Web Player: "Add playlist to other playlist").
-            if (page.uri.startsWith("spotify:playlist:")) OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.add_playlist_to_playlist)) { mergingInto = true }
-            if (page.isBlend) {
-                // A Blend is Spotify's: renamed, shared and left through its own service.
+            OptionRow(Icons.Outlined.Share, stringResource(R.string.context_menu_share), onClick = share)
+            OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) { SpotifyCode.copyLink(context, page.uri); onDismiss() }
+            if (onSpotify) {
+                QueueListRows(page.uri, page, onDismiss)
+                if (page.uri.startsWith("spotify:playlist:")) OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.add_playlist_to_playlist)) { mergingInto = true }
+            }
+            if (!onSpotify) {
+            } else if (page.isBlend) {
                 OptionRow(Icons.Outlined.Edit, stringResource(R.string.blend_rename)) { renamingBlend = true }
-                OptionRow(Icons.Outlined.Share, stringResource(R.string.blend_invite_more)) {
+                OptionRow(Icons.Outlined.PersonAdd, stringResource(R.string.blend_invite_more)) {
                     scope.launch {
                         val link = BlendInfo.recent[page.uri]?.group?.link
                             ?: runCatching { MyspotiRuntime.api.blends.group(page.uri).link }.getOrNull()
@@ -183,8 +187,6 @@ fun PlaylistOptionsSheet(
             } else if (mine) {
                 onAddSongs?.let { add -> OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.add_songs_title)) { onDismiss(); add() } }
                 OptionRow(Icons.Outlined.Edit, stringResource(R.string.playlist_edit_details)) { editing = true }
-                // Collaborative is not enough: only those who open its invitation link can add songs
-                // (a plain link only shows it). Inviting makes it collaborative, as in the official app.
                 OptionRow(Icons.Outlined.PersonAdd, stringResource(R.string.playlist_invite_collaborators)) {
                     if (access != PlaylistAccess.COLLABORATIVE) setAccess(PlaylistAccess.COLLABORATIVE)
                     scope.launch {
@@ -196,9 +198,6 @@ fun PlaylistOptionsSheet(
                         onDismiss()
                     }
                 }
-                OptionRow(Icons.Outlined.QrCode2, stringResource(R.string.context_menu_share), onClick = share)
-                OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) { SpotifyCode.copyLink(context, page.uri); onDismiss() }
-                // Who sees it: one action naming what it does next (not three choices to read).
                 val a = access
                 fun change(target: PlaylistAccess, said: Int) {
                     setAccess(target)
@@ -210,7 +209,6 @@ fun PlaylistOptionsSheet(
                     PlaylistAccess.COLLABORATIVE -> OptionRow(Icons.Outlined.GroupRemove, stringResource(R.string.playlist_stop_collab)) { stoppingCollab = true }
                     else -> OptionRow(Icons.Outlined.Lock, stringResource(R.string.playlist_make_private)) { change(PlaylistAccess.PRIVATE, R.string.playlist_now_private) }
                 }
-                // Only a playlist others may see can be listed on the profile.
                 if (a != null && a != PlaylistAccess.PRIVATE && published != null) {
                     val on = published == true
                     OptionRow(if (on) Icons.Outlined.PersonRemove else Icons.Outlined.Person,
@@ -221,9 +219,6 @@ fun PlaylistOptionsSheet(
                 }
                 OptionRow(Icons.Outlined.Delete, stringResource(R.string.local_delete_playlist)) { deleting = true }
             } else {
-                OptionRow(Icons.Outlined.QrCode2, stringResource(R.string.context_menu_share), onClick = share)
-                OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) { SpotifyCode.copyLink(context, page.uri); onDismiss() }
-                // The Web Player offers it only where canCancelMembership is true (a collaborator, not the owner).
                 if (page.canLeave) OptionRow(Icons.AutoMirrored.Outlined.Logout, stringResource(R.string.playlist_leave)) { leavingPlaylist = true }
             }
             if (!mine && !page.isBlend && page.ownerUri.startsWith("spotify:user:")) {

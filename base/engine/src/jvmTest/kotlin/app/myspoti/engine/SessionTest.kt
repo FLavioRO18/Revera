@@ -565,6 +565,143 @@ class SessionTest {
             .first { it.str("type") == "jssdk_playback_stats" }.str("message", "reason_end"))
     }
 
+    @Test
+    fun state_put_400_during_player_event_does_not_crash_background_loop() = runTest {
+        val rig = Rig(backgroundScope)
+        val events = ArrayList<EngineEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { rig.engine.events.collect { events += it } }
+        rig.start()
+        rig.engine.handleDealerFrame(rig.replaceState(2, paused = false, seekTo = 0))
+        rig.http.failNext("/track-playback/v1/devices/", 400)
+        rig.player.onEvent!!(PlayerEvent.Playing(0))
+        rig.env.now += 1_100
+        rig.player.onEvent!!(PlayerEvent.Position(1_100))
+        runCurrent()
+        assertTrue(events.any { it is EngineEvent.Failure && "400" in it.message })
+        assertTrue(events.any { it is EngineEvent.Preloaded })
+    }
+
+    @Test
+    fun skip_to_sends_skip_next_with_target_track() = runTest {
+        val rig = playing(this)
+        val push = launch {
+            kotlinx.coroutines.yield()
+            rig.engine.handleDealerFrame(rig.replaceState(3, paused = false, seekTo = 0))
+        }
+        rig.engine.skipTo("spotify:track:target123", "uid456")
+        push.join()
+        val cmd = rig.http.requests.last { "/player/command/" in it.url }
+        val body = rig.http.json(cmd)["command"]!!.jsonObject
+        assertEquals("skip_next", body.str("endpoint"))
+        assertEquals("spotify:track:target123", body.str("track", "uri"))
+        assertEquals("uid456", body.str("track", "uid"))
+    }
+
+    @Test
+    fun skip_next_automatically_hops_over_adjacent_duplicate_release() = runTest {
+        val rig = playing(this)
+        val firstUri = rig.trackUriOf(2)
+        val firstTrackObj = rig.http.machine["tracks"]!!.jsonArray[rig.states[2].jsonObject["track"]!!.jsonPrimitive.content.toInt()].jsonObject
+        val firstName = firstTrackObj.str("metadata", "name")
+        val firstDur = firstTrackObj["metadata"]!!.jsonObject["duration"]!!
+        val nextStateIdx = rig.states[2].jsonObject["transitions"]!!.jsonObject["skip_next"]!!.jsonObject["state_index"]!!.jsonPrimitive.content.toInt()
+        val nextTrackIdx = rig.states[nextStateIdx].jsonObject["track"]!!.jsonPrimitive.content.toInt()
+
+        val dupRaw = EngineJson.parseToJsonElement(rig.replaceState(nextStateIdx, paused = false, seekTo = 0)).jsonObject
+        val dupPayload = dupRaw["payloads"]!!.jsonArray[0].jsonObject
+        val dupSm = dupPayload["state_machine"]!!.jsonObject
+        val dupTracks = dupSm["tracks"]!!.jsonArray.mapIndexed { i, t ->
+            if (i != nextTrackIdx) t else {
+                val meta = t.jsonObject["metadata"]!!.jsonObject
+                val patchedMeta = kotlinx.serialization.json.JsonObject(
+                    meta + ("uri" to kotlinx.serialization.json.JsonPrimitive("spotify:track:dupRelease999")) +
+                        ("name" to kotlinx.serialization.json.JsonPrimitive(firstName)) +
+                        ("duration" to firstDur),
+                )
+                kotlinx.serialization.json.JsonObject(t.jsonObject + ("metadata" to patchedMeta))
+            }
+        }
+        val dupFrame = kotlinx.serialization.json.JsonObject(
+            dupRaw + ("payloads" to kotlinx.serialization.json.JsonArray(listOf(
+                kotlinx.serialization.json.JsonObject(
+                    dupPayload + ("state_machine" to kotlinx.serialization.json.JsonObject(dupSm + ("tracks" to kotlinx.serialization.json.JsonArray(dupTracks)))),
+                ),
+            ))),
+        ).toString()
+
+        val thirdIdx = rig.advanceOf(2)
+        val push = launch {
+            kotlinx.coroutines.yield()
+            rig.engine.handleDealerFrame(dupFrame)
+            kotlinx.coroutines.yield()
+            rig.engine.handleDealerFrame(rig.replaceState(thirdIdx, paused = false, seekTo = 0))
+        }
+        rig.engine.skipNext()
+        push.join()
+        runCurrent()
+
+        assertFalse(rig.player.calls.any { "dupRelease999" in it }, "duplicate release must not load: ${rig.player.calls}")
+        assertEquals(rig.trackUriOf(thirdIdx), rig.player.loaded?.trackUri)
+        assertTrue(rig.engine.now.value?.uri != firstUri && rig.engine.now.value?.uri != "spotify:track:dupRelease999")
+    }
+
+    @Test
+    fun set_speed_applies_to_episodes_and_resets_to_one_on_music_tracks() = runTest {
+        val rig = Rig(backgroundScope)
+        rig.start()
+        val raw = Fixtures.json("dealer-replace-state.json")
+        val payload = raw["payloads"]!!.jsonArray[0].jsonObject
+        val sm = payload["state_machine"]!!.jsonObject
+        val epTrackIdx = rig.states[2].jsonObject["track"]!!.jsonPrimitive.content.toInt()
+        val tracks = sm["tracks"]!!.jsonArray.mapIndexed { idx, t ->
+            if (idx != epTrackIdx) t else {
+                val meta = t.jsonObject["metadata"]!!.jsonObject
+                val epMeta = kotlinx.serialization.json.JsonObject(
+                    meta + ("uri" to kotlinx.serialization.json.JsonPrimitive("spotify:episode:ep123")),
+                )
+                kotlinx.serialization.json.JsonObject(
+                    t.jsonObject + ("content_type" to kotlinx.serialization.json.JsonPrimitive("EPISODE")) + ("metadata" to epMeta),
+                )
+            }
+        }
+        val epFrame = kotlinx.serialization.json.JsonObject(
+            raw + ("payloads" to kotlinx.serialization.json.JsonArray(listOf(
+                kotlinx.serialization.json.JsonObject(
+                    payload + mapOf(
+                        "state_machine" to kotlinx.serialization.json.JsonObject(
+                            sm + ("state_machine_id" to kotlinx.serialization.json.JsonPrimitive("ChTep1")) + ("tracks" to kotlinx.serialization.json.JsonArray(tracks)),
+                        ),
+                        "state_ref" to kotlinx.serialization.json.JsonObject(mapOf(
+                            "state_index" to kotlinx.serialization.json.JsonPrimitive(2),
+                            "paused" to kotlinx.serialization.json.JsonPrimitive(false),
+                            "active_alias" to kotlinx.serialization.json.JsonNull,
+                        )),
+                    ),
+                ),
+            ))),
+        ).toString()
+        rig.engine.handleDealerFrame(epFrame)
+        rig.engine.handlePlayerEvent(PlayerEvent.Playing(0))
+        rig.engine.setSpeed(1.5)
+        assertEquals(1.5, rig.player.lastSpeed, 0.001)
+        assertEquals(1.5, rig.engine.now.value?.speed ?: 0.0, 0.001)
+
+        rig.engine.handleDealerFrame(rig.replaceState(rig.advanceOf(2), paused = false, seekTo = 0))
+        assertEquals(1.0, rig.player.lastSpeed, 0.001)
+        assertEquals(1.0, rig.engine.now.value?.speed ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun unacknowledged_skip_command_unlocks_after_timeout() = runTest {
+        val rig = playing(this)
+        rig.engine.skipNext()
+        advanceTimeBy(3_000)
+        runCurrent()
+        rig.engine.skipNext()
+        val skipPosts = rig.http.requests.count { "/player/command/" in it.url }
+        assertEquals(2, skipPosts)
+    }
+
     /** A rig playing state 2 from 0, 10 s in (started_playing sent, next track preloaded). */
     private suspend fun playing(scope: kotlinx.coroutines.test.TestScope): Rig {
         val rig = Rig(scope.backgroundScope)

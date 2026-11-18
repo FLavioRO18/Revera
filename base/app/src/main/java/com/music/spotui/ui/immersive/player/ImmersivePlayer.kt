@@ -20,8 +20,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.spotui.ui.navigation.PlayerSheet
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -42,7 +45,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.State
@@ -72,6 +78,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -79,16 +86,22 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,7 +134,12 @@ import com.music.spotui.ui.components.mixWave
 import com.music.spotui.ui.components.titleMarquee
 import com.music.spotui.ui.look.rememberArtworkColors
 import com.music.spotui.ui.look.rememberPauseScale
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.sign
 
 // Sizes and gaps of the portrait layout, as the player this follows has them.
 private val THUMB_SIZE = 54.dp
@@ -145,7 +163,7 @@ internal val PLAYER_MAX_WIDTH = 560.dp
 private const val PANEL_TRAVEL_MS = com.music.spotui.ui.immersive.motion.ImmersiveMotion.LONG_MS
 
 private val ArtCorner = RoundedCornerShape(8.dp)
-/** How much bigger the cover is on an AutoMix beat (the player draws in around it meanwhile). */
+private const val HERO_FADE_FRACTION = 0.42f
 private const val MIX_BEAT_GROW = 0.025f
 
 /** What the middle of the player shows. */
@@ -211,21 +229,247 @@ internal fun PlayerDismissStrip(tint: Color, onClose: () -> Unit) {
     }
 }
 
-/** How far the cover is swiped along to change track (the mini player's distance). */
-private val TRACK_SWIPE_THRESHOLD = 72.dp
+private val TRACK_SWIPE_MIN_THRESHOLD = 96.dp
+private val TRACK_SWIPE_CARD_GAP = 20.dp
+private val TRACK_SWIPE_FLING_VELOCITY = 900.dp
+private val TRACK_SWIPE_FLING_MIN_DRAG = 36.dp
 
-/**
- * A swipe along the cover changes track, as on the mini player: to the left the next song, to the
- * right the previous one, past [TRACK_SWIPE_THRESHOLD]. Only a mostly sideways move is taken (and
- * consumed); a vertical one is left untouched for [dragToClose] and a tap for the cover's click.
- * Off while [enabled] is false (the cover is the header's thumbnail under an open panel).
- */
+private class CoverSwipeController(private val scope: CoroutineScope) {
+    val offsetX = Animatable(0f)
+    val enterAlpha = Animatable(1f)
+    val creditsOffsetX = Animatable(0f)
+    val creditsAlpha = Animatable(1f)
+    var outgoingCoverUrl by mutableStateOf<String?>(null)
+    var incomingCoverUrl by mutableStateOf<String?>(null)
+    var overrideCoverUrl by mutableStateOf<String?>(null)
+    var spanPx: Float = 0f
+    private var latestActualCoverUrl: String = ""
+    private var lockedOutCovers: Set<String> = emptySet()
+    private var lastRewindAtMs: Long = 0L
+    private var settleJob: Job? = null
+
+    fun onActualCoverChanged(actualUrl: String) {
+        latestActualCoverUrl = actualUrl
+        if (actualUrl.isBlank()) return
+        if (outgoingCoverUrl != null && incomingCoverUrl.isNullOrBlank() && actualUrl != outgoingCoverUrl && actualUrl !in lockedOutCovers) {
+            incomingCoverUrl = actualUrl
+        }
+        if (lockedOutCovers.isNotEmpty() && actualUrl !in lockedOutCovers) {
+            lockedOutCovers = emptySet()
+            if (outgoingCoverUrl == null) {
+                overrideCoverUrl = null
+            }
+        } else if (overrideCoverUrl != null && actualUrl == overrideCoverUrl) {
+            overrideCoverUrl = null
+        }
+    }
+
+    fun dragTo(rawDelta: Float, currentSpanPx: Float) {
+        settleJob?.cancel()
+        outgoingCoverUrl = null
+        incomingCoverUrl = null
+        val limit = currentSpanPx.coerceAtLeast(1f)
+        spanPx = limit
+        val free = limit * 0.55f
+        val damped = if (abs(rawDelta) <= free) {
+            rawDelta
+        } else {
+            val extra = abs(rawDelta) - free
+            sign(rawDelta) * (free + extra / (1f + extra / (limit * 0.65f)))
+        }
+        val frac = (abs(damped) / limit).coerceIn(0f, 1f)
+        scope.launch {
+            enterAlpha.snapTo(1f)
+            offsetX.snapTo(damped)
+            creditsOffsetX.snapTo(damped * 0.14f)
+            creditsAlpha.snapTo(1f - 0.35f * frac)
+        }
+    }
+
+    fun springBack() {
+        settleJob?.cancel()
+        outgoingCoverUrl = null
+        incomingCoverUrl = null
+        settleJob = scope.launch {
+            enterAlpha.snapTo(1f)
+            launch {
+                creditsAlpha.animateTo(1f, tween(durationMillis = 180, easing = FastOutSlowInEasing))
+            }
+            launch {
+                creditsOffsetX.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow))
+            }
+            offsetX.animateTo(
+                0f,
+                spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow),
+            )
+        }
+    }
+
+    fun stepByButton(
+        direction: Int,
+        fallbackSpanPx: Float,
+        currentCover: String,
+        neighborCover: String?,
+        positionMs: Long,
+        trigger: () -> Unit,
+    ) {
+        val effectiveSpan = spanPx.takeIf { it > 1f } ?: fallbackSpanPx.coerceAtLeast(1f)
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (direction > 0 && positionMs > 3_000L && now - lastRewindAtMs > 3_000L) {
+            lastRewindAtMs = now
+            settleJob?.cancel()
+            outgoingCoverUrl = null
+            incomingCoverUrl = null
+            trigger()
+            settleJob = scope.launch {
+                enterAlpha.snapTo(1f)
+                launch {
+                    creditsOffsetX.snapTo(0f)
+                    creditsOffsetX.animateTo(effectiveSpan * 0.04f, tween(85, easing = FastOutSlowInEasing))
+                    creditsOffsetX.animateTo(0f, spring(dampingRatio = 0.65f, stiffness = 520f))
+                }
+                offsetX.snapTo(0f)
+                offsetX.animateTo(effectiveSpan * 0.12f, tween(90, easing = FastOutSlowInEasing))
+                offsetX.animateTo(0f, spring(dampingRatio = 0.64f, stiffness = 500f))
+            }
+            return
+        }
+        lastRewindAtMs = 0L
+        val baseCover = if (outgoingCoverUrl != null) {
+            incomingCoverUrl ?: overrideCoverUrl ?: latestActualCoverUrl.ifBlank { currentCover }
+        } else {
+            currentCover
+        }
+        commit(
+            direction = direction,
+            currentSpanPx = effectiveSpan,
+            currentCover = baseCover,
+            neighborCover = neighborCover,
+            fromButton = true,
+            trigger = trigger,
+        )
+    }
+
+    fun commit(
+        direction: Int,
+        currentSpanPx: Float,
+        currentCover: String,
+        neighborCover: String?,
+        fromButton: Boolean = false,
+        trigger: () -> Unit,
+    ) {
+        settleJob?.cancel()
+        val effectiveSpan = currentSpanPx.coerceAtLeast(1f)
+        spanPx = effectiveSpan
+        val cleanNeighbor = neighborCover?.takeIf { it.isNotBlank() && it != currentCover }
+        if (currentCover.isNotBlank()) {
+            lockedOutCovers = lockedOutCovers + currentCover
+        }
+        outgoingCoverUrl = currentCover
+        incomingCoverUrl = cleanNeighbor
+        val targetX = direction * effectiveSpan
+        val slideMs = if (fromButton) 265 else 200
+        trigger()
+        settleJob = scope.launch {
+            if (fromButton) {
+                offsetX.snapTo(0f)
+                enterAlpha.snapTo(1f)
+            }
+            launch {
+                creditsAlpha.animateTo(0.18f, tween(durationMillis = slideMs / 2, easing = FastOutSlowInEasing))
+            }
+            launch {
+                creditsOffsetX.animateTo(direction * effectiveSpan * 0.08f, tween(durationMillis = slideMs / 2, easing = FastOutSlowInEasing))
+                creditsOffsetX.snapTo(-direction * effectiveSpan * 0.07f)
+                launch {
+                    creditsAlpha.animateTo(1f, tween(durationMillis = 190, easing = FastOutSlowInEasing))
+                }
+                creditsOffsetX.animateTo(0f, spring(dampingRatio = 0.82f, stiffness = 480f))
+            }
+            offsetX.animateTo(
+                targetX,
+                tween(durationMillis = slideMs, easing = FastOutSlowInEasing),
+            )
+            val landedCover = incomingCoverUrl
+            outgoingCoverUrl = null
+            incomingCoverUrl = null
+            val actualReady = latestActualCoverUrl.isNotBlank() && latestActualCoverUrl !in lockedOutCovers
+            if (actualReady) {
+                lockedOutCovers = emptySet()
+                overrideCoverUrl = null
+                offsetX.snapTo(0f)
+                enterAlpha.snapTo(1f)
+            } else if (!landedCover.isNullOrBlank()) {
+                overrideCoverUrl = landedCover
+                offsetX.snapTo(0f)
+                enterAlpha.snapTo(1f)
+                delay(1_400)
+                overrideCoverUrl = null
+                lockedOutCovers = emptySet()
+            } else {
+                enterAlpha.snapTo(0f)
+                offsetX.snapTo(-direction * effectiveSpan * 0.50f)
+                var waited = 0
+                while (lockedOutCovers.isNotEmpty() && waited < 260) {
+                    delay(20)
+                    waited += 20
+                }
+                lockedOutCovers = emptySet()
+                overrideCoverUrl = null
+                launch {
+                    enterAlpha.animateTo(1f, tween(durationMillis = 210, easing = FastOutSlowInEasing))
+                }
+                offsetX.animateTo(
+                    0f,
+                    spring(dampingRatio = 0.82f, stiffness = 460f),
+                )
+            }
+        }
+    }
+}
+
 @Composable
-private fun Modifier.swipeToChangeTrack(enabled: Boolean, actions: ImmersivePlayerActions): Modifier {
+private fun rememberCoverSwipeController(actualCoverUrl: String): CoverSwipeController {
+    val scope = rememberCoroutineScope()
+    val controller = remember(scope) { CoverSwipeController(scope) }
+    LaunchedEffect(actualCoverUrl) {
+        controller.onActualCoverChanged(actualCoverUrl)
+    }
+    return controller
+}
+
+@Composable
+private fun rememberNeighborCovers(): Pair<String?, String?> {
+    val np by com.music.spotui.di.SongPlayer.nowPlaying
+    val queue by com.music.spotui.di.SongPlayer.engineQueue
+    val prevRaw = np.prev?.coverUri?.takeIf { it.isNotBlank() }
+    val nextRaw = (queue.queued.firstOrNull()?.song?.coverUri?.takeIf { it.isNotBlank() }
+        ?: queue.nextUp.firstOrNull()?.song?.coverUri?.takeIf { it.isNotBlank() }
+        ?: np.next?.coverUri?.takeIf { it.isNotBlank() })
+    val prev = prevRaw?.let(app.myspoti.host.android.Covers::large)
+    val next = nextRaw?.let(app.myspoti.host.android.Covers::large)
+    return prev to next
+}
+
+@Composable
+private fun Modifier.swipeToChangeTrack(
+    enabled: Boolean,
+    actions: ImmersivePlayerActions,
+    swipe: CoverSwipeController,
+    currentCoverUrl: String,
+    prevCoverUrl: String?,
+    nextCoverUrl: String?,
+): Modifier {
     val on by rememberUpdatedState(enabled)
     val current by rememberUpdatedState(actions)
-    return pointerInput(Unit) {
-        val threshold = TRACK_SWIPE_THRESHOLD.toPx()
+    val curCover by rememberUpdatedState(currentCoverUrl)
+    val prevCover by rememberUpdatedState(prevCoverUrl)
+    val nextCover by rememberUpdatedState(nextCoverUrl)
+    return pointerInput(swipe) {
+        val minThreshold = TRACK_SWIPE_MIN_THRESHOLD.toPx()
+        val gapPx = TRACK_SWIPE_CARD_GAP.toPx()
+        val flingVel = TRACK_SWIPE_FLING_VELOCITY.toPx()
+        val flingMinDrag = TRACK_SWIPE_FLING_MIN_DRAG.toPx()
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             if (!on) return@awaitEachGesture
@@ -233,15 +477,44 @@ private fun Modifier.swipeToChangeTrack(enabled: Boolean, actions: ImmersivePlay
                 val moved = change.position - down.position
                 if (abs(moved.x) > abs(moved.y)) change.consume()
             } ?: return@awaitEachGesture
+            val sidePx = size.width.toFloat().coerceAtLeast(1f)
+            val spanPx = sidePx + gapPx
+            val threshold = maxOf(minThreshold, sidePx * 0.30f)
+            val velocity = VelocityTracker()
+            velocity.addPointerInputChange(down)
+            velocity.addPointerInputChange(slopped)
             var dragged = (slopped.position - down.position).x
+            var armedDir = 0
+            swipe.dragTo(dragged, spanPx)
             val finished = drag(slopped.id) { change ->
+                velocity.addPointerInputChange(change)
                 dragged += change.positionChange().x
                 change.consume()
+                swipe.dragTo(dragged, spanPx)
+                val nowDir = when {
+                    dragged <= -threshold -> -1
+                    dragged >= threshold -> 1
+                    else -> 0
+                }
+                if (nowDir != armedDir) {
+                    armedDir = nowDir
+                    com.music.spotui.di.Haptics.tick()
+                }
             }
-            if (!finished) return@awaitEachGesture
-            when {
-                dragged <= -threshold -> current.next()
-                dragged >= threshold -> current.previous()
+            if (!finished) {
+                swipe.springBack()
+                return@awaitEachGesture
+            }
+            val vx = velocity.calculateVelocity().x
+            val commitDir = when {
+                dragged <= -threshold || (vx <= -flingVel && dragged <= -flingMinDrag) -> -1
+                dragged >= threshold || (vx >= flingVel && dragged >= flingMinDrag) -> 1
+                else -> 0
+            }
+            when (commitDir) {
+                -1 -> swipe.commit(-1, spanPx, curCover, nextCover) { current.next() }
+                1 -> swipe.commit(1, spanPx, curCover, prevCover) { current.previous() }
+                else -> swipe.springBack()
             }
         }
     }
@@ -290,6 +563,48 @@ fun ImmersivePlayer(
     )
     val pauseScale = rememberPauseScale(state.playing)
     val volume = rememberPlayerVolume()
+    val density = LocalDensity.current
+    val fallbackSpanPx = with(density) { 340.dp.toPx() }
+    val gapPx = with(density) { TRACK_SWIPE_CARD_GAP.toPx() }
+    val coverSwipe = rememberCoverSwipeController(state.coverUrl)
+    val (prevCoverUrl, nextCoverUrl) = rememberNeighborCovers()
+    val shownCoverUrl = coverSwipe.outgoingCoverUrl ?: coverSwipe.overrideCoverUrl ?: state.coverUrl
+    val swipeSign by remember(coverSwipe) {
+        derivedStateOf {
+            when {
+                coverSwipe.offsetX.value < -0.5f -> -1
+                coverSwipe.offsetX.value > 0.5f -> 1
+                else -> 0
+            }
+        }
+    }
+    val curShownCover by rememberUpdatedState(shownCoverUrl)
+    val curPrevCover by rememberUpdatedState(prevCoverUrl)
+    val curNextCover by rememberUpdatedState(nextCoverUrl)
+    val curActions by rememberUpdatedState(actions)
+    val curPositionMs by rememberUpdatedState(state.positionMs)
+    val onNextWithAnim: () -> Unit = remember(coverSwipe, fallbackSpanPx) {
+        {
+            coverSwipe.stepByButton(
+                direction = -1,
+                fallbackSpanPx = fallbackSpanPx,
+                currentCover = curShownCover,
+                neighborCover = curNextCover,
+                positionMs = curPositionMs(),
+            ) { curActions.next() }
+        }
+    }
+    val onPreviousWithAnim: () -> Unit = remember(coverSwipe, fallbackSpanPx) {
+        {
+            coverSwipe.stepByButton(
+                direction = 1,
+                fallbackSpanPx = fallbackSpanPx,
+                currentCover = curShownCover,
+                neighborCover = curPrevCover,
+                positionMs = curPositionMs(),
+            ) { curActions.previous() }
+        }
+    }
 
     // The song's Canvas, behind the player once its first frame is drawn. The cover opens into it:
     // the clip fades in from a little closer while the sleeve grows and fades away. The lyrics or
@@ -331,29 +646,25 @@ fun ImmersivePlayer(
         val landscape = window.playerSideBySide(maxWidth, maxHeight)
         val sidePane = window.large && maxWidth >= SIDE_PANE_MIN_WIDTH
         val playerWidth = maxWidth
-        PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl)
+        PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl, portrait = !landscape)
         if (canvasUrl != null) {
             com.music.spotui.ui.screens.CanvasVideo(
                 url = canvasUrl,
                 onFirstFrame = { canvasShown = true },
-                // Still while the sheet is closed, the song paused or a panel covers it.
                 playing = PlayerSheet.open.value && state.playing && !state.buffering && panel == Panel.NONE,
                 modifier = Modifier.fillMaxSize().graphicsLayer {
                     val o = canvasOpen.value
                     alpha = o
-                    // Settles from slightly closer as it opens.
                     val s = 1f + CANVAS_OPEN_ZOOM * (1f - o)
                     scaleX = s
                     scaleY = s
                 },
             )
-            // The words and the controls read over any clip; darker again under an open panel.
             Box(
                 Modifier.fillMaxSize().graphicsLayer { alpha = canvasOpen.value * (0.55f + 0.45f * collapse.value) }
                     .background(CanvasShade),
             )
         }
-        // An AutoMix mix: the content draws in with it and springs back after it, the backdrop stays.
         Box(Modifier.fillMaxSize().mixSqueeze(mixMotion)) {
         CompositionLocalProvider(LocalPlayerTint provides tint) {
             if (landscape) LandscapePlayer(
@@ -363,6 +674,14 @@ fun ImmersivePlayer(
                 panel = panel,
                 pauseScale = pauseScale,
                 volume = volume,
+                coverSwipe = coverSwipe,
+                swipeSign = swipeSign,
+                shownCoverUrl = shownCoverUrl,
+                prevCoverUrl = prevCoverUrl,
+                nextCoverUrl = nextCoverUrl,
+                gapPx = gapPx,
+                onPreviousStep = onPreviousWithAnim,
+                onNextStep = onNextWithAnim,
                 onToggleLyrics = { panel = if (lyricsOpen) Panel.NONE else Panel.LYRICS },
                 onToggleQueue = { panel = if (queueOpen) Panel.NONE else Panel.QUEUE },
                 onOpenDevices = { showDevices = true },
@@ -370,42 +689,37 @@ fun ImmersivePlayer(
                 onSource = { showQuality = true },
                 onSourceLong = { showNerd = true },
                 sidePane = sidePane,
-            ) else Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                // The handle: always hands its drags to the sheet.
-                PlayerDismissStrip(tint) { actions.close() }
+            ) else {
+                val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                val heroMode = !window.large
+                Box(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+                Box(Modifier.fillMaxWidth().zIndex(2f)) {
+                    PlayerDismissStrip(tint) { actions.close() }
+                }
 
-                // Large windows (a portrait tablet): the box below is no taller than the cover and
-                // the credits need, and the two are centred with the controls under the handle.
-                // Filled, the box's spare height went between the cover and the credits (190 dp).
-                // Phones keep the box filling the height (the cap is then never reached).
                 val blockMax = if (window.large) minOf(playerWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH) +
                     ART_BOX_TOP_PAD + ART_TITLE_GAP + HEADER_HEIGHT + 16.dp else Dp.Infinity
-                Column(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.Center) {
-                // Everything that changes between the full player and the panels lives in this
-                // one weighted box, so the controls below it never move.
+                Column(Modifier.weight(1f).fillMaxWidth().zIndex(1f), verticalArrangement = Arrangement.Center) {
                 BoxWithConstraints(Modifier.weight(1f, fill = !window.large).heightIn(max = blockMax).fillMaxWidth()) {
                     val contentWidth = minOf(maxWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH)
                     val left = (maxWidth - contentWidth) / 2
                     val fullArt = minOf(contentWidth, maxHeight - ART_BOX_TOP_PAD - ART_TITLE_GAP - HEADER_HEIGHT - 16.dp)
                         .coerceAtLeast(THUMB_SIZE)
-                    // While the player is whole the credits sit just above the scrubber and the cover is
-                    // centred in the room above them (centred as a pair, the spare height of a tall
-                    // phone all went between the credits and the scrubber: reported as the like and
-                    // more glyphs sitting far too high).
                     val spare = (maxHeight - ART_BOX_TOP_PAD - fullArt - ART_TITLE_GAP - HEADER_HEIGHT - 16.dp)
                         .coerceAtLeast(0.dp)
                     val groupTop = spare / 2
-                    // Functions of the collapse, called at placement and measure: composition never reads them.
+                    val heroBleedTop = statusTop + DISMISS_STRIP_HEIGHT
+                    val heroBottomInBox = ART_BOX_TOP_PAD + spare + fullArt + ART_TITLE_GAP * 0.65f
                     fun p() = collapse.value
-                    fun artSize(): Dp = lerp(fullArt, THUMB_SIZE, p())
-                    fun artTop(): Dp = ART_BOX_TOP_PAD + lerp(groupTop, 0.dp, p())
-                    fun artStart(): Dp = left + lerp((contentWidth - fullArt) / 2, 0.dp, p())
+                    fun artWidth(): Dp = if (heroMode) lerp(maxWidth, THUMB_SIZE, p()) else lerp(fullArt, THUMB_SIZE, p())
+                    fun artHeight(): Dp = if (heroMode) lerp(heroBleedTop + heroBottomInBox, THUMB_SIZE, p()) else lerp(fullArt, THUMB_SIZE, p())
+                    fun artTop(): Dp = if (heroMode) lerp(-heroBleedTop, ART_BOX_TOP_PAD, p()) else ART_BOX_TOP_PAD + lerp(groupTop, 0.dp, p())
+                    fun artStart(): Dp = if (heroMode) lerp(0.dp, left, p()) else left + lerp((contentWidth - fullArt) / 2, 0.dp, p())
                     fun titleTop(): Dp = ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP, 0.dp, p())
                     fun titleStart(): Dp = lerp(0.dp, THUMB_SIZE + 12.dp, p())
-                    // The credits only crawl while they are the screen: over a list they would pull the eye.
                     val scrolls by remember { derivedStateOf { collapse.value < 0.01f } }
 
-                    // ---- The panel, under the header ----
                     val panelAlpha = { ((p() - 0.6f) / 0.4f).coerceIn(0f, 1f) }
                     Crossfade(
                         targetState = panel,
@@ -424,57 +738,140 @@ fun ImmersivePlayer(
                         }
                     }
 
-                    // ---- The cover: the whole sleeve, then the header's thumbnail ----
+                    val activeGapPx = if (heroMode) 0f else gapPx
                     Box(
                         modifier = Modifier
                             .offset { IntOffset(artStart().roundToPx(), artTop().roundToPx()) }
                             .layout { measurable, _ ->
-                                val side = artSize().roundToPx()
-                                val placeable = measurable.measure(Constraints.fixed(side, side))
-                                layout(side, side) { placeable.place(0, 0) }
+                                val w = artWidth().roundToPx().coerceAtLeast(1)
+                                val h = artHeight().roundToPx().coerceAtLeast(1)
+                                val placeable = measurable.measure(Constraints.fixed(w, h))
+                                layout(w, h) { placeable.place(0, 0) }
                             }
+                            .onSizeChanged { if (panel == Panel.NONE && it.width > 0) coverSwipe.spanPx = it.width + activeGapPx }
                             .graphicsLayer {
-                                // The pause step back, let go of as the cover collapses into the header.
-                                // With a Canvas, the sleeve opens into the clip: it grows and fades as the
-                                // clip comes in, and is the thumbnail again in the header.
-                                val opened = canvasOpen.value * (1f - p())
-                                val beat = 1f + MIX_BEAT_GROW * (state.mixPulse?.level() ?: 0f) * (1f - p())
-                                val scale = (pauseScale.value + (1f - pauseScale.value) * p()) * (1f + CANVAS_COVER_GROW * opened) * beat
-                                scaleX = scale
-                                scaleY = scale
-                                alpha = 1f - opened
-                                shadowElevation = 10.dp.toPx() * (1f - p()) * (1f - opened)
-                                shape = ArtCorner
+                                val corner = if (heroMode) 8.dp * p() else 8.dp
+                                shape = RoundedCornerShape(corner)
                                 clip = true
+                                compositingStrategy = if (heroMode && p() < 0.995f) CompositingStrategy.Offscreen else CompositingStrategy.Auto
                             }
-                            .background(Color.Black.copy(alpha = 0.18f))
+                            .drawWithContent {
+                                drawContent()
+                                if (heroMode) {
+                                    val fadeShare = (1f - p()).coerceIn(0f, 1f)
+                                    if (fadeShare > 0.005f) {
+                                        drawRect(
+                                            brush = Brush.verticalGradient(
+                                                colors = listOf(Color.Black, Color.Black.copy(alpha = 1f - fadeShare)),
+                                                startY = size.height * (1f - HERO_FADE_FRACTION),
+                                                endY = size.height,
+                                            ),
+                                            blendMode = BlendMode.DstIn,
+                                        )
+                                    }
+                                }
+                            }
                             .dragToClose()
-                            .swipeToChangeTrack(enabled = panel == Panel.NONE, actions = actions)
+                            .swipeToChangeTrack(
+                                enabled = panel == Panel.NONE,
+                                actions = actions,
+                                swipe = coverSwipe,
+                                currentCoverUrl = shownCoverUrl,
+                                prevCoverUrl = prevCoverUrl,
+                                nextCoverUrl = nextCoverUrl,
+                            )
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 if (panel != Panel.NONE) panel = Panel.NONE
                             },
                     ) {
-                        GlideImage(
-                            model = state.coverUrl.takeIf { it.isNotBlank() },
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            loading = placeholder(R.drawable.placeholder),
-                            failure = placeholder(R.drawable.placeholder),
-                            modifier = Modifier.fillMaxSize(),
-                            // The box shrinks to the 60dp header thumbnail and grows back: Glide sizes the
-                            // request from the constraints it first sees, so without a fixed size a cover
-                            // first measured (or reloaded) while collapsed stays a small bitmap.
-                            requestBuilderTransform = { it.override(COVER_DECODE_PX) },
-                        )
-                        SongBlendCover(blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                        val peekUrl = coverSwipe.incomingCoverUrl
+                            ?: (if (swipeSign < 0) nextCoverUrl else if (swipeSign > 0) prevCoverUrl else null)?.takeIf { it != shownCoverUrl }
+                        if (!peekUrl.isNullOrBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        val dx = coverSwipe.offsetX.value * (1f - p())
+                                        val span = (size.width + activeGapPx).coerceAtLeast(1f)
+                                        val progress = (abs(dx) / span).coerceIn(0f, 1f)
+                                        val opened = canvasOpen.value * (1f - p())
+                                        val baseScale = if (heroMode) {
+                                            1f + 0.03f * (1f - progress)
+                                        } else {
+                                            (pauseScale.value + (1f - pauseScale.value) * p()) * (0.90f + 0.10f * progress)
+                                        }
+                                        translationX = if (dx < 0f) span + dx else -span + dx
+                                        scaleX = baseScale
+                                        scaleY = baseScale
+                                        alpha = (if (heroMode) 0.55f + 0.45f * progress else 0.35f + 0.65f * progress) * (1f - opened) * (1f - p())
+                                        if (!heroMode) {
+                                            shadowElevation = 8.dp.toPx() * progress * (1f - p()) * (1f - opened)
+                                            shape = ArtCorner
+                                            clip = true
+                                        }
+                                    }
+                                    .background(Color.Black.copy(alpha = 0.18f)),
+                            ) {
+                                GlideImage(
+                                    model = peekUrl,
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    loading = placeholder(R.drawable.placeholder),
+                                    failure = placeholder(R.drawable.placeholder),
+                                    modifier = Modifier.fillMaxSize(),
+                                    requestBuilderTransform = { it.override(COVER_DECODE_PX) },
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    val opened = canvasOpen.value * (1f - p())
+                                    val beat = 1f + MIX_BEAT_GROW * (state.mixPulse?.level() ?: 0f) * (1f - p())
+                                    val dx = coverSwipe.offsetX.value * (1f - p())
+                                    val span = (size.width + activeGapPx).coerceAtLeast(1f)
+                                    val dragFrac = (abs(dx) / span).coerceIn(0f, 1f)
+                                    val scale = if (heroMode) {
+                                        (1f + CANVAS_COVER_GROW * opened) * beat * (1f + 0.02f * dragFrac)
+                                    } else {
+                                        (pauseScale.value + (1f - pauseScale.value) * p()) *
+                                            (1f + CANVAS_COVER_GROW * opened) *
+                                            beat *
+                                            (1f - 0.06f * dragFrac)
+                                    }
+                                    translationX = dx
+                                    rotationZ = if (heroMode) 0f else (dx / span) * 4.5f * (1f - p())
+                                    scaleX = scale
+                                    scaleY = scale
+                                    alpha = (1f - opened) * (1f - 0.18f * dragFrac) * coverSwipe.enterAlpha.value
+                                    if (!heroMode) {
+                                        shadowElevation = 10.dp.toPx() * (1f - p()) * (1f - opened)
+                                        shape = ArtCorner
+                                        clip = true
+                                    }
+                                }
+                                .background(Color.Black.copy(alpha = 0.18f)),
+                        ) {
+                            GlideImage(
+                                model = shownCoverUrl.takeIf { it.isNotBlank() },
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                loading = placeholder(R.drawable.placeholder),
+                                failure = placeholder(R.drawable.placeholder),
+                                modifier = Modifier.fillMaxSize(),
+                                requestBuilderTransform = { it.override(COVER_DECODE_PX) },
+                            )
+                            if (coverSwipe.overrideCoverUrl == null && coverSwipe.outgoingCoverUrl == null) {
+                                SongBlendCover(blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                            }
+                        }
                     }
 
-                    // ---- Title + round glyphs ----
                     Row(
                         modifier = Modifier
+                            .zIndex(2f)
                             .offset {
-                                // Collapsed, the row shares the header with the thumbnail and the two
-                                // are not the same height: centred on it.
                                 IntOffset(
                                     left.roundToPx(),
                                     (titleTop() - lerp(0.dp, (HEADER_HEIGHT - THUMB_SIZE) / 2, p())).roundToPx(),
@@ -495,36 +892,45 @@ fun ImmersivePlayer(
                     ) {
                         PlayerCredits(
                             state = state, actions = actions, tint = tint, scrolls = scrolls, collapse = { p() },
+                            coverSwipe = coverSwipe,
                             onMore = if (navController != null && state.song != null) ({ showMenu = true }) else null,
-                            onSource = { showQuality = true },
-                            onSourceLong = { showNerd = true },
                         )
                     }
                 }
 
-                // ---- Bottom: scrubber, transport, volume, toggles ----
-                // One block, measured at its natural height and pinned to the foot of the player.
                 Column(
                     modifier = Modifier
                         .widthIn(max = PLAYER_MAX_WIDTH + PLAYER_GUTTER * 2)
                         .fillMaxWidth()
                         .padding(horizontal = PLAYER_GUTTER)
-                        .align(Alignment.CenterHorizontally),
+                        .align(Alignment.CenterHorizontally)
+                        .zIndex(2f),
                 ) {
                     val showVolume = com.music.spotui.data.preferences.PlayerVolumePref.on
                     PlayerControlsBlock(
                         state = state, actions = actions, volume = volume, lyricsOpen = lyricsOpen, queueOpen = queueOpen,
                         showVolume = showVolume,
-                        // Lyrics and the queue are two things to show in one place: opening one closes the other.
+                        onPreviousStep = onPreviousWithAnim,
+                        onNextStep = onNextWithAnim,
                         onToggleLyrics = { panel = if (lyricsOpen) Panel.NONE else Panel.LYRICS },
                         onToggleQueue = { panel = if (queueOpen) Panel.NONE else Panel.QUEUE },
                         onOpenDevices = { showDevices = true },
+                        onSource = { showQuality = true },
+                        onSourceLong = { showNerd = true },
                     )
-                    // A hidden volume bar keeps its room, under the controls: without it the block got
-                    // shorter and the cover, the credits, the scrubber and the transport dropped into
-                    // the space it left (#186). Only the bottom row moves up.
-                    // The same sum as PlayerControlsBlock's: the larger gap above the bar, the bar, the gap below.
                     if (!showVolume) Spacer(Modifier.height(12.dp - 4.dp + VOLUME_ROW_HEIGHT + 6.dp))
+                }
+                }
+                }
+                if (heroMode) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(statusTop + DISMISS_STRIP_HEIGHT + 28.dp)
+                            .align(Alignment.TopCenter)
+                            .graphicsLayer { alpha = (1f - collapse.value).coerceIn(0f, 1f) }
+                            .background(TopHeroScrim),
+                    )
                 }
                 }
             }
@@ -555,9 +961,22 @@ private const val CANVAS_OPEN_MS = 720
 private const val CANVAS_OPEN_ZOOM = 0.08f
 /** How much the sleeve grows as it opens into the clip. */
 private const val CANVAS_COVER_GROW = 0.12f
-/** Over a Canvas: the handle and the credits at the top, the controls at the foot. */
 private val CanvasShade = Brush.verticalGradient(
     listOf(Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.05f), Color.Black.copy(alpha = 0.35f), Color.Black.copy(alpha = 0.8f)),
+)
+
+private val TopHeroScrim = Brush.verticalGradient(
+    0.00f to Color.Black.copy(alpha = 0.38f),
+    0.55f to Color.Black.copy(alpha = 0.14f),
+    1.00f to Color.Transparent,
+)
+
+private val PortraitBackdropShade = Brush.verticalGradient(
+    0.00f to Color.Black.copy(alpha = 0.25f),
+    0.38f to Color.Black.copy(alpha = 0.64f),
+    0.62f to Color.Black.copy(alpha = 0.78f),
+    0.84f to Color.Black.copy(alpha = 0.66f),
+    1.00f to Color.Black.copy(alpha = 0.42f),
 )
 
 /**
@@ -581,26 +1000,24 @@ private fun rememberImmersiveCanvas(state: ImmersivePlayerState): String? {
     return (if (canvas.trackId == trackId) canvas.url else known).takeIf { allowed && trackId.isNotBlank() && !state.adPlaying }
 }
 
-/**
- * The mesh behind the player. During a crossfade its colours go from [outgoing] to [palette] with
- * the fade's progress, read here so only the backdrop follows it frame by frame, not the player.
- */
 @Composable
-private fun PlayerBackdrop(palette: MeshPalette, outgoing: MeshPalette, blend: SongBlend?, trackKey: String) {
+private fun PlayerBackdrop(
+    palette: MeshPalette,
+    outgoing: MeshPalette,
+    blend: SongBlend?,
+    trackKey: String,
+    portrait: Boolean = false,
+) {
     MeshGradientBackground(
         palette = if (blend == null) palette else lerp(outgoing, palette, blend.progress()),
         trackKey = trackKey,
-        // Following the fade, a short smoothing only: the new cover's colours, known a moment
-        // into it, do not jump in.
         colorFadeMillis = if (blend == null) 1400 else 250,
     )
+    if (portrait) {
+        Box(Modifier.fillMaxSize().background(PortraitBackdropShade))
+    }
 }
 
-/**
- * The credits row of the player: title (with its explicit badge), artist and the source line,
- * then the like glyph and, when [onMore] is given, the more glyph. [collapse] is the cover's
- * travel to the header (0 whole, 1 collapsed); the credits shrink with it.
- */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RowScope.PlayerCredits(
@@ -609,54 +1026,30 @@ private fun RowScope.PlayerCredits(
     tint: Color,
     scrolls: Boolean,
     collapse: () -> Float,
+    coverSwipe: CoverSwipeController,
     onMore: (() -> Unit)?,
-    onSource: () -> Unit,
-    onSourceLong: () -> Unit = {},
 ) {
-    // The header is a fixed HEADER_HEIGHT: the three lines are set tighter, so none is
-    // clipped at the bottom. The source line's room is kept from the start (it is only known
-    // a moment after the song starts), so its arrival fades in below the title and artist
-    // instead of moving them.
-    val sourceLabel = com.music.spotui.ui.components.playingSourceLabel()
-    val sourceShown = com.music.spotui.data.preferences.PlayerSourceLinePref.shown
-    val hasSource = sourceLabel.isNotBlank() && !state.adPlaying
-    // Its room is kept only where a source line can come (an audio-source extension, the app's own
-    // player): with none, the title and artist sat high over an empty line (reported).
-    val sourceRoom = hasSource || com.music.spotui.extensions.Extensions.hasAudioSource() || com.music.spotui.di.LocalPlayer.active.value
-    val sourceAlpha by animateFloatAsState(if (hasSource) 1f else 0f, tween(250), label = "sourceLine")
-    val lineH = if (state.adPlaying) 24.sp else 22.sp
+    val lineH = if (state.adPlaying) 24.sp else 23.sp
     Column(
         Modifier
             .weight(1f)
-            // Measured at its own height and centred on the header's: held to HEADER_HEIGHT, the
-            // source line was cut at the bottom with a larger font (reported twice).
             .wrapContentHeight(unbounded = true)
-            // Scaling the already measured type is a draw-only operation.
             .graphicsLayer {
                 val scale = 1f - 0.2f * collapse()
+                translationX = coverSwipe.creditsOffsetX.value
                 scaleX = scale
                 scaleY = scale
                 transformOrigin = TransformOrigin(0f, 0.5f)
-                // A crossfade: the outgoing song's words fade out, the new one's in, once.
-                alpha = state.blend?.wordsAlpha() ?: 1f
+                alpha = (state.blend?.wordsAlpha() ?: 1f) * coverSwipe.creditsAlpha.value
             },
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = if (state.adPlaying) stringResource(R.string.immersive_player_ad) else state.title,
-                style = Immersive.Title.copy(fontSize = 20.sp, lineHeight = lineH),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    // The marquee inside the tap target: scrolling leaves the target as it was.
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { actions.openAlbum() }
-                    .titleMarquee(enabled = scrolls, iterations = Int.MAX_VALUE),
-            )
             if (state.explicit && !state.adPlaying) {
-                Spacer(Modifier.width(6.dp))
                 Box(
-                    Modifier.size(16.dp).clip(RoundedCornerShape(3.dp)).background(tint.copy(alpha = 0.5f)),
+                    Modifier
+                        .size(16.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(tint.copy(alpha = 0.52f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -665,13 +1058,22 @@ private fun RowScope.PlayerCredits(
                         color = Color.Black,
                     )
                 }
+                Spacer(Modifier.width(7.dp))
             }
+            Text(
+                text = if (state.adPlaying) stringResource(R.string.immersive_player_ad) else state.title,
+                style = Immersive.Title.copy(fontSize = 20.sp, lineHeight = lineH, fontWeight = FontWeight.Bold),
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { actions.openAlbum() }
+                    .titleMarquee(enabled = scrolls, iterations = Int.MAX_VALUE),
+            )
         }
         if (!state.adPlaying) {
-            // One tap per artist when the song's artists are known; the whole line otherwise.
             val credit = com.music.spotui.ui.components.rememberArtistCredit(state.trackId, state.artist, tint.copy(alpha = 0.55f)) { a -> actions.openArtistRef(a) }
-            // The names are tap targets only while the line holds still: a scrolling line draws them
-            // away from where their taps land, and is one target for the choice of its artists.
             val lineScrolls = com.music.spotui.ui.components.rememberArtistLineScrolls(state.artist)
             Text(
                 text = credit?.takeIf { !lineScrolls.value } ?: androidx.compose.ui.text.AnnotatedString(state.artist),
@@ -685,24 +1087,8 @@ private fun RowScope.PlayerCredits(
                     .titleMarquee(enabled = scrolls && lineScrolls.value, iterations = Int.MAX_VALUE),
             )
         }
-        // What the sound is when Myspoti's own player plays it (an extension's stream, a
-        // download); a tap opens what plays and its quality. Same state as the Classic player.
-        if (!state.adPlaying && sourceShown && sourceRoom) Text(
-            text = sourceLabel.ifEmpty { " " },
-            style = Immersive.Caption.copy(lineHeight = 14.sp),
-            color = tint.copy(alpha = 0.45f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .graphicsLayer { alpha = sourceAlpha }
-                .then(
-                    if (hasSource) Modifier.combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onLongClick = onSourceLong, onClick = onSource)
-                    else Modifier,
-                ),
-        )
     }
     Spacer(Modifier.width(10.dp))
-    // Beside the credits rather than in the toggle row: liking is about this song.
     CircleGlyph(
         icon = if (state.liked) Icons.Rounded.Star else Icons.Rounded.StarBorder,
         contentDescription = stringResource(if (state.liked) R.string.immersive_player_unlike else R.string.immersive_player_like),
@@ -719,7 +1105,6 @@ private fun RowScope.PlayerCredits(
     }
 }
 
-/** Scrubber, transport, volume, the bottom row and the extensions' buttons: the controls under the cover. */
 @Composable
 private fun PlayerControlsBlock(
     state: ImmersivePlayerState,
@@ -728,23 +1113,38 @@ private fun PlayerControlsBlock(
     lyricsOpen: Boolean,
     queueOpen: Boolean,
     showVolume: Boolean,
+    onPreviousStep: () -> Unit,
+    onNextStep: () -> Unit,
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenDevices: () -> Unit,
+    onSource: (() -> Unit)? = null,
+    onSourceLong: (() -> Unit)? = null,
+    compact: Boolean = false,
 ) {
-    PlayerScrubber(state = state, onSeek = actions.seekTo)
+    CurrentLyricStrip(
+        state = state,
+        visible = !lyricsOpen,
+        onOpenLyrics = onToggleLyrics,
+    )
+    PlayerScrubber(
+        state = state,
+        onSeek = actions.seekTo,
+        onSource = onSource,
+        onSourceLong = onSourceLong,
+    )
     Spacer(Modifier.height(8.dp))
     TransportRow(
         isPlaying = state.playing,
         isLoading = state.buffering,
-        onPrevious = actions.previous,
+        onPrevious = onPreviousStep,
         onPlayPause = actions.playPause,
-        onNext = actions.next,
+        onNext = onNextStep,
+        compact = compact,
     )
-    Spacer(Modifier.height(if (showVolume) 12.dp else 4.dp))
+    Spacer(Modifier.height(if (showVolume) 12.dp else 6.dp))
     if (showVolume) {
         VolumeRow(volume)
-        // The volume slider already has room below its drawn track.
         Spacer(Modifier.height(6.dp))
     }
     PlayerActionRow(
@@ -781,6 +1181,14 @@ private fun LandscapePlayer(
     panel: Int,
     pauseScale: State<Float>,
     volume: PlayerVolume,
+    coverSwipe: CoverSwipeController,
+    swipeSign: Int,
+    shownCoverUrl: String,
+    prevCoverUrl: String?,
+    nextCoverUrl: String?,
+    gapPx: Float,
+    onPreviousStep: () -> Unit,
+    onNextStep: () -> Unit,
     onToggleLyrics: () -> Unit,
     onToggleQueue: () -> Unit,
     onOpenDevices: () -> Unit,
@@ -790,7 +1198,6 @@ private fun LandscapePlayer(
     sidePane: Boolean = false,
 ) {
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-        // The handle: always hands its drags to the sheet.
         PlayerDismissStrip(tint) { actions.close() }
         Row(
             Modifier.weight(1f).fillMaxWidth().padding(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 8.dp),
@@ -799,7 +1206,6 @@ private fun LandscapePlayer(
         ) {
             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth, maxHeight)
-                // With a side pane the cover stays: the panels open in the third column.
                 Crossfade(targetState = if (sidePane) Panel.NONE else panel, animationSpec = tween(250), modifier = Modifier.fillMaxSize(), label = "playerLandscapePanel") { shown ->
                     when (shown) {
                         Panel.LYRICS -> ImmersiveLyricsPanel(Modifier.fillMaxSize(), PaddingValues(vertical = 4.dp))
@@ -808,46 +1214,100 @@ private fun LandscapePlayer(
                             Box(
                                 Modifier
                                     .size(side)
-                                    .graphicsLayer {
-                                        // The pause step back, as in the portrait layout, and the mix's beat.
-                                        val beat = 1f + MIX_BEAT_GROW * (state.mixPulse?.level() ?: 0f)
-                                        scaleX = pauseScale.value * beat
-                                        scaleY = pauseScale.value * beat
-                                        shadowElevation = 10.dp.toPx()
-                                        shape = ArtCorner
-                                        clip = true
-                                    }
-                                    .background(Color.Black.copy(alpha = 0.18f))
+                                    .onSizeChanged { if (it.width > 0) coverSwipe.spanPx = it.width + gapPx }
                                     .dragToClose()
-                                    .swipeToChangeTrack(enabled = true, actions = actions),
+                                    .swipeToChangeTrack(
+                                        enabled = true,
+                                        actions = actions,
+                                        swipe = coverSwipe,
+                                        currentCoverUrl = shownCoverUrl,
+                                        prevCoverUrl = prevCoverUrl,
+                                        nextCoverUrl = nextCoverUrl,
+                                    ),
                             ) {
-                                GlideImage(
-                                    model = state.coverUrl.takeIf { it.isNotBlank() },
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    loading = placeholder(R.drawable.placeholder),
-                                    failure = placeholder(R.drawable.placeholder),
-                                    modifier = Modifier.fillMaxSize(),
-                                    requestBuilderTransform = { it.override(COVER_DECODE_PX) },
-                                )
-                                SongBlendCover(state.blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                                val peekUrl = coverSwipe.incomingCoverUrl
+                                    ?: (if (swipeSign < 0) nextCoverUrl else if (swipeSign > 0) prevCoverUrl else null)?.takeIf { it != shownCoverUrl }
+                                if (!peekUrl.isNullOrBlank()) {
+                                    Box(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                val dx = coverSwipe.offsetX.value
+                                                val span = size.width + TRACK_SWIPE_CARD_GAP.toPx()
+                                                val progress = (abs(dx) / span.coerceAtLeast(1f)).coerceIn(0f, 1f)
+                                                val s = pauseScale.value * (0.90f + 0.10f * progress)
+                                                translationX = if (dx < 0f) span + dx else -span + dx
+                                                scaleX = s
+                                                scaleY = s
+                                                alpha = 0.35f + 0.65f * progress
+                                                shadowElevation = 8.dp.toPx() * progress
+                                                shape = ArtCorner
+                                                clip = true
+                                            }
+                                            .background(Color.Black.copy(alpha = 0.18f)),
+                                    ) {
+                                        GlideImage(
+                                            model = peekUrl,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            loading = placeholder(R.drawable.placeholder),
+                                            failure = placeholder(R.drawable.placeholder),
+                                            modifier = Modifier.fillMaxSize(),
+                                            requestBuilderTransform = { it.override(COVER_DECODE_PX) },
+                                        )
+                                    }
+                                }
+                                Box(
+                                    Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer {
+                                            val beat = 1f + MIX_BEAT_GROW * (state.mixPulse?.level() ?: 0f)
+                                            val dx = coverSwipe.offsetX.value
+                                            val span = (size.width + TRACK_SWIPE_CARD_GAP.toPx()).coerceAtLeast(1f)
+                                            val dragFrac = (abs(dx) / span).coerceIn(0f, 1f)
+                                            val s = pauseScale.value * beat * (1f - 0.06f * dragFrac)
+                                            translationX = dx
+                                            rotationZ = (dx / span) * 4.5f
+                                            scaleX = s
+                                            scaleY = s
+                                            alpha = (1f - 0.20f * dragFrac) * coverSwipe.enterAlpha.value
+                                            shadowElevation = 10.dp.toPx()
+                                            shape = ArtCorner
+                                            clip = true
+                                        }
+                                        .background(Color.Black.copy(alpha = 0.18f)),
+                                ) {
+                                    GlideImage(
+                                        model = shownCoverUrl.takeIf { it.isNotBlank() },
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        loading = placeholder(R.drawable.placeholder),
+                                        failure = placeholder(R.drawable.placeholder),
+                                        modifier = Modifier.fillMaxSize(),
+                                        requestBuilderTransform = { it.override(COVER_DECODE_PX) },
+                                    )
+                                    if (coverSwipe.overrideCoverUrl == null && coverSwipe.outgoingCoverUrl == null) {
+                                        SongBlendCover(state.blend, Modifier.fillMaxSize()) { it.override(COVER_DECODE_PX) }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                // The volume bar is the first thing to go when the window is low: the hardware keys do it too.
                 val showVolume = com.music.spotui.data.preferences.PlayerVolumePref.on && maxHeight >= LANDSCAPE_VOLUME_MIN_HEIGHT
                 Column(Modifier.widthIn(max = PLAYER_MAX_WIDTH).verticalScroll(rememberScrollState())) {
                     Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
-                        PlayerCredits(state, actions, tint, scrolls = true, collapse = { 0f }, onMore = onMore, onSource = onSource, onSourceLong = onSourceLong)
+                        PlayerCredits(state, actions, tint, scrolls = true, collapse = { 0f }, coverSwipe = coverSwipe, onMore = onMore)
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     PlayerControlsBlock(
                         state = state, actions = actions, volume = volume,
                         lyricsOpen = panel == Panel.LYRICS, queueOpen = panel == Panel.QUEUE, showVolume = showVolume,
+                        onPreviousStep = onPreviousStep, onNextStep = onNextStep,
                         onToggleLyrics = onToggleLyrics, onToggleQueue = onToggleQueue, onOpenDevices = onOpenDevices,
+                        onSource = onSource, onSourceLong = onSourceLong, compact = true,
                     )
                 }
             }

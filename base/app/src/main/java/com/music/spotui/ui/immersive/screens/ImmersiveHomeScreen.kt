@@ -125,9 +125,15 @@ fun ImmersiveHomeScreen(navController: NavController) {
         derivedStateOf { if (Graph.currentSongState.playingState.value) SongPlayer.nowPlaying.value.contextUri else "" }
     }
 
-    // Podcasts can be off: their shows and episodes then leave the feed.
     val hideDj = com.music.spotui.data.preferences.HideDjPref.hidden
-    val sections = remember(feed, hideDj) {
+    val podcastsShown = Features.PODCASTS
+    LaunchedEffect(podcastsShown, facet) {
+        val parent = com.music.spotui.data.entity.HomeSubChips.parentOf(facet) ?: facet
+        if (!podcastsShown && (parent == "podcasts-chip" || parent == "audiobooks-chip")) {
+            homeViewModel.selectFacet("")
+        }
+    }
+    val sections = remember(feed, hideDj, podcastsShown) {
         val all = feed?.sections.orEmpty().withoutPodcastShows()
         if (hideDj) all.withoutDj() else all
     }

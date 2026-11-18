@@ -39,10 +39,12 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -618,7 +620,23 @@ fun LibraryItemSheet(entry: LibraryEntry, onDismiss: () -> Unit, onChanged: () -
             Text(entry.name, color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.padding(20.dp, 0.dp, 20.dp, 8.dp))
             if (!moving) {
-                // A saved playlist or album: all its songs into the queue (read to the end first).
+                val shareable = entry.uri.startsWith("spotify:playlist:") ||
+                    entry.uri.startsWith("spotify:album:") ||
+                    entry.uri.startsWith("spotify:artist:") ||
+                    entry.uri.startsWith("spotify:show:") ||
+                    entry.uri.startsWith("ytmusic:")
+                if (shareable) {
+                    SheetRow(Icons.Outlined.Share, stringResource(R.string.context_menu_share)) {
+                        com.music.spotui.ui.components.SpotifyCode.show(
+                            com.music.spotui.ui.components.ShareTarget(entry.uri, entry.name, entry.subtitle, entry.coverUri),
+                        )
+                        onDismiss()
+                    }
+                    SheetRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) {
+                        com.music.spotui.ui.components.SpotifyCode.copyLink(context, entry.uri)
+                        onDismiss()
+                    }
+                }
                 if (entry.uri.startsWith("spotify:playlist:") || entry.uri.startsWith("spotify:album:")) {
                     SheetRow(Icons.AutoMirrored.Outlined.PlaylistPlay, stringResource(R.string.context_menu_play_next)) {
                         com.music.spotui.di.CollectionQueue.queue(entry.uri, next = true); onDismiss()

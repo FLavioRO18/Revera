@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.QrCode2
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -194,7 +195,7 @@ fun AlbumOptionsSheet(albumUri: String, name: String, known: com.music.spotui.da
             // Liked Songs has no playlist to copy from: only the albums.
             if (albumUri.startsWith("spotify:album:")) OptionRow(Icons.Outlined.AddCircleOutline, stringResource(R.string.context_menu_add_to_playlist)) { adding = true }
             // Shared as a playlist is: its Spotify Code and its link (reported: only songs could be shared).
-            if (albumUri.startsWith("spotify:album:")) OptionRow(Icons.Outlined.QrCode2, stringResource(R.string.context_menu_share)) {
+            if (albumUri.startsWith("spotify:album:")) OptionRow(androidx.compose.material.icons.Icons.Outlined.Share, stringResource(R.string.context_menu_share)) {
                 SpotifyCode.show(ShareTarget(albumUri, name, known?.ownerName.orEmpty(), known?.coverUri.orEmpty())); onDismiss()
             }
             if (albumUri.startsWith("spotify:album:")) OptionRow(Icons.Outlined.ContentCopy, stringResource(R.string.copy_link)) {

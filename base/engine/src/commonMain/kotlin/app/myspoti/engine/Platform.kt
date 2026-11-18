@@ -113,13 +113,8 @@ interface DrmPlayer {
     fun resume()
     fun seekTo(positionMs: Long)
     fun stop()
-    /** 0..65535, Spotify's volume scale. */
     fun setVolume(volume: Int)
-
-    /**
-     * Silent while [muted], whatever the volume (which the account still sees); a muted player must
-     * not take the platform's audio focus either: another player is the one heard.
-     */
+    fun setSpeed(speed: Double) {}
     fun setMuted(muted: Boolean) {}
 
     /** Transport figures of the current item for the end-of-track report (zeros when unknown). */

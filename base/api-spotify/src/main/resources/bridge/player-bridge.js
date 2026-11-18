@@ -144,7 +144,7 @@
     durationMs: s.duration,
     shuffle: !!s.shuffle,
     repeat: s.repeat, // 0 off, 1 context, 2 track
-    speed: s.speed,
+    speed: (s.item && /^spotify:episode:/.test(s.item.uri) && window.__mspEpisodeRate) ? window.__mspEpisodeRate : s.speed,
     restrictions: s.restrictions || {},
     playbackId: s.playbackId || null,
   };
@@ -370,7 +370,23 @@
     'player.previous': () => need().player.skipToPrevious(),
     'player.setShuffle': a => need().player.setShuffle(!!a.on),
     'player.setRepeat': a => need().player.setRepeat(a.mode),
-    'player.setSpeed': a => need().player.setSpeed(a.speed),
+    'player.setSpeed': async a => {
+      const s = Math.max(0.5, Math.min(3.5, Number(a.speed) || 1));
+      window.__mspEpisodeRate = s;
+      let res = null;
+      try { res = await need().player.setSpeed(s); } catch (e) {}
+      const st = need().player.getState && need().player.getState();
+      const isEp = !!(st && st.item && /^spotify:episode:/.test(st.item.uri));
+      const targetRate = isEp ? s : 1;
+      const els = new Set([...(window.__mspMedia || []), ...document.querySelectorAll('audio, video'), ...await playerMedia()]);
+      for (const el of els) {
+        try {
+          el.defaultPlaybackRate = targetRate;
+          el.playbackRate = targetRate;
+        } catch (e) {}
+      }
+      return res;
+    },
     // Streaming quality, as the desktop app's setting: "auto", "low", "normal", "high",
     // "very_high". The page's own player (PlayerSDK.harmony) picks the files with it.
     // What the page plays now: bitrate, codec and the chosen quality level.

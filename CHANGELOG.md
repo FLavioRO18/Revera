@@ -2,6 +2,16 @@
 
 Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
 
+## 1.0.4
+
+- **BitChord Immersive Player**: full-bleed edge-to-edge hero cover with bottom dissolve, live synced lyric preview strip above the seek bar, centered `Lossless` / `Hi-Res Lossless` shimmer badge, rounded BitChord transport glyphs, and clean bottom action bar.
+- **Hide podcasts**: new `Hide podcasts` toggle in Display settings removes podcasts, shows, and episodes from Home, Search, Your Library, Recently Played, What's New, and Android Auto.
+- **Playlist & library sharing**: direct Share button on playlist and album headers, in Your Library item menus, and in Blend, YouTube Music, and local playlist menus.
+- **32-bit Android (`ARMv7` / `armeabi-v7a`)**: full native audio CDN transport and release APKs alongside 64-bit (`ARMv8`), `universal`, and `TV`.
+- **Podcast playback speed**: works across native audio, Web Player, and offline downloads (`0.5×`–`3×` slider and presets), remembered across episodes while keeping music at `1×`.
+- **AutoMix long tracks**: analysis ceiling raised from ~8 min to **18 minutes** (`largeHeap`, chunked mel spectrogram, and mono fallback on low-memory phones).
+- **Skip buttons & player reliability**: fixed Connect command lock deadlocks, cold-start and slow-extension skip drops, single-song `Next` continuation, double-tap `Previous`, interactive cover-swipe + button transitions, and crash/double-start bugs.
+
 ## 1.0.0
 
 - 🎉 **Myspoti is now Orpheon**, the name the community chose. It installs as a new app next to Myspoti: sign in again and add your extensions back, then Myspoti can go. Myspoti 2.4.1 offers to install it. The icon is a placeholder until the real one is made.

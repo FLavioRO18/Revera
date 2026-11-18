@@ -31,10 +31,10 @@ class BeatThis(model: ByteArray, private val defaultThreads: Int = 4) : AutoClos
     }
 
     fun run(mono: FloatArray, from: Int, to: Int, cancelled: () -> Boolean = { false }, threads: Int = defaultThreads): Activations {
-        val mel = MelFrontend.spectrogram(mono, from, to, threads, cancelled)
-        val n = mel.size
+        val sampleCount = to - from
+        require(sampleCount >= MelFrontend.FFT_N) { "audio window too short" }
+        val n = 1 + sampleCount / MelFrontend.HOP
         val beat = FloatArray(n); val down = FloatArray(n)
-        // Chunks of 768 frames that overlap by 12; each keeps all but its 6 edge frames.
         val starts = ArrayList<Int>()
         var start = -EDGE
         while (true) {
@@ -48,12 +48,11 @@ class BeatThis(model: ByteArray, private val defaultThreads: Int = 4) : AutoClos
             val st = starts[c]
             val frames = max(2 * EDGE + 1, min(CHUNK, n + EDGE - st))
             val flat = FloatArray(frames * MelFrontend.MELS)
-            for (i in 0 until frames) if (st + i in 0 until n) mel[st + i].copyInto(flat, i * MelFrontend.MELS)
+            MelFrontend.fillChunk(mono, from, sampleCount, n, st, frames, flat, cancelled)
             OnnxTensor.createTensor(env, FloatBuffer.wrap(flat), longArrayOf(1, frames.toLong(), MelFrontend.MELS.toLong())).use { input ->
                 session.run(mapOf("spect" to input)).use { out ->
                     val b = (out.get("beat").get() as OnnxTensor).floatBuffer
                     val d = (out.get("downbeat").get() as OnnxTensor).floatBuffer
-                    // Each chunk writes its own frames (the kept ranges do not overlap).
                     for (i in EDGE until frames - EDGE) {
                         val at = st + i
                         if (at in 0 until n) { beat[at] = b.get(i); down[at] = d.get(i) }
@@ -132,6 +131,37 @@ object MelFrontend {
         val parts = max(1, threads)
         parallel(parts, parts) { part -> slice(mono, from, n, out, frames * part / parts, frames * (part + 1) / parts, cancelled) }
         return out
+    }
+
+    internal fun fillChunk(
+        mono: FloatArray,
+        from: Int,
+        n: Int,
+        totalFrames: Int,
+        startFrame: Int,
+        chunkFrames: Int,
+        flat: FloatArray,
+        cancelled: () -> Boolean,
+    ) {
+        val re = DoubleArray(FFT_N); val im = DoubleArray(FFT_N); val mag = DoubleArray(FFT_N / 2 + 1)
+        for (idx in 0 until chunkFrames) {
+            val t = startFrame + idx
+            if (t !in 0 until totalFrames) continue
+            if (idx and 63 == 0 && cancelled()) throw InterruptedException("analysis cancelled")
+            for (i in 0 until FFT_N) {
+                var at = t * HOP + i - FFT_N / 2
+                while (at < 0 || at >= n) at = if (at < 0) -at else 2 * n - 2 - at
+                re[i] = mono[from + at] * window[i]; im[i] = 0.0
+            }
+            fft.transform(re, im)
+            for (k in 0..FFT_N / 2) mag[k] = Math.hypot(re[k], im[k]) / 32
+            val base = idx * MELS
+            for (m in 0 until MELS) {
+                var s = 0.0
+                for (k in first[m] until last[m]) s += mag[k] * filters[m][k]
+                flat[base + m] = Math.log1p(1000 * s).toFloat()
+            }
+        }
     }
 
     private fun slice(mono: FloatArray, from: Int, n: Int, out: Array<FloatArray>, t0: Int, t1: Int, cancelled: () -> Boolean) {

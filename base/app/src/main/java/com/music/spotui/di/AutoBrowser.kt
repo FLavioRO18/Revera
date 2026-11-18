@@ -91,10 +91,10 @@ object AutoBrowser {
      */
     suspend fun children(context: Context, parentId: String): List<MediaItem> {
         when {
-            parentId == ROOT -> return listOf(
+            parentId == ROOT -> return listOfNotNull(
                 tab(context, "home", R.string.aa_home, "aa_ic_home", STYLE_GRID),
                 tab(context, "library", R.string.aa_library, "aa_ic_library", STYLE_LIST),
-                tab(context, "podcasts", R.string.recents_filter_podcasts, "aa_ic_podcasts", STYLE_LIST),
+                if (com.music.spotui.data.api.Features.PODCASTS) tab(context, "podcasts", R.string.recents_filter_podcasts, "aa_ic_podcasts", STYLE_LIST) else null,
                 tab(context, "downloads", R.string.aa_downloads, "aa_ic_downloads", STYLE_LIST),
             )
             parentId == "library" -> return libraryTab(context)

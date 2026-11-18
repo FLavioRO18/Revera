@@ -179,8 +179,11 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     var searchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf(LibraryChip.ALL) }
-    // The shows are only read once the Podcasts chip is chosen.
-    LaunchedEffect(kind) { if (kind == LibraryChip.PODCASTS) vm.loadFollowedShows() }
+    val podcastsShown = com.music.spotui.data.api.Features.PODCASTS
+    LaunchedEffect(podcastsShown, kind) {
+        if (!podcastsShown && kind == LibraryChip.PODCASTS) kind = LibraryChip.ALL
+        else if (podcastsShown && kind == LibraryChip.PODCASTS) vm.loadFollowedShows()
+    }
 
     if (showAccount) {
         ImmersiveAccountSheet(
@@ -199,9 +202,10 @@ fun ImmersiveLibraryScreen(navController: NavController) {
     // Read through the name, which redraws the screen once the account is known.
     val myId = ProfileCache.name?.let { ProfileCache.id }
     val artistSort = LibraryOrder.sort
-    val (shownEntries, shownArtists) = remember(kind, allEntries, followedArtists, followedShows, searchQuery, myId, artistSort) {
+    val (shownEntries, shownArtists) = remember(kind, allEntries, followedArtists, followedShows, searchQuery, myId, artistSort, podcastsShown) {
         val (byKind, artists) = LibraryChips.apply(
-            kind, allEntries, LibraryOrder.arrangeArtists(followedArtists, artistSort), LIBRARY_SONG_IDS, myId, followedShows, setOf(Api.HomeCache.EPISODES_ID),
+            kind, allEntries, LibraryOrder.arrangeArtists(followedArtists, artistSort), LIBRARY_SONG_IDS, myId, followedShows,
+            setOf(Api.HomeCache.EPISODES_ID, Api.HomeCache.NEW_EPISODES_ID), podcastsShown,
         )
         if (searchQuery.isBlank()) byKind to artists
         else byKind.filter {
@@ -455,7 +459,7 @@ private fun LibraryHeader(
             )
         }
         ImmersiveChipRow {
-            LibraryChipLabels.forEach { (k, label) ->
+            LibraryChipLabels.filter { it.first != LibraryChip.PODCASTS || com.music.spotui.data.api.Features.PODCASTS }.forEach { (k, label) ->
                 ImmersiveChip(stringResource(label), selected = k == kind) { onKind(k) }
             }
         }

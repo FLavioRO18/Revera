@@ -71,10 +71,22 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/** What a share sheet is about: a Spotify uri (track, album, playlist, artist, show, episode). */
 data class ShareTarget(val uri: String, val title: String, val subtitle: String = "", val coverUri: String = "") {
-    /** The open.spotify.com link of [uri]. */
-    val link: String get() = uri.split(':').let { p -> if (p.size >= 3 && p[0] == "spotify") "https://open.spotify.com/${p[1]}/${p[2]}" else uri }
+    val link: String get() {
+        val parts = uri.split(':')
+        if (parts.size >= 3 && parts[0] == "spotify") {
+            return "https://open.spotify.com/${parts[1]}/${parts[2]}"
+        }
+        if (parts.size >= 3 && parts[0] == "ytmusic") {
+            val id = parts.drop(2).joinToString(":")
+            return when (parts[1]) {
+                "playlist" -> "https://music.youtube.com/playlist?list=${id.removePrefix("VL")}"
+                "track" -> "https://music.youtube.com/watch?v=$id"
+                else -> "https://music.youtube.com/browse/$id"
+            }
+        }
+        return uri
+    }
 }
 
 /**
@@ -169,15 +181,17 @@ fun SpotifyCodeSheet(target: ShareTarget, onDismiss: () -> Unit) {
                     textAlign = TextAlign.Center, modifier = Modifier.padding(top = 14.dp))
                 if (target.subtitle.isNotBlank()) Text(target.subtitle, color = text.copy(alpha = 0.75f), fontSize = 14.sp, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                GlideImage(
+                if (target.uri.startsWith("spotify:")) GlideImage(
                     model = SpotifyCode.imageUrl(target.uri, background, bars),
                     contentDescription = stringResource(R.string.spotify_code_description),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.padding(top = 14.dp).fillMaxWidth().aspectRatio(4f),
                 )
             }
-            Text(stringResource(R.string.spotify_code_hint), color = AppMuted, fontSize = 13.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 12.dp))
+            if (target.uri.startsWith("spotify:")) {
+                Text(stringResource(R.string.spotify_code_hint), color = AppMuted, fontSize = 13.sp, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 12.dp))
+            }
             // The link itself, under the code.
             Text(target.link, color = AppText.copy(alpha = 0.85f), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 14.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(tone(0xFF2A2A2A))

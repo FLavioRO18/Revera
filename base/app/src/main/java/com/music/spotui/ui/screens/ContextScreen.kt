@@ -43,6 +43,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -552,8 +553,9 @@ class ContextViewModel(
         // player from there, like downloads; it has nothing for the picked song, Spotify plays.
         if (!limited && com.music.spotui.extensions.Extensions.hasAudioSource()) {
             val shuffle = state.shuffle.value
-            SongPlayer.playThroughExtensions(song.spotifyTrackId, song, p.name, { playOnSpotify(p, song, sort) }) { isLatest, _ ->
-                com.music.spotui.extensions.ExtensionAudio.playList(sort.apply(p.tracks), song, p.name, shuffle, p.uri, isLatest).also { played ->
+            val ordered = sort.apply(p.tracks)
+            SongPlayer.playThroughExtensions(song.spotifyTrackId, song, p.name, { playOnSpotify(p, song, sort) }, songs = ordered, contextUri = p.uri) { isLatest, _ ->
+                com.music.spotui.extensions.ExtensionAudio.playList(ordered, song, p.name, shuffle, p.uri, isLatest).also { played ->
                     // The list finished loading while the extension was asked for the picked song.
                     val whole = (_page.value as? Response.Success)?.data?.takeIf { it.uri == p.uri && it.complete && !p.complete }
                     if (played && whole != null) com.music.spotui.extensions.ExtensionAudio.listGrew(p.uri, sort.apply(whole.tracks))
@@ -985,7 +987,23 @@ private fun ContextContent(navController: NavController, vm: ContextViewModel, p
                                 }
                             }
                         }
-                        if (onSpotify && (p.type == "playlist" || p.type == "album" || p.type == "liked" || p.type == "liked-artist")) {
+                        if ((p.type == "playlist" || p.type == "album") && p.uri.isNotBlank()) {
+                            Icon(
+                                androidx.compose.material.icons.Icons.Outlined.Share,
+                                stringResource(R.string.context_menu_share),
+                                tint = AppText.copy(alpha = 0.8f),
+                                modifier = Modifier
+                                    .size(com.music.spotui.ui.components.MinTouch)
+                                    .pressable(0.9f) {
+                                        com.music.spotui.ui.components.SpotifyCode.show(
+                                            com.music.spotui.ui.components.ShareTarget(p.uri, p.name, p.ownerName, p.coverUri),
+                                        )
+                                    }
+                                    .wrapContentSize()
+                                    .size(24.dp),
+                            )
+                        }
+                        if (p.type == "playlist" || (onSpotify && (p.type == "album" || p.type == "liked" || p.type == "liked-artist"))) {
                             Icon(Icons.Default.MoreVert, stringResource(R.string.content_description_context_menu), tint = AppText.copy(alpha = 0.8f),
                                 modifier = Modifier.size(com.music.spotui.ui.components.MinTouch).pressable(0.9f) { if (p.type == "playlist") playlistMenu = true else albumMenu = true }
                                     .wrapContentSize().size(26.dp))

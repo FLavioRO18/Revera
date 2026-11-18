@@ -588,6 +588,13 @@
     <string name="settings_music_video_detail">The video button in the player, and clips that start by themselves. Off: audio and Canvas only.</string>
     <string name="settings_hide_dj_title">Hide the DJ</string>
     <string name="settings_hide_dj_detail">Removes Spotify\'s DJ from Home</string>
+    <string name="settings_hide_podcasts_title">Hide podcasts</string>
+    <string name="settings_hide_podcasts_detail">Removes podcasts, shows and episodes from Home, Search and Your Library</string>
+    <string name="player_badge_lossless">Lossless</string>
+    <string name="player_badge_hi_res_lossless">Hi-Res Lossless</string>
+    <string name="player_badge_high_quality">High Quality</string>
+    <string name="player_badge_upgrading">Upgrading quality…</string>
+    <string name="player_badge_mixing">Mixing</string>
     <string name="settings_player_modes_title">Shuffle and repeat in the player</string>
     <string name="settings_player_modes_detail">Off, the player\'s capsule holds only the devices button, as in 2.1.0</string>
     <string name="settings_player_lyrics_card_title">Lyrics preview in the player</string>

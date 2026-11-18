@@ -281,9 +281,10 @@ fun LibraryScreen(navController: NavController) {
         val followedArtists by libraryViewModel.followedArtists.collectAsState()
         val showsLoad by libraryViewModel.followedShows.collectAsState()
         val followedShows = (showsLoad as? Response.Success)?.data.orEmpty()
-        // The shows are only read once the Podcasts chip is chosen.
-        androidx.compose.runtime.LaunchedEffect(chip) {
-            if (chip == com.music.spotui.data.local.LibraryChip.PODCASTS) libraryViewModel.loadFollowedShows()
+        val podcastsShown = com.music.spotui.data.api.Features.PODCASTS
+        androidx.compose.runtime.LaunchedEffect(podcastsShown, chip) {
+            if (!podcastsShown && chip == com.music.spotui.data.local.LibraryChip.PODCASTS) chip = com.music.spotui.data.local.LibraryChip.ALL
+            else if (podcastsShown && chip == com.music.spotui.data.local.LibraryChip.PODCASTS) libraryViewModel.loadFollowedShows()
         }
         val refreshing by libraryViewModel.refreshing.collectAsState()
         when (entries) {
@@ -344,7 +345,7 @@ fun LibraryScreen(navController: NavController) {
                     chip, allEntries, followedArtists,
                     setOf(Api.HomeCache.LIKED_SONGS_ID, Api.HomeCache.LOCAL_FILES_ID, Api.HomeCache.DOWNLOADS_ID,
                         com.music.spotui.radio.RadioFeaturePref.LIBRARY_ENTRY_ID),
-                    myId, followedShows, setOf(Api.HomeCache.EPISODES_ID),
+                    myId, followedShows, setOf(Api.HomeCache.EPISODES_ID, Api.HomeCache.NEW_EPISODES_ID), podcastsShown,
                 )
                 val filteredEntries = if (searchQuery.isBlank()) chipEntries
                     else chipEntries.filter {
@@ -387,7 +388,7 @@ private fun LibraryChipRow(chosen: com.music.spotui.data.local.LibraryChip, onTa
         com.music.spotui.data.local.LibraryChip.ALBUMS to R.string.library_chip_albums,
         com.music.spotui.data.local.LibraryChip.PODCASTS to R.string.library_chip_podcasts,
         com.music.spotui.data.local.LibraryChip.SONGS to R.string.library_chip_songs,
-    )
+    ).filter { it.first != com.music.spotui.data.local.LibraryChip.PODCASTS || com.music.spotui.data.api.Features.PODCASTS }
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier

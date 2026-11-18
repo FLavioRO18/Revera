@@ -84,10 +84,19 @@ class SmState(
     @SerialName("state_id") val id: String,
     /** Index into [StateMachine.tracks]. */
     val track: Int,
+    @SerialName("track_uid") val trackUid: String? = null,
     @SerialName("disallow_seeking") val disallowSeeking: Boolean = false,
     @SerialName("initial_playback_position") val initialPlaybackPosition: Long? = null,
     val transitions: Transitions = Transitions(),
+    val options: StateOptions? = null,
     @SerialName("track_provider") val trackProvider: String? = null,
+)
+
+@Serializable
+class StateOptions(
+    @SerialName("shuffling_context") val shufflingContext: Boolean = false,
+    @SerialName("repeating_context") val repeatingContext: Boolean = false,
+    @SerialName("repeating_track") val repeatingTrack: Boolean = false,
 )
 
 @Serializable

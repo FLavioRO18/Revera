@@ -147,11 +147,11 @@ fun ImmersiveRecentlyPlayedScreen(navController: NavController) {
         loadingMore = false
     }
 
-    // Grouping runs on the raw rows, then the pill drops what the tab does not show: a heading
-    // whose rows are all gone disappears with them.
-    val sections = remember(entries, podcasts) {
+    val podcastsShown = com.music.spotui.data.api.Features.PODCASTS
+    val effectivePodcasts = podcasts && podcastsShown
+    val sections = remember(entries, effectivePodcasts) {
         groupRecents(entries.orEmpty()).mapNotNull { section ->
-            val groups = section.groups.filter { it.music != podcasts }
+            val groups = section.groups.filter { it.music != effectivePodcasts }
             if (groups.isEmpty()) null else RecentSection(section.dayMs, groups)
         }
     }
@@ -164,10 +164,12 @@ fun ImmersiveRecentlyPlayedScreen(navController: NavController) {
             modifier = Modifier.fillMaxSize().immersiveHazeSource(),
         ) {
             immersiveLargeTitle(title)
-            item(key = "recents:pills", contentType = "pills") {
-                ImmersiveChipRow {
-                    ImmersiveChip(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
-                    ImmersiveChip(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+            if (podcastsShown) {
+                item(key = "recents:pills", contentType = "pills") {
+                    ImmersiveChipRow {
+                        ImmersiveChip(stringResource(R.string.recents_filter_music), selected = !podcasts) { podcasts = false }
+                        ImmersiveChip(stringResource(R.string.recents_filter_podcasts), selected = podcasts) { podcasts = true }
+                    }
                 }
             }
             when {

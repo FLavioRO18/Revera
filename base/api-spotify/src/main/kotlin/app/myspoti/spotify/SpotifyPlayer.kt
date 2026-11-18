@@ -2178,6 +2178,14 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         userPlays()
         pickBeforeAd = null
         pickAfterReload = null
+        outside()?.let { a ->
+            val ctx = _shown.value?.contextUri ?: _state.value?.contextUri
+            val order = ctx?.let { c -> lastOrder?.takeIf { it.first == c }?.second }
+            val shuffle = shuffleChosen ?: _state.value?.shuffle
+            val skipped = runCatching { a.skipTo(item, ctx, order, shuffle) }
+                .onFailure { bridge.logger?.invoke("skipTo outside the page failed (${it.message}): the page skips") }
+            if (skipped.isSuccess) return
+        }
         val base = lastWithSong()
         if (skipsHeld) { setIntent(base?.contextUri, item, base?.item?.uri); return }
         if (base?.item?.kind != ItemKind.AD) intent = Intent(base?.contextUri, item, base?.item?.uri, clock())
@@ -2208,7 +2216,16 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     }
 
     override suspend fun setSpeed(speed: Double) {
-        bridge.call("player.setSpeed", buildJsonObject { put("speed", speed.coerceIn(0.5, 3.5)) })
+        val clamped = speed.coerceIn(0.5, 3.5)
+        outside()?.let { a ->
+            a.setSpeed(clamped)
+            if (bridge.ready.value) {
+                runCatching { bridge.call("player.setSpeed", buildJsonObject { put("speed", clamped) }) }
+            }
+            publish()
+            return
+        }
+        bridge.call("player.setSpeed", buildJsonObject { put("speed", clamped) })
     }
 
     override suspend fun volume(): Double = bridge.call("volume.get").jsonPrimitive.double

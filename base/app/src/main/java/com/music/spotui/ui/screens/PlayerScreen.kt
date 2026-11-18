@@ -228,6 +228,39 @@ fun PlayerScreen(navController: NavController) {
 
     // ── Swipe the artwork to change track: [previous, current, next] from Spotify ──
     val artworkPagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
+    val classicSlideX = remember { androidx.compose.animation.core.Animatable(0f) }
+    val classicSlideAlpha = remember { androidx.compose.animation.core.Animatable(1f) }
+    var classicLastRewindMs by remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+    val classicStepAnim: (Int) -> Unit = remember(titleScope) {
+        { dir ->
+            val now = android.os.SystemClock.elapsedRealtime()
+            val pos = SongPlayer.getCurrentPosition()
+            if (dir > 0 && pos > 3_000L && now - classicLastRewindMs > 3_000L) {
+                classicLastRewindMs = now
+                titleScope.launch {
+                    classicSlideAlpha.snapTo(1f)
+                    classicSlideX.snapTo(0f)
+                    classicSlideX.animateTo(0.12f, androidx.compose.animation.core.tween(90, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                    classicSlideX.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.64f, stiffness = 500f))
+                }
+            } else {
+                classicLastRewindMs = 0L
+                titleScope.launch {
+                    classicSlideAlpha.snapTo(1f)
+                    classicSlideX.snapTo(0f)
+                    launch {
+                        classicSlideAlpha.animateTo(0.25f, androidx.compose.animation.core.tween(160, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                    }
+                    classicSlideX.animateTo(dir * 0.85f, androidx.compose.animation.core.tween(190, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                    classicSlideX.snapTo(-dir * 0.55f)
+                    launch {
+                        classicSlideAlpha.animateTo(1f, androidx.compose.animation.core.tween(190, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                    }
+                    classicSlideX.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.82f, stiffness = 460f))
+                }
+            }
+        }
+    }
     LaunchedEffect(songId) {
         if (artworkPagerState.currentPage != 1) artworkPagerState.scrollToPage(1)
     }
@@ -546,9 +579,13 @@ fun PlayerScreen(navController: NavController) {
                             else Modifier.padding(horizontal = coverInset).aspectRatio(1f).clip(RoundedCornerShape(8.dp)))
                             .graphicsLayer {
                                 val shown = 1f - canvasProgress.value
-                                alpha = shown
+                                val slideFrac = if (page == 1) classicSlideX.value else 0f
+                                val slideAlpha = if (page == 1) classicSlideAlpha.value else 1f
+                                alpha = shown * slideAlpha
+                                translationX = slideFrac * size.width
+                                rotationZ = slideFrac * 4.5f
                                 val beat = if (page == 1) 1f + 0.025f * (mixPulse?.level() ?: 0f) else 1f
-                                val grow = (1f + (1f - shown) * 0.06f) * beat
+                                val grow = (1f + (1f - shown) * 0.06f) * beat * (1f - 0.06f * kotlin.math.abs(slideFrac))
                                 scaleX = grow; scaleY = grow
                             },
                         model = app.myspoti.host.android.Covers.large(cover),
@@ -666,7 +703,16 @@ fun PlayerScreen(navController: NavController) {
 
                 com.music.spotui.ui.components.PlaybackSpeedNote(Color.White.copy(alpha = 0.8f), com.music.spotui.ui.theme.AppAccent,
                     Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp))
-                PlayerFull(songPlayingState, playerViewModel, context, shuffle, repeat, queueSongs, compact = shortWindow)
+                PlayerFull(
+                    songPlayingState,
+                    playerViewModel,
+                    context,
+                    shuffle,
+                    repeat,
+                    queueSongs,
+                    compact = shortWindow,
+                    onStepAnim = classicStepAnim,
+                )
 
                 PlayerConnectRow(
                     context = context,
@@ -1257,11 +1303,13 @@ fun PlayerFull(
     shuffle: Boolean,
     repeat: Boolean,
     queueSongs: List<SongsModel>,
-    /** A short window: less room above and below the row (see SHORT_PLAYER_DP). */
     compact: Boolean = false,
+    onStepAnim: (Int) -> Unit = {},
 ) {
     val smartOn = SmartShuffle.on.value != null && SmartShuffle.on.value == SongPlayer.nowPlaying.value.contextUri
     val smartScope = androidx.compose.runtime.rememberCoroutineScope()
+    val prevKickX = remember { androidx.compose.animation.core.Animatable(0f) }
+    val nextKickX = remember { androidx.compose.animation.core.Animatable(0f) }
 
 
 
@@ -1320,12 +1368,17 @@ fun PlayerFull(
             modifier = Modifier
                 .size(com.music.spotui.ui.components.MinTouch)
                 .pressable {
-                    // The queue itself is already in shuffled order when shuffle
-                    // is on (reordered once at toggle) — never re-shuffle per tap.
+                    smartScope.launch {
+                        prevKickX.snapTo(0f)
+                        prevKickX.animateTo(-7f, androidx.compose.animation.core.tween(85, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                        prevKickX.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.52f, stiffness = 520f))
+                    }
+                    onStepAnim(1)
                     playerViewModel.playPreviousSong(queueSongs, context)
                 }
                 .wrapContentSize()
                 .size(40.dp)
+                .graphicsLayer { translationX = prevKickX.value.dp.toPx() }
             ,
             tint = Color.White,
             painter = painterResource(id = R.drawable.ic_player_back),
@@ -1376,11 +1429,17 @@ fun PlayerFull(
             modifier = Modifier
                 .size(com.music.spotui.ui.components.MinTouch)
                 .pressable {
-
+                    smartScope.launch {
+                        nextKickX.snapTo(0f)
+                        nextKickX.animateTo(7f, androidx.compose.animation.core.tween(85, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                        nextKickX.animateTo(0f, androidx.compose.animation.core.spring(dampingRatio = 0.52f, stiffness = 520f))
+                    }
+                    onStepAnim(-1)
                     playerViewModel.playNextSongs(queueSongs, context)
                 }
                 .wrapContentSize()
                 .size(40.dp)
+                .graphicsLayer { translationX = nextKickX.value.dp.toPx() }
             ,
             tint = Color.White,
             painter = painterResource(id = R.drawable.ic_player_skip),

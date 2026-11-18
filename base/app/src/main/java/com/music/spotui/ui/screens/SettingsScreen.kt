@@ -453,6 +453,12 @@ fun SettingsScreen(navController: NavController) {
                 checked = com.music.spotui.data.preferences.HideDjPref.on,
                 onChecked = { com.music.spotui.data.preferences.HideDjPref.set(ctx, it) },
             )
+            OptionRow(
+                label = stringResource(R.string.settings_hide_podcasts_title),
+                detail = stringResource(R.string.settings_hide_podcasts_detail),
+                checked = com.music.spotui.data.preferences.HidePodcastsPref.on,
+                onChecked = { com.music.spotui.data.preferences.HidePodcastsPref.set(ctx, it) },
+            )
             // Material You: the wallpaper's accent (Android 12+), in place of the one picked below.
             if (com.music.spotui.data.preferences.DynamicColorPref.available) OptionRow(
                 label = stringResource(R.string.settings_dynamic_color_title),

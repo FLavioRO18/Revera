@@ -578,6 +578,13 @@
     <string name="settings_music_video_detail">Кнопка видео в плеере и клипы, которые запускаются сами. Выкл.: только аудио и Canvas.</string>
     <string name="settings_hide_dj_title">Скрыть DJ</string>
     <string name="settings_hide_dj_detail">Убирает DJ Spotify с главной</string>
+    <string name="settings_hide_podcasts_title">Скрыть подкасты</string>
+    <string name="settings_hide_podcasts_detail">Убирает подкасты, шоу и выпуски с главной, из поиска и медиатеки</string>
+    <string name="player_badge_lossless">Lossless</string>
+    <string name="player_badge_hi_res_lossless">Hi-Res Lossless</string>
+    <string name="player_badge_high_quality">Высокое качество</string>
+    <string name="player_badge_upgrading">Подбор качества…</string>
+    <string name="player_badge_mixing">Сведение</string>
     <string name="settings_player_modes_title">Перемешивание и повтор в плеере</string>
     <string name="settings_player_modes_detail">Выкл. — в капсуле плеера только кнопка устройств, как в 2.1.0</string>
     <string name="settings_player_lyrics_card_title">Превью текста в плеере</string>

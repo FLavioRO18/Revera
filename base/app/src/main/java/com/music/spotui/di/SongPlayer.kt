@@ -653,6 +653,12 @@ object SongPlayer {
             shuffle = isShuffleOn(),
             episode = !ad && isEpisode,
             streamed = streamedNow(),
+            speed = when {
+                ad -> 1f
+                LocalPlayer.active.value && !routing -> LocalPlayer.rate()
+                isEpisode -> _speed.value.toFloat().coerceIn(0.5f, 3.5f)
+                else -> 1f
+            },
         ))
         com.music.spotui.widget.NowPlayingWidget.show(Graph.app,
             title = title,
@@ -725,6 +731,7 @@ object SongPlayer {
         // The song the extensions are asked for shows meanwhile, not what the engine paused on.
         if (routing && !LocalPlayer.active.value) return
         val id = trackIdOf(uri)
+        val wasIntended = engineIntended()
         val pending = pendingTrackId
         if (pending != null) {
             // Rapid A -> B -> C picks can report B while C is pending: keep C until it shows up.
@@ -791,7 +798,7 @@ object SongPlayer {
         // listen sync sends it back through the extensions. After this state's own follow-ups.
         val moved = trackChanged || (!wasPlaying && playing)
         if (moved || AccountSync.listen.waitsBack) {
-            val intended = engineIntended()
+            val intended = wasIntended || engineIntended()
             main.post { if (!LocalPlayer.active.value && !routing) AccountSync.listen.onProviderPlayback(s, moved, intended) }
         }
         // A resume Spotify took because another device played (see resumeThroughExtensions): the
@@ -816,8 +823,28 @@ object SongPlayer {
         val trusted = !holding || s.shuffle == shuffleWanted
         val dealt = AppShuffle.onPage(s.contextUri.orEmpty(), uri, s.shuffle, trusted)
         if (trusted) state.shuffle.value = s.shuffle || dealt
-        // The page reports a speed other than 1 only for episodes: music stays at 1.
-        _speed.value = s.speed.takeIf { it > 0.0 } ?: 1.0
+        val reportedSpeed = s.speed.takeIf { it > 0.0 } ?: 1.0
+        val epNow = uri.startsWith("spotify:episode:")
+        if (epNow && lastAppliedEpisodeSpeedUri != uri) {
+            lastAppliedEpisodeSpeedUri = uri
+            val savedEpSpeed = loadSavedPodcastSpeed()
+            if (kotlin.math.abs(savedEpSpeed - 1.0) >= 0.02 && kotlin.math.abs(reportedSpeed - savedEpSpeed) >= 0.02) {
+                _speed.value = savedEpSpeed
+                speedWanted = savedEpSpeed
+                speedWantedUntil = SystemClock.elapsedRealtime() + 4_000L
+                LocalPlayer.setEpisodeSpeed(savedEpSpeed.toFloat())
+                command { api.player.setSpeed(savedEpSpeed) }
+            } else {
+                _speed.value = reportedSpeed
+            }
+        } else if (!epNow) {
+            lastAppliedEpisodeSpeedUri = ""
+            _speed.value = 1.0
+        } else {
+            val speedHeld = SystemClock.elapsedRealtime() < speedWantedUntil
+            if (speedHeld && kotlin.math.abs(reportedSpeed - speedWanted) < 0.02) speedWantedUntil = 0L
+            if (!speedHeld) _speed.value = reportedSpeed
+        }
         // A song from an extension keeps its own repeat: the muted Spotify copy that counts it
         // reports repeat off and turned the button back off right after a tap (reported: loop
         // button does nothing). A tap on a Spotify song is held until the page shows it.
@@ -1161,10 +1188,18 @@ object SongPlayer {
      * (busy, reloading) is sent once more instead of leaving the old song playing.
      */
     private suspend fun playChecked(itemUri: String, isLatest: () -> Boolean, play: suspend () -> Unit) {
+        if (NativeAudio.on && _activeDevice.value == null) {
+            play()
+            return
+        }
+        val before = api.player.state.value?.item?.uri
         play()
         repeat(2) { attempt ->
             val moved = kotlinx.coroutines.withTimeoutOrNull(PLAY_CHECK_MS) {
-                api.player.state.first { it?.item?.uri == itemUri || !isLatest() }
+                api.player.state.first { s ->
+                    val u = s?.item?.uri
+                    u == itemUri || (u != null && u != before && !s.isPaused) || !isLatest()
+                }
             }
             if (moved != null || !isLatest()) return
             if (attempt == 0) { Log.w(TAG, "play of $itemUri not taken: sent again"); play() }
@@ -1263,7 +1298,14 @@ object SongPlayer {
         if (askExtensions && com.music.spotui.extensions.AudioRoute.asks(routedId, com.music.spotui.extensions.Extensions.hasAudioSource())) {
             val ctx = if (alone) "" else (contextUri ?: contextRegistry[song]).orEmpty()
             val shuffle = isShuffleOn()
-            playThroughExtensions(routedId!!, songs?.firstOrNull { it.spotifyTrackId == routedId }, knownContextName(ctx), { playSong(song, context, contextUri, order, positionMs, askExtensions = false, alone = alone) }) { isLatest, shown ->
+            playThroughExtensions(
+                routedId!!,
+                songs?.firstOrNull { it.spotifyTrackId == routedId },
+                knownContextName(ctx),
+                { playSong(song, context, contextUri, order, positionMs, askExtensions = false, alone = alone) },
+                songs = songs,
+                contextUri = ctx,
+            ) { isLatest, shown ->
                 com.music.spotui.extensions.ExtensionAudio.route(routedId, songs, knownContextName(ctx), shuffle, ctx, isLatest, shown, positionMs ?: 0L)
             }
             return
@@ -1303,11 +1345,11 @@ object SongPlayer {
     // ── A song sent to the audio-source extensions ──
     /** Bumped by every play; a resolution that finishes after a newer one was asked plays nothing. */
     private val routeAsk = java.util.concurrent.atomic.AtomicInteger()
-    /** The Spotify id of the song the extensions are being asked for, shown loading meanwhile. */
     private val routingState = mutableStateOf<String?>(null)
     private var routingUntil = 0L
     private var routingContext = ""
-    /** A song is shown loading while the extensions are asked for its audio (nothing plays yet). */
+    private var routingContextUri = ""
+    private var routingSongs: List<SongsModel>? = null
     val routing: Boolean get() = routingState.value != null && SystemClock.elapsedRealtime() < routingUntil
 
     /**
@@ -1347,6 +1389,7 @@ object SongPlayer {
      */
     fun playThroughExtensions(
         trackId: String, song: SongsModel?, contextName: String, fallback: () -> Unit,
+        songs: List<SongsModel>? = null, contextUri: String = "",
         play: suspend (isLatest: () -> Boolean, shown: (SongsModel) -> Unit) -> Boolean,
     ) {
         val ask = routeAsk.incrementAndGet()
@@ -1359,6 +1402,8 @@ object SongPlayer {
         positionMs = 0; positionAt = SystemClock.elapsedRealtime()
         routingState.value = trackId; routingUntil = SystemClock.elapsedRealtime() + ROUTE_HOLD_MS
         routingContext = contextName
+        routingContextUri = contextUri
+        routingSongs = songs
         song?.let(::showRouted)
         scope.launch {
             val played = runCatching { play(isLatest) { s -> main.post { if (isLatest()) showRouted(s) } } }
@@ -1368,10 +1413,106 @@ object SongPlayer {
                 if (isLatest() && refusedWithoutAccountPlayer(song?.title, trackId)) return@post
                 if (isLatest()) {
                     app.myspoti.host.android.Logbook.log("audio: no extension had ${song?.title ?: trackId}, Spotify plays")
-                    // Not when its answer is still awaited: the song goes back to the extension then.
                     if (!com.music.spotui.extensions.ExtensionAudio.awaiting(trackId)) spotifyPlayed.add(trackId)
-                    routingState.value = null; spotifyFallbackId = trackId; fallback()
+                    routingState.value = null; routingSongs = null; spotifyFallbackId = trackId; fallback()
                 }
+            }
+        }
+    }
+
+    private fun stepWhileRoutingOrCold(forward: Boolean): Boolean {
+        val wasRouting = routing
+        val coldLocal = !LocalPlayer.active.value && !wasRouting && _activeDevice.value == null &&
+            (restoredLocal || (!playing && !stateSeen && com.music.spotui.extensions.Extensions.hasAudioSource()))
+        if (!wasRouting && !coldLocal) return false
+        val curId = (if (wasRouting) routingState.value else null) ?: trackIdOf(_nowPlaying.value.uri)
+        val list = routingSongs?.takeIf { wasRouting && it.isNotEmpty() }
+            ?: _queue.value.let { q -> listOfNotNull(q.current) + (q.queued + q.nextUp).map { it.song } }.takeIf { it.isNotEmpty() }
+        val idx = list?.indexOfFirst { it.spotifyTrackId == curId && curId.isNotBlank() } ?: -1
+        val target = when {
+            forward && idx >= 0 -> list?.getOrNull(idx + 1)
+            forward -> _nowPlaying.value.next ?: _queue.value.let { it.queued + it.nextUp }.firstOrNull()?.song
+            !forward && !wasRouting && getCurrentPosition() > 3_000L -> {
+                seekTo(0L)
+                return true
+            }
+            !forward && idx > 0 -> list?.getOrNull(idx - 1)
+            !forward -> _nowPlaying.value.prev
+            else -> null
+        }
+        if (target != null && target.spotifyTrackId.isNotBlank()) {
+            restoredLocal = false
+            val ctx = (if (wasRouting) routingContextUri else _nowPlaying.value.contextUri).ifBlank { null }
+            val nextSongs = when {
+                list != null && idx >= 0 && forward -> list.drop(idx + 1)
+                list != null && idx > 0 && !forward -> list.drop(idx - 1)
+                else -> upcomingSongs(target)
+            }
+            val key = target.url.takeIf { it.startsWith("spotify:") || it.startsWith("episode:") }
+                ?: (SPOTIFY_TRACK_PREFIX + target.spotifyTrackId)
+            playSong(key, contextUri = ctx, songs = nextSongs)
+            return true
+        }
+        if (wasRouting && forward && curId.isNotBlank()) {
+            routeAsk.incrementAndGet()
+            routingState.value = null
+            routingSongs = null
+            scope.launch {
+                val rec = kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                    runCatching { Graph.api.getRecommendations(listOf(curId)) }.getOrNull()
+                }?.firstOrNull { it.spotifyTrackId.isNotBlank() && it.spotifyTrackId != curId }
+                if (rec != null) {
+                    val key = rec.url.takeIf { it.startsWith("spotify:") } ?: (SPOTIFY_TRACK_PREFIX + rec.spotifyTrackId)
+                    main.post { playSong(key, songs = listOf(rec), alone = true) }
+                } else {
+                    main.post { bufferingState.value = false }
+                }
+            }
+            return true
+        }
+        if (wasRouting && !forward) {
+            if (LocalPlayer.active.value && LocalPlayer.current() != null) {
+                routeAsk.incrementAndGet()
+                routingState.value = null
+                routingSongs = null
+                LocalPlayer.resume()
+                return true
+            }
+        }
+        return false
+    }
+
+    internal fun playColdResumeFromNative() {
+        main.post {
+            val np = _nowPlaying.value
+            if (np.uri.isBlank()) return@post
+            val q = _queue.value
+            val songs = (listOfNotNull(q.current) + (q.queued + q.nextUp).map { it.song }).takeIf { it.isNotEmpty() }
+            val key = if (np.uri.startsWith("spotify:episode:")) "episode:" + np.uri.removePrefix("spotify:episode:") else np.uri
+            playSong(key, contextUri = np.contextUri.ifBlank { null }, positionMs = getCurrentPosition().takeIf { it > 0L }, songs = songs, askExtensions = false)
+        }
+    }
+
+    internal fun playColdStepFromNative(forward: Boolean) {
+        main.post {
+            val np = _nowPlaying.value
+            val q = _queue.value
+            val target = if (forward) {
+                np.next ?: (q.queued + q.nextUp).firstOrNull()?.song
+            } else {
+                if (getCurrentPosition() > 3_000L) {
+                    seekTo(0L)
+                    return@post
+                }
+                np.prev ?: q.current
+            }
+            if (target != null) {
+                val key = target.url.takeIf { it.startsWith("spotify:") || it.startsWith("episode:") }
+                    ?: (if (target.spotifyTrackId.isNotBlank()) SPOTIFY_TRACK_PREFIX + target.spotifyTrackId else return@post)
+                playSong(key, contextUri = np.contextUri.ifBlank { null }, songs = upcomingSongs(target), askExtensions = false)
+            } else if (np.uri.isNotBlank()) {
+                val key = if (np.uri.startsWith("spotify:episode:")) "episode:" + np.uri.removePrefix("spotify:episode:") else np.uri
+                playSong(key, contextUri = np.contextUri.ifBlank { null }, askExtensions = false)
             }
         }
     }
@@ -1671,8 +1812,9 @@ object SongPlayer {
         }
         val name = local?.second ?: knownContextName(ctx)
         val shuffle = isShuffleOn()
-        playThroughExtensions(id, target, name, fallback) { isLatest, shown ->
-            com.music.spotui.extensions.ExtensionAudio.route(id, local?.first ?: songs, name, shuffle, ctx, isLatest, shown)
+        val routeList = local?.first ?: songs
+        playThroughExtensions(id, target, name, fallback, songs = routeList, contextUri = ctx) { isLatest, shown ->
+            com.music.spotui.extensions.ExtensionAudio.route(id, routeList, name, shuffle, ctx, isLatest, shown)
         }
         return true
     }
@@ -1899,6 +2041,7 @@ object SongPlayer {
         app.myspoti.host.android.Logbook.log("next asked by $by")
         userActed()
         Haptics.click()
+        if (stepWhileRoutingOrCold(forward = true)) return
         if (LocalPlayer.active.value) { LocalPlayer.next(); return }
         cancelRepeatOnce("next")
         com.music.spotui.extensions.Extensions.skipAsked("forward")
@@ -1921,6 +2064,18 @@ object SongPlayer {
         // burst of "next" commands left the Web Player out of step (state conflicts, then a
         // player stuck until reloaded), and each song skipped through asks for a licence.
         val now = SystemClock.elapsedRealtime()
+        if (NativeAudio.on && _activeDevice.value == null) {
+            cancelBurst()
+            pendingSkip = 0
+            pendingTrackId = null
+            pendingItemUri = null
+            bufferingState.value = true
+            skipSentAt = now
+            positionMs = 0L
+            positionAt = now
+            NativeAudio.skipNextQueued()
+            return
+        }
         val sinceSent = now - skipSentAt
         if (now - burstAt > SKIP_BURST_MS && sinceSent >= MIN_SKIP_GAP_MS) {
             burstAt = now
@@ -2035,7 +2190,7 @@ object SongPlayer {
         transport(waitReady = !stateSeen, checkAfter = true, pullBack = false, done = { ok -> skipDone(shown, ok) }) {
             if (target == null) api.player.next() else api.player.skipTo(target)
         }
-        if (target != null) {
+        if (target != null && (!NativeAudio.on || _activeDevice.value != null)) {
             burstTarget = target
             burstContext = _nowPlaying.value.contextUri
             burstSeq++
@@ -2063,6 +2218,7 @@ object SongPlayer {
     private val verifyBurst = Runnable {
         val t = burstTarget ?: return@Runnable
         burstTarget = null
+        if (NativeAudio.on && _activeDevice.value == null) return@Runnable
         val seq = burstSeq
         val tap = verifyTap
         // A newer tap, pick or pause: the user moved on (a reported log: a previous pressed
@@ -2104,6 +2260,7 @@ object SongPlayer {
         app.myspoti.host.android.Logbook.log("previous asked by $by")
         userActed()
         Haptics.click()
+        if (stepWhileRoutingOrCold(forward = false)) return
         if (LocalPlayer.active.value) { LocalPlayer.previous(); return }
         cancelRepeatOnce("previous")
         if (getCurrentPosition() <= 3_000) com.music.spotui.extensions.Extensions.skipAsked("backward")
@@ -2126,11 +2283,17 @@ object SongPlayer {
             if (backToExtensions(t, trackIdOf(_nowPlaying.value.uri), songs, forward = false) { intendPlaying(); transport(pullBack = false) { api.player.previous() } }) return
         }
         cancelBurst()
-        skipSentAt = SystemClock.elapsedRealtime()
-        // Either way the song now starts at 0 (a restart or the one before): without this the old
-        // position stays until Spotify reports, and a quick second previous would restart again.
+        val now = SystemClock.elapsedRealtime()
+        skipSentAt = now
         positionMs = 0L
-        positionAt = SystemClock.elapsedRealtime()
+        positionAt = now
+        if (NativeAudio.on && _activeDevice.value == null) {
+            pendingSkip = 0
+            pendingTrackId = null
+            pendingItemUri = null
+            NativeAudio.skipPrevQueued()
+            return
+        }
         transport(waitReady = !stateSeen, checkAfter = true, pullBack = false) { api.player.previous() }
     }
 
@@ -2163,7 +2326,7 @@ object SongPlayer {
         }
         if (first != null) {
             val ctx = contextRegistry[songs.first().url].orEmpty()
-            playThroughExtensions(first.spotifyTrackId, first, knownContextName(ctx), { shufflePlay(songs, askExtensions = false) }) { isLatest, _ ->
+            playThroughExtensions(first.spotifyTrackId, first, knownContextName(ctx), { shufflePlay(songs, askExtensions = false) }, songs = songs, contextUri = ctx) { isLatest, _ ->
                 com.music.spotui.extensions.ExtensionAudio.playList(songs, first, knownContextName(ctx), true, ctx, isLatest)
             }
             return
@@ -2186,8 +2349,10 @@ object SongPlayer {
                 val order = songs.shuffled().take(SHUFFLE_QUEUE_MAX)
                 api.player.play(order.first().url)
                 if (order.size > 1) api.player.addToQueue(order.drop(1).map { it.url })
-            } else api.player.play(ctx)
-            // A play command may reset the options: make sure shuffle sticks.
+            } else {
+                api.player.play(ctx)
+                if (NativeAudio.on && _activeDevice.value == null) return@transport
+            }
             kotlinx.coroutines.delay(1500)
             api.player.setShuffle(true)
         }
@@ -2290,10 +2455,31 @@ object SongPlayer {
         setRepeatMode(LocalRepeat.OFF)
     }
 
-    /** Podcast playback speed (Spotify refuses it on music). */
+    private const val PODCAST_SPEED_PREF = "podcast_speed"
+    private var speedWanted = 1.0
+    private var speedWantedUntil = 0L
+    private var lastAppliedEpisodeSpeedUri = ""
+
+    private fun loadSavedPodcastSpeed(): Double =
+        runCatching {
+            Graph.app.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE)
+                .getFloat(PODCAST_SPEED_PREF, 1f).toDouble().coerceIn(0.5, 3.5)
+        }.getOrDefault(1.0)
+
     fun setSpeed(speed: Double) {
-        _speed.value = speed
-        command { api.player.setSpeed(speed) }
+        val clamped = (kotlin.math.round(speed.coerceIn(0.5, 3.5) * 20.0) / 20.0)
+        positionMs = getCurrentPosition()
+        positionAt = SystemClock.elapsedRealtime()
+        _speed.value = clamped
+        speedWanted = clamped
+        speedWantedUntil = SystemClock.elapsedRealtime() + 4_000L
+        runCatching {
+            Graph.app.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE)
+                .edit().putFloat(PODCAST_SPEED_PREF, clamped.toFloat()).apply()
+        }
+        LocalPlayer.setEpisodeSpeed(clamped.toFloat())
+        command { api.player.setSpeed(clamped) }
+        boundState?.let { pushNotification(null, it.likeState.value) }
     }
 
     private val _speed = mutableStateOf(1.0)
@@ -3261,7 +3447,8 @@ object SongPlayer {
         if (LocalPlayer.active.value && !routing) return LocalPlayer.position()
         val base = positionMs
         if (!playing || isBuffering) return base
-        val now = base + (SystemClock.elapsedRealtime() - positionAt)
+        val rate = if (isEpisode) _speed.value.coerceIn(0.5, 3.5) else 1.0
+        val now = base + ((SystemClock.elapsedRealtime() - positionAt) * rate).toLong()
         return if (durationMs > 0) now.coerceAtMost(durationMs) else now
     }
 

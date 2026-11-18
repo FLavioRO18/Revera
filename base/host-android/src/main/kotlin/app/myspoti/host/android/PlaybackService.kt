@@ -50,13 +50,9 @@ data class NowPlayingInfo(
     val buffering: Boolean = false,
     val liked: Boolean = false,
     val shuffle: Boolean = false,
-    /** A podcast episode: the notification offers 15 s skips, the headset next / previous skip 15 s. */
     val episode: Boolean = false,
-    /**
-     * The audio comes over the network while it plays (the account's page, an extension's stream,
-     * a radio); false for a file of the phone or a download. The Wi-Fi lock is for the first only.
-     */
     val streamed: Boolean = true,
+    val speed: Float = 1f,
 ) {
     /**
      * Audio goes on, or is about to: a song plays or loads, or an ad break runs. An ad is shown
@@ -69,7 +65,8 @@ data class NowPlayingInfo(
 
     /** Everything but the position: a moving position alone is not a new state. */
     fun sameAs(other: NowPlayingInfo) = sameMetadata(other) && playing == other.playing && buffering == other.buffering &&
-        liked == other.liked && shuffle == other.shuffle && episode == other.episode && streamed == other.streamed
+        liked == other.liked && shuffle == other.shuffle && episode == other.episode && streamed == other.streamed &&
+        kotlin.math.abs(speed - other.speed) < 0.01f
 
     /** The session's metadata is the same (what it carries with its artwork, sent again only when it changes). */
     fun sameMetadata(other: NowPlayingInfo) = id == other.id && title == other.title && artist == other.artist &&
@@ -86,7 +83,7 @@ data class NowPlayingInfo(
      */
     fun positionJumpedFrom(before: NowPlayingInfo, elapsedMs: Long, toleranceMs: Long = POSITION_JUMP_MS): Boolean {
         val running = before.playing && !before.buffering
-        val expected = before.positionMs + if (running) elapsedMs else 0L
+        val expected = before.positionMs + if (running) (elapsedMs * before.speed).toLong() else 0L
         return kotlin.math.abs(positionMs - expected) > toleranceMs
     }
 
@@ -372,7 +369,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
                 if (info.liked) R.drawable.msp_ic_liked else R.drawable.msp_ic_like)
             .addCustomAction(ACTION_SHUFFLE, getString(if (info.shuffle) R.string.msp_shuffle_off else R.string.msp_shuffle_on),
                 if (info.shuffle) R.drawable.msp_ic_shuffle_on else R.drawable.msp_ic_shuffle)
-            .setState(state, info.positionMs, if (info.playing && !info.buffering) 1f else 0f)
+            .setState(state, info.positionMs, if (info.playing && !info.buffering) info.speed else 0f)
             .setActiveQueueItemId(QueueSync.activeRow(queue, activeQueueId, info.title, info.artist))
             .build())
     }
