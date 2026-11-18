@@ -810,4 +810,13 @@
     <string name="settings_ytm_sync_note">Las reproducciones las cuenta el reproductor web de YouTube Music, sin sonido. Las apps de YouTube Music no pueden controlarlo.</string>
     <string name="settings_sign_in_close">Cerrar</string>
     <string name="connect_after_ad">Pasará a %1$s cuando termine el anuncio</string>
+    <string name="app_log_copy">Copiar logcat de Revera</string>
+    <string name="app_log_collecting">Recopilando registro…</string>
+    <string name="app_log_copied">Registro copiado</string>
+    <string name="app_log_failed">No se pudo leer el registro</string>
+    <string name="community_discord_title">Comunidad de Revera</string>
+    <string name="community_discord_message">Revera ya tiene un servidor de Discord. Únete para mantener el contacto y recibir actualizaciones si el repositorio de GitHub deja de estar disponible.</string>
+    <string name="community_discord_open">Abrir Discord</string>
+    <string name="community_discord_later">Más tarde</string>
+    <string name="community_discord_failed">No se pudo abrir Discord</string>
 </resources>

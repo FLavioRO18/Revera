@@ -873,4 +873,9 @@
     <string name="app_log_collecting">Collecting log…</string>
     <string name="app_log_copied">Log copied</string>
     <string name="app_log_failed">Could not read the app log</string>
+    <string name="community_discord_title">Join the Revera community</string>
+    <string name="community_discord_message">Revera now has a Discord server. Join us to stay in touch and find updates if the GitHub repository becomes unavailable.</string>
+    <string name="community_discord_open">Open Discord</string>
+    <string name="community_discord_later">Later</string>
+    <string name="community_discord_failed">Could not open Discord</string>
 </resources>

@@ -810,4 +810,13 @@
     <string name="settings_ytm_sync_note">Die Wiedergaben zählt der Webplayer von YouTube Music selbst, ohne Ton. Die YouTube-Music-Apps können ihn nicht steuern.</string>
     <string name="settings_sign_in_close">Schließen</string>
     <string name="connect_after_ad">Wechselt nach der Werbung zu %1$s</string>
+    <string name="app_log_copy">Revera-Logcat kopieren</string>
+    <string name="app_log_collecting">Protokoll wird erfasst…</string>
+    <string name="app_log_copied">Protokoll kopiert</string>
+    <string name="app_log_failed">App-Protokoll konnte nicht gelesen werden</string>
+    <string name="community_discord_title">Die Revera-Community</string>
+    <string name="community_discord_message">Revera hat jetzt einen Discord-Server. Bleibe mit uns in Kontakt und erhalte Updates, falls das GitHub-Repository nicht mehr verfügbar ist.</string>
+    <string name="community_discord_open">Discord öffnen</string>
+    <string name="community_discord_later">Später</string>
+    <string name="community_discord_failed">Discord konnte nicht geöffnet werden</string>
 </resources>

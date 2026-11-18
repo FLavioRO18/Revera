@@ -815,4 +815,13 @@
     <string name="lan_logging_in">Entrando…</string>
     <string name="lan_failed">%1$s não aceitou o login. Abra-o uma vez com o app do Spotify e tente de novo.</string>
     <string name="lan_others">%1$d mais nesta rede precisam do app do Spotify para entrar antes</string>
+    <string name="app_log_copy">Copiar logcat do Revera</string>
+    <string name="app_log_collecting">Coletando registro…</string>
+    <string name="app_log_copied">Registro copiado</string>
+    <string name="app_log_failed">Não foi possível ler o registro</string>
+    <string name="community_discord_title">Comunidade Revera</string>
+    <string name="community_discord_message">O Revera agora tem um servidor Discord. Entre para manter contato e receber atualizações caso o repositório do GitHub fique indisponível.</string>
+    <string name="community_discord_open">Abrir Discord</string>
+    <string name="community_discord_later">Mais tarde</string>
+    <string name="community_discord_failed">Não foi possível abrir o Discord</string>
 </resources>

@@ -845,4 +845,9 @@
     <string name="app_log_collecting">Сбор журнала…</string>
     <string name="app_log_copied">Журнал скопирован</string>
     <string name="app_log_failed">Не удалось прочитать журнал приложения</string>
+    <string name="community_discord_title">Сообщество Revera</string>
+    <string name="community_discord_message">У Revera появился Discord. Присоединяйтесь, чтобы не потерять проект и получать обновления, если репозиторий GitHub станет недоступен.</string>
+    <string name="community_discord_open">Открыть Discord</string>
+    <string name="community_discord_later">Позже</string>
+    <string name="community_discord_failed">Не удалось открыть Discord</string>
 </resources>

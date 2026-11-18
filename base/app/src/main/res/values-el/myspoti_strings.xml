@@ -810,4 +810,13 @@
     <string name="settings_ytm_sync_note">Τις αναπαραγωγές τις μετράει το ίδιο το πρόγραμμα αναπαραγωγής web του YouTube Music, χωρίς ήχο. Οι εφαρμογές του YouTube Music δεν μπορούν να το ελέγξουν.</string>
     <string name="settings_sign_in_close">Κλείσιμο</string>
     <string name="connect_after_ad">Μεταφέρεται στο %1$s μόλις τελειώσει η διαφήμιση</string>
+    <string name="app_log_copy">Αντιγραφή logcat του Revera</string>
+    <string name="app_log_collecting">Συλλογή καταγραφής…</string>
+    <string name="app_log_copied">Η καταγραφή αντιγράφηκε</string>
+    <string name="app_log_failed">Αδυναμία ανάγνωσης της καταγραφής</string>
+    <string name="community_discord_title">Η κοινότητα του Revera</string>
+    <string name="community_discord_message">Το Revera διαθέτει πλέον διακομιστή Discord. Ελάτε για να παραμείνετε σε επαφή και να λαμβάνετε ενημερώσεις αν το αποθετήριο GitHub πάψει να είναι διαθέσιμο.</string>
+    <string name="community_discord_open">Άνοιγμα Discord</string>
+    <string name="community_discord_later">Αργότερα</string>
+    <string name="community_discord_failed">Αδυναμία ανοίγματος του Discord</string>
 </resources>

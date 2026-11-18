@@ -810,4 +810,13 @@
     <string name="settings_ytm_sync_note">播放由 YouTube Music 自己的网页播放器静音统计。YouTube Music 的应用无法控制它。</string>
     <string name="settings_sign_in_close">关闭</string>
     <string name="connect_after_ad">广告结束后切换到 %1$s</string>
+    <string name="app_log_copy">复制 Revera 日志</string>
+    <string name="app_log_collecting">正在收集日志…</string>
+    <string name="app_log_copied">日志已复制</string>
+    <string name="app_log_failed">无法读取应用日志</string>
+    <string name="community_discord_title">Revera 社区</string>
+    <string name="community_discord_message">Revera 现在有 Discord 服务器了。欢迎加入，以便在 GitHub 仓库无法访问时继续保持联系并获取更新。</string>
+    <string name="community_discord_open">打开 Discord</string>
+    <string name="community_discord_later">稍后</string>
+    <string name="community_discord_failed">无法打开 Discord</string>
 </resources>

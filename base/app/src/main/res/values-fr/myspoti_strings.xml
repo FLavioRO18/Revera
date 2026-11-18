@@ -851,4 +851,13 @@
     <string name="video_fullscreen_exit">Quitter le plein écran</string>
     <string name="settings_automix_orpheon">Nouveau planificateur de transitions</string>
     <string name="settings_automix_orpheon_detail">Des enchaînements plus doux : les deux titres glissent vers un tempo commun puis reviennent au leur. Désactivé : l\'ancien planificateur.</string>
+    <string name="app_log_copy">Copier le logcat de Revera</string>
+    <string name="app_log_collecting">Collecte du journal…</string>
+    <string name="app_log_copied">Journal copié</string>
+    <string name="app_log_failed">Impossible de lire le journal</string>
+    <string name="community_discord_title">La communauté Revera</string>
+    <string name="community_discord_message">Revera a désormais un serveur Discord. Rejoignez-nous pour garder le contact et recevoir les mises à jour si le dépôt GitHub devient indisponible.</string>
+    <string name="community_discord_open">Ouvrir Discord</string>
+    <string name="community_discord_later">Plus tard</string>
+    <string name="community_discord_failed">Impossible d’ouvrir Discord</string>
 </resources>
