@@ -73,9 +73,8 @@ private val MeshAnchors = listOf(
 )
 private val MeshSpeeds = listOf(1f, -0.7f, 0.85f, -1.15f)
 
-/** The scrim that keeps white text legible over bright art. */
 private val MeshScrim = Brush.verticalGradient(
-    colors = listOf(Color.Black.copy(alpha = 0.10f), Color.Black.copy(alpha = 0.38f)),
+    colors = listOf(Color.Black.copy(alpha = 0.04f), Color.Black.copy(alpha = 0.22f)),
 )
 
 /** The four mesh colours, wrapped so the backdrop can skip recomposition. */
@@ -193,10 +192,10 @@ fun MeshGradientBackground(
                 x = (anchor.x + 0.16f * cos(drift * MeshSpeeds[index] + index * 1.7f)) * size.width,
                 y = (anchor.y + 0.16f * sin(drift * MeshSpeeds[index] * 0.9f + index * 2.3f)) * size.height,
             )
-            val radius = size.maxDimension * 0.62f
+            val radius = size.maxDimension * 0.68f
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(color.copy(alpha = 0.85f), color.copy(alpha = 0f)),
+                    colors = listOf(color.copy(alpha = 0.94f), color.copy(alpha = 0f)),
                     center = center,
                     radius = radius,
                 ),
@@ -296,21 +295,28 @@ private const val DRIFT_RADIANS = (PI * 0.45f).toFloat()
  * any shortfall is derived from the art's own colours rather than borrowed.
  */
 fun artworkMeshColors(bitmap: Bitmap): List<Color> {
-    fun swatchesOf(clearFilters: Boolean): List<Color> =
+    fun pull(clearFilters: Boolean): Palette =
         Palette.from(bitmap).maximumColorCount(24)
             .apply { if (clearFilters) clearFilters() }
             .generate()
-            .swatches
-            .sortedByDescending { it.population }
-            .map { Color(it.rgb) }
 
-    val found = swatchesOf(clearFilters = false).ifEmpty {
-        // The default filter discards near-black and near-white, which on a
-        // monochrome sleeve can be everything there is.
-        swatchesOf(clearFilters = true)
-    }
+    val pal = pull(clearFilters = false).let { if (it.swatches.isEmpty()) pull(clearFilters = true) else it }
+    val priority = listOfNotNull(
+        pal.vibrantSwatch,
+        pal.darkVibrantSwatch,
+        pal.lightVibrantSwatch,
+        pal.dominantSwatch,
+        pal.mutedSwatch,
+    ).map { Color(it.rgb) }
 
-    val distinct = found.distinctEnough()
+    val scored = pal.swatches
+        .sortedByDescending { sw ->
+            val hsl = sw.hsl
+            sw.population.toFloat() * (0.30f + 2.2f * hsl[1])
+        }
+        .map { Color(it.rgb) }
+
+    val distinct = (priority + scored).distinctEnough()
     return when {
         distinct.isEmpty() -> FallbackColors
         distinct.size >= 4 -> distinct.take(4)
@@ -353,18 +359,19 @@ private fun Color.shifted(hue: Float, lightness: Float): Color {
 private fun Color.hsl(): FloatArray =
     FloatArray(3).also { ColorUtils.colorToHSL(toArgb(), it) }
 
-/** Boost saturation and clamp lightness so any artwork yields a rich, non-muddy mesh. */
 private fun Color.tuned(): Color {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(toArgb(), hsl)
-    hsl[1] = (hsl[1] * 1.35f).coerceAtMost(1f)
-    hsl[2] = hsl[2].coerceIn(0.28f, 0.58f)
+    val minSat = if (hsl[1] >= 0.06f) 0.42f else hsl[1]
+    hsl[1] = (hsl[1] * 1.65f).coerceIn(minSat, 1f)
+    hsl[2] = hsl[2].coerceIn(0.32f, 0.58f)
     return Color(ColorUtils.HSLToColor(hsl))
 }
 
 private fun Color.dimmed(): Color {
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(toArgb(), hsl)
-    hsl[2] = 0.12f
+    hsl[1] = (hsl[1] * 1.45f).coerceAtMost(0.92f)
+    hsl[2] = 0.22f
     return Color(ColorUtils.HSLToColor(hsl))
 }

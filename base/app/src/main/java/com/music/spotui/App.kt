@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import com.music.spotui.ui.navigation.MainBottomNavigation
@@ -74,6 +75,17 @@ fun App() {
     // Genius's explanations of the song playing, read while it starts: ready when the lyrics open.
     val geniusLang = com.music.spotui.ui.components.readerLanguage()
     val playingUri = com.music.spotui.di.SongPlayer.nowPlaying.value.uri
+    val playingCover = com.music.spotui.di.Graph.currentSongState.coverUri.value
+    val liveCoverPalette = com.music.spotui.ui.look.rememberArtworkColors(playingCover.takeIf { it.isNotBlank() })
+    val targetTrackAccent = remember(liveCoverPalette, playingCover) {
+        if (playingCover.isBlank()) null else com.music.spotui.ui.immersive.Immersive.accentFromPalette(liveCoverPalette.colors)
+    }
+    val animatedTrackAccent by androidx.compose.animation.animateColorAsState(
+        targetValue = targetTrackAccent ?: androidx.compose.ui.graphics.Color(0xFFFF4F7B),
+        animationSpec = androidx.compose.animation.core.tween(750),
+        label = "appTrackAccent",
+    )
+    com.music.spotui.ui.immersive.Immersive.trackAccent = if (targetTrackAccent != null) animatedTrackAccent else null
     LaunchedEffect(playingUri) {
         if (!playingUri.startsWith("spotify:track:")) return@LaunchedEffect
         kotlinx.coroutines.delay(2_000) // the song's own loads first

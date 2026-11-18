@@ -4,13 +4,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.graphics.ColorUtils
 import com.music.spotui.ui.look.ImmersiveDisplay
 import com.music.spotui.ui.look.ImmersiveSans
 
@@ -29,9 +34,22 @@ object Immersive {
     val Text = Color.White
     val TextSecondary = Color.White.copy(alpha = 0.60f)
     val TextTertiary = Color.White.copy(alpha = 0.38f)
-    /** The look's own pink until an Immersive accent colour is chosen in Settings, then that colour (links, the selected tab, toggles). */
+    var trackAccent by mutableStateOf<Color?>(null)
+
+    fun accentFromPalette(colors: List<Color>): Color? {
+        val best = colors
+            .filter { maxOf(it.red, it.green, it.blue) - minOf(it.red, it.green, it.blue) >= 0.06f }
+            .maxByOrNull { maxOf(it.red, it.green, it.blue) - minOf(it.red, it.green, it.blue) }
+            ?: return null
+        val hsl = FloatArray(3)
+        ColorUtils.colorToHSL(best.toArgb(), hsl)
+        hsl[1] = (hsl[1] * 1.4f).coerceIn(0.62f, 0.92f)
+        hsl[2] = hsl[2].coerceIn(0.58f, 0.70f)
+        return Color(ColorUtils.HSLToColor(hsl))
+    }
+
     val Accent: Color get() = com.music.spotui.extensions.ExtensionLook.color(app.myspoti.extensions.UiStyle.ACCENT)
-        ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else Color(0xFFFF4F7B) }
+        ?: com.music.spotui.data.api.SupportReminder.run { if (immersiveAccentChosen) immersiveAccent.color else (trackAccent ?: Color(0xFFFF4F7B)) }
     val GlassFill = Color(0xFF2C2C34).copy(alpha = 0.88f)
     val GlassEdge = Color.White.copy(alpha = 0.12f)
     /** The red of a destructive swipe, menu entry or confirmation (Leave, Remove, an error). */

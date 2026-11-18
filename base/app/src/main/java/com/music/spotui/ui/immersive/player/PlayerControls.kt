@@ -113,9 +113,9 @@ import kotlinx.coroutines.launch
 
 internal val LocalPlayerTint = compositionLocalOf { Color.White }
 
-private const val PLAYER_TINT_LIGHTNESS = 0.88f
-private const val PLAYER_TINT_MAX_SATURATION = 0.40f
-private const val TINT_MIN_CHROMA = 0.08f
+private const val PLAYER_TINT_LIGHTNESS = 0.82f
+private const val PLAYER_TINT_MAX_SATURATION = 0.72f
+private const val TINT_MIN_CHROMA = 0.06f
 
 internal object BitChordPlayerIcons {
     private const val STROKE = 2.2f
@@ -239,11 +239,13 @@ internal object BitChordPlayerIcons {
 }
 
 internal fun playerTintOf(palette: MeshPalette): Color {
-    val source = palette.colors.firstOrNull { maxOf(it.red, it.green, it.blue) - minOf(it.red, it.green, it.blue) >= TINT_MIN_CHROMA }
+    val source = palette.colors
+        .filter { maxOf(it.red, it.green, it.blue) - minOf(it.red, it.green, it.blue) >= TINT_MIN_CHROMA }
+        .maxByOrNull { maxOf(it.red, it.green, it.blue) - minOf(it.red, it.green, it.blue) }
         ?: return Color.White
     val hsl = FloatArray(3)
     ColorUtils.colorToHSL(source.toArgb(), hsl)
-    hsl[1] = hsl[1].coerceIn(0.18f, PLAYER_TINT_MAX_SATURATION)
+    hsl[1] = (hsl[1] * 1.25f).coerceIn(0.36f, PLAYER_TINT_MAX_SATURATION)
     hsl[2] = PLAYER_TINT_LIGHTNESS
     return Color(ColorUtils.HSLToColor(hsl))
 }
@@ -348,12 +350,15 @@ internal fun PlayerScrubber(
 ) {
     val scrub = rememberPlayerScrub(state.title, state.positionMs, state.durationMs)
     val frame = rememberFrameClock(state.playing && !state.buffering, fps = 15)
+    val tint = LocalPlayerTint.current
     Column(Modifier.fillMaxWidth().graphicsLayer { alpha = state.blend?.let { 0.3f + 0.7f * it.wordsAlpha() } ?: 1f }) {
         ThinSlider(
             value = { frame.value; scrub.shown(state.positionMs(), state.durationMs) },
             onValueChange = scrub::drag,
             onValueChangeFinished = { scrub.release { onSeek((it * (state.seekLengthMs?.invoke() ?: state.durationMs)).toLong()) } },
             loading = state.buffering && !scrub.scrubbing,
+            activeColor = androidx.compose.ui.graphics.lerp(Color.White, tint, 0.30f).copy(alpha = 0.95f),
+            inactiveColor = tint.copy(alpha = 0.30f),
         )
         ScrubTimes(
             frame = frame,
@@ -403,12 +408,12 @@ private fun ScrubTimes(
             Text(
                 text = formatTime(elapsed),
                 style = Immersive.Caption,
-                color = LocalPlayerTint.current.copy(alpha = 0.55f),
+                color = LocalPlayerTint.current.copy(alpha = 0.72f),
             )
             Text(
                 text = "-" + formatTime(duration - elapsed),
                 style = Immersive.Caption,
-                color = LocalPlayerTint.current.copy(alpha = 0.55f),
+                color = LocalPlayerTint.current.copy(alpha = 0.72f),
             )
         }
         if (centerContent != null) {
@@ -544,18 +549,18 @@ private fun QualityBadgeRow(
             Icon(
                 painter = iconPainter,
                 contentDescription = null,
-                tint = LocalPlayerTint.current.copy(alpha = if (animated) 0.72f else 0.48f),
+                tint = LocalPlayerTint.current.copy(alpha = if (animated) 0.88f else 0.68f),
                 modifier = if (iconSize.isSpecified) Modifier.size(iconSize) else Modifier,
             )
             Spacer(Modifier.width(5.dp))
         }
         if (animated && !reduceMotion) {
-            ShimmerText(text = text, style = badgeStyle)
+            ShimmerText(text = text, style = badgeStyle, baseAlpha = 0.72f)
         } else {
             Text(
                 text = text,
                 style = badgeStyle,
-                color = LocalPlayerTint.current.copy(alpha = if (animated) 0.72f else 0.50f),
+                color = LocalPlayerTint.current.copy(alpha = if (animated) 0.88f else 0.68f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -615,7 +620,7 @@ internal fun CircleGlyph(
     active: Boolean = false,
 ) {
     val discAlpha by animateFloatAsState(
-        targetValue = if (active) 0.34f else 0.18f,
+        targetValue = if (active) 0.40f else 0.24f,
         label = "glyphDisc",
     )
     Box(
@@ -910,7 +915,7 @@ private fun BottomGlyph(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = LocalPlayerTint.current.copy(alpha = if (highlighted) 1f else 0.70f),
+            tint = LocalPlayerTint.current.copy(alpha = if (highlighted) 1f else 0.84f),
             modifier = Modifier.size(25.dp),
         )
     }

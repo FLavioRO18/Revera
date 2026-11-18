@@ -85,6 +85,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
@@ -646,7 +647,7 @@ fun ImmersivePlayer(
         val landscape = window.playerSideBySide(maxWidth, maxHeight)
         val sidePane = window.large && maxWidth >= SIDE_PANE_MIN_WIDTH
         val playerWidth = maxWidth
-        PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl, portrait = !landscape)
+        PlayerBackdrop(palette, outgoingPalette, blend, state.coverUrl, shownCoverUrl, portrait = !landscape)
         if (canvasUrl != null) {
             com.music.spotui.ui.screens.CanvasVideo(
                 url = canvasUrl,
@@ -972,11 +973,10 @@ private val TopHeroScrim = Brush.verticalGradient(
 )
 
 private val PortraitBackdropShade = Brush.verticalGradient(
-    0.00f to Color.Black.copy(alpha = 0.25f),
-    0.38f to Color.Black.copy(alpha = 0.64f),
-    0.62f to Color.Black.copy(alpha = 0.78f),
-    0.84f to Color.Black.copy(alpha = 0.66f),
-    1.00f to Color.Black.copy(alpha = 0.42f),
+    0.00f to Color.Transparent,
+    0.42f to Color.Black.copy(alpha = 0.14f),
+    0.72f to Color.Black.copy(alpha = 0.22f),
+    1.00f to Color.Black.copy(alpha = 0.16f),
 )
 
 /**
@@ -1000,12 +1000,14 @@ private fun rememberImmersiveCanvas(state: ImmersivePlayerState): String? {
     return (if (canvas.trackId == trackId) canvas.url else known).takeIf { allowed && trackId.isNotBlank() && !state.adPlaying }
 }
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun PlayerBackdrop(
     palette: MeshPalette,
     outgoing: MeshPalette,
     blend: SongBlend?,
     trackKey: String,
+    coverUrl: String = "",
     portrait: Boolean = false,
 ) {
     MeshGradientBackground(
@@ -1013,6 +1015,22 @@ private fun PlayerBackdrop(
         trackKey = trackKey,
         colorFadeMillis = if (blend == null) 1400 else 250,
     )
+    if (portrait && coverUrl.isNotBlank()) {
+        GlideImage(
+            model = coverUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = 1.35f
+                    scaleY = -1.35f
+                    alpha = 0.44f
+                }
+                .blur(76.dp),
+            requestBuilderTransform = { it.override(256) },
+        )
+    }
     if (portrait) {
         Box(Modifier.fillMaxSize().background(PortraitBackdropShade))
     }
@@ -1073,12 +1091,12 @@ private fun RowScope.PlayerCredits(
             )
         }
         if (!state.adPlaying) {
-            val credit = com.music.spotui.ui.components.rememberArtistCredit(state.trackId, state.artist, tint.copy(alpha = 0.55f)) { a -> actions.openArtistRef(a) }
+            val credit = com.music.spotui.ui.components.rememberArtistCredit(state.trackId, state.artist, tint.copy(alpha = 0.78f)) { a -> actions.openArtistRef(a) }
             val lineScrolls = com.music.spotui.ui.components.rememberArtistLineScrolls(state.artist)
             Text(
                 text = credit?.takeIf { !lineScrolls.value } ?: androidx.compose.ui.text.AnnotatedString(state.artist),
                 style = Immersive.Title.copy(fontSize = 20.sp, lineHeight = lineH, fontWeight = FontWeight.W500),
-                color = tint.copy(alpha = 0.55f),
+                color = tint.copy(alpha = 0.78f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 onTextLayout = { if (it.hasVisualOverflow) lineScrolls.value = true },

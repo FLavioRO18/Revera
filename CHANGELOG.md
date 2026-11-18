@@ -4,7 +4,7 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.4
 
-- **BitChord Immersive Player**: full-bleed edge-to-edge hero cover with bottom dissolve, live synced lyric preview strip above the seek bar, centered `Lossless` / `Hi-Res Lossless` shimmer badge, rounded BitChord transport glyphs, and clean bottom action bar.
+- **BitChord Immersive Player & dynamic track colors**: full-bleed edge-to-edge hero cover with bottom dissolve, vivid reflected artwork backdrop, live synced lyric preview strip above the seek bar, centered `Lossless` / `Hi-Res Lossless` shimmer badge, rounded BitChord transport glyphs, clean bottom action bar, and dynamic track-tinted mini-player & app-wide accents.
 - **Hide podcasts**: new `Hide podcasts` toggle in Display settings removes podcasts, shows, and episodes from Home, Search, Your Library, Recently Played, What's New, and Android Auto.
 - **Playlist & library sharing**: direct Share button on playlist and album headers, in Your Library item menus, and in Blend, YouTube Music, and local playlist menus.
 - **32-bit Android (`ARMv7` / `armeabi-v7a`)**: full native audio CDN transport and release APKs alongside 64-bit (`ARMv8`), `universal`, and `TV`.

@@ -10,6 +10,7 @@
  */
 package com.music.spotui.ui.immersive.player
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -17,6 +18,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -112,6 +114,22 @@ fun ImmersiveMiniPlayer(modifier: Modifier = Modifier) {
     val nextKickX = remember { Animatable(0f) }
     val nextKickPop = remember { Animatable(1f) }
     val slideOutPx = with(LocalDensity.current) { 120.dp.toPx() }
+    val miniPalette = com.music.spotui.ui.look.rememberArtworkColors(cover.takeIf { it.isNotBlank() })
+    val primaryGlow by animateColorAsState(
+        targetValue = (miniPalette.colors.firstOrNull() ?: Color.Transparent).copy(alpha = if (cover.isNotBlank()) 0.34f else 0f),
+        animationSpec = tween(700),
+        label = "miniPrimaryGlow",
+    )
+    val secondaryGlow by animateColorAsState(
+        targetValue = (miniPalette.colors.getOrNull(1) ?: miniPalette.colors.firstOrNull() ?: Color.Transparent).copy(alpha = if (cover.isNotBlank()) 0.20f else 0f),
+        animationSpec = tween(700),
+        label = "miniSecondaryGlow",
+    )
+    val miniTint by animateColorAsState(
+        targetValue = playerTintOf(miniPalette),
+        animationSpec = tween(700),
+        label = "miniTint",
+    )
 
     Row(
         modifier = modifier
@@ -121,6 +139,7 @@ fun ImmersiveMiniPlayer(modifier: Modifier = Modifier) {
             .miniPlayerGestures(dragX, swipeScope)
             .immersiveGlassSurface(shape, interactionSource = capsuleSource)
             .clip(shape)
+            .background(Brush.horizontalGradient(listOf(primaryGlow, secondaryGlow)))
             .clickable(interactionSource = capsuleSource, indication = null) { PlayerSheet.show() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -157,7 +176,11 @@ fun ImmersiveMiniPlayer(modifier: Modifier = Modifier) {
                 )
                 if (!adPlaying) {
                     Text(
-                        text = singer, style = Immersive.Subhead.copy(lineHeight = 16.sp), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        text = singer,
+                        style = Immersive.Subhead.copy(lineHeight = 16.sp),
+                        color = miniTint.copy(alpha = 0.80f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.titleMarquee(iterations = 1),
                     )
                 }
