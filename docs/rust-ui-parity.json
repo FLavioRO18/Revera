@@ -8,7 +8,7 @@
         "AboutSheet",
         "AboutRow"
       ],
-      "lines": 83
+      "lines": 84
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/components/AccountProviderSignIn.kt",
@@ -26,7 +26,7 @@
         "switchAccountDetail",
         "AccountsSheet"
       ],
-      "lines": 198
+      "lines": 203
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/components/AddCollectionToPlaylistSheet.kt",
@@ -229,7 +229,7 @@
         "LoginHelpDialog",
         "LoginReportLink"
       ],
-      "lines": 102
+      "lines": 126
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/components/LookAlertDialog.kt",
@@ -812,7 +812,7 @@
         "AccountsPage",
         "DurationStepper"
       ],
-      "lines": 1281
+      "lines": 1288
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/immersive/pages/ImmersiveWhatsNewScreen.kt",
@@ -1908,7 +1908,7 @@
         "OptionRow",
         "AboutRow"
       ],
-      "lines": 1295
+      "lines": 1302
     },
     {
       "path": "base/app/src/main/java/com/music/spotui/ui/screens/SettingsSearch.kt",

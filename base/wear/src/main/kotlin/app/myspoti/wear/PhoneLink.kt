@@ -77,7 +77,7 @@ class PhoneLink(private val context: Context) : TokenSource {
             suspendCancellableCoroutine { cont ->
                 val listener = object : NsdManager.DiscoveryListener {
                     override fun onServiceFound(info: NsdServiceInfo) {
-                        if (info.serviceName != "Orpheon-$id") return
+                        if (info.serviceName != "Revera-$id" && info.serviceName != "Orpheon-$id") return
                         @Suppress("DEPRECATION")
                         nsd.resolveService(info, object : NsdManager.ResolveListener {
                             override fun onServiceResolved(r: NsdServiceInfo) {
@@ -93,7 +93,7 @@ class PhoneLink(private val context: Context) : TokenSource {
                     override fun onStartDiscoveryFailed(type: String, code: Int) { if (cont.isActive) cont.resume(null) }
                     override fun onStopDiscoveryFailed(type: String, code: Int) {}
                 }
-                nsd.discoverServices("_orpheon._tcp", NsdManager.PROTOCOL_DNS_SD, listener)
+                nsd.discoverServices("_revera._tcp", NsdManager.PROTOCOL_DNS_SD, listener)
                 cont.invokeOnCancellation { runCatching { nsd.stopServiceDiscovery(listener) } }
             }
         }
@@ -178,7 +178,7 @@ class PhoneLink(private val context: Context) : TokenSource {
         const val TRACKS = "/orpheon/tracks"
         const val EXTENSIONS = "/orpheon/extensions"
         const val LISTEN = "/orpheon/listen"
-        private const val TAG = "Orpheon"
+        private const val TAG = "Revera"
         private const val SESSION_FILE = "session"
         private const val LINK = "link"
         private const val ASK_MS = 20_000L

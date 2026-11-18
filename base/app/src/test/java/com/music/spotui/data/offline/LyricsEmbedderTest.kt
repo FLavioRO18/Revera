@@ -116,7 +116,7 @@ class LyricsEmbedderTest {
         val head = flacHead()
         val embedded = LyricsEmbedder.rebuildFlacHead(head, lrc)
         val (vendor, map) = readVorbis(embedded)!!
-        assertEquals("Orpheon", vendor)
+        assertEquals("Revera", vendor)
         assertEquals(lrc, map["LYRICS"])
         // STREAMINFO (34 bytes after the first header) is byte-identical.
         assertTrue(embedded.copyOfRange(8, 42).contentEquals(head.copyOfRange(8, 42)))

@@ -120,28 +120,25 @@ object OfflineStore {
     /** New songs go to the Download folder in plain files (else private, encrypted). */
     val isPublicAudio: Boolean get() = publicPref && allFilesAccess()
 
-    /**
-     * The Download folder's Orpheon directory. Direct File access there needs All files access;
-     * `getExternalStoragePublicDirectory` is deprecated since API 29 but is still the way to
-     * address a public directory by path (MediaStore cannot serve this File-based store).
-     */
     private val publicSongDir: File
+        @Suppress("DEPRECATION")
+        get() = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Revera")
+
+    private val legacyOrpheonDownloadDir: File
         @Suppress("DEPRECATION")
         get() = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "Orpheon")
 
-    /** Where visible files went before the folder moved (Music/Orpheon): still read, never written. */
     private val legacyPublicSongDir: File
         @Suppress("DEPRECATION")
         get() = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "Orpheon")
 
-    /** Where a new song's audio goes: the Download folder when visible files are on, else private. */
     val songAudioDir: File get() = if (isPublicAudio) publicSongDir else audioDir
 
-    /** Where [t]'s audio is, by where it was downloaded: the Download folder, or the private store. */
     fun audioFile(t: OfflineTrack): File {
         if (!t.public) return File(audioDir, t.file)
-        // A file saved in Music/ before the move is still read there; new downloads go to Download/.
-        return File(publicSongDir, t.file).takeIf { it.isFile } ?: File(legacyPublicSongDir, t.file)
+        return File(publicSongDir, t.file).takeIf { it.isFile }
+            ?: File(legacyOrpheonDownloadDir, t.file).takeIf { it.isFile }
+            ?: File(legacyPublicSongDir, t.file)
     }
 
     /** Downloaded songs by Spotify track id; every screen reads this. */

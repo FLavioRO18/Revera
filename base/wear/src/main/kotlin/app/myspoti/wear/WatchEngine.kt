@@ -24,7 +24,7 @@ import kotlinx.coroutines.sync.withLock
  * a device of its own on the account, so the phone and the other apps see the watch play.
  */
 object WatchEngine : app.myspoti.spotify.sync.MirrorEngine {
-    private const val TAG = "Orpheon"
+    private const val TAG = "Revera"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val lock = Mutex()
     private var engine: NativeEngine? = null

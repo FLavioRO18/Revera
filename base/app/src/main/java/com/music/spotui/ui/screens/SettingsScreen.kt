@@ -1246,6 +1246,7 @@ internal fun OptionRow(label: String, detail: String, checked: Boolean,
 private fun AboutRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    com.music.spotui.ui.components.CopyAppLogButton()
     val check = com.music.spotui.data.api.rememberUpdateCheckState(ctx)
     // Also what "Later" put aside: the card in the app offers it again from here.
     val live = com.music.spotui.updateRelease.value
@@ -1286,7 +1287,7 @@ private fun AboutRow() {
 internal fun shareDiagnosticReport(context: android.content.Context, file: java.io.File) {
     val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
         type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_SUBJECT, "Myspoti diagnostic report")
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "Revera diagnostic report")
     }
     val uri = runCatching {
         androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -1296,7 +1297,7 @@ internal fun shareDiagnosticReport(context: android.content.Context, file: java.
         send.putExtra(android.content.Intent.EXTRA_STREAM, uri)
         send.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
     } else {
-        send.putExtra(android.content.Intent.EXTRA_TEXT, "Myspoti diagnostic report: ${file.absolutePath}")
+        send.putExtra(android.content.Intent.EXTRA_TEXT, "Revera diagnostic report: ${file.absolutePath}")
     }
     context.startActivity(android.content.Intent.createChooser(send, null).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
 }

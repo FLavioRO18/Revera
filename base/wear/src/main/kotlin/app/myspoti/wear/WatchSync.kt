@@ -33,7 +33,7 @@ import kotlinx.coroutines.launch
  * phone instead for [RELAY_MS], whose own mirror counts it (without remote control of the watch).
  */
 object WatchSync {
-    private const val TAG = "Orpheon"
+    private const val TAG = "Revera"
     /** After the engine failed to start, how long the phone counts the watch's songs instead. */
     private const val RELAY_MS = 15 * 60_000L
     private const val TRACK_PREFIX = "spotify:track:"

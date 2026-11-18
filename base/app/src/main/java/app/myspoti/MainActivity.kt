@@ -603,9 +603,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     connecting = false
                     if (wait.playerNeverReady) {
-                        // Not signed out: the player never started. The sign-in page would send it straight
-                        // back here (the cookies are good), minute after minute: the reported loop.
                         Logbook.log("no session after ${wait.elapsedMs / 1000} s: the player never became ready (waited ${wait.waitedMs / 1000} s with it ready)")
+                        app.myspoti.host.android.LoginErrorDetails.record("player_bridge_timeout")
                         loginProblem = true
                     } else {
                         Logbook.log("no session ${SESSION_WAIT_MS / 1000} s after the player came back: sign-in page restored")

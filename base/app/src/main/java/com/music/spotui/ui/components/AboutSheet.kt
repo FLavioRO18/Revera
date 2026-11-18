@@ -61,7 +61,7 @@ fun AboutSheet(onDismiss: () -> Unit) {
                     modifier = Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)).background(tone(0xFF121212)),
                 )
                 Column(Modifier.padding(start = 14.dp)) {
-                    Text("Myspoti", color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Revera", color = AppText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Text("${stringResource(R.string.settings_item_version_title)} ${BuildConfig.VERSION_NAME}",
                         color = AppMuted, fontSize = 13.sp)
                 }
@@ -70,6 +70,7 @@ fun AboutSheet(onDismiss: () -> Unit) {
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp))
             AboutRow(stringResource(R.string.about_discord), stringResource(R.string.about_discord_detail)) { openUrl(context, DISCORD_URL) }
             AboutRow(stringResource(R.string.about_github), stringResource(R.string.about_github_detail)) { openUrl(context, "https://github.com/$repo") }
+            AboutRow("Origin: Myspoti (GPL-3.0)", "https://github.com/kota-zo/myspoti") { openUrl(context, "https://github.com/kota-zo/myspoti") }
         }
     }
 }

@@ -1,23 +1,23 @@
-# Orpheon
+# Revera
 
-*Formerly Myspoti. The community chose the new name; version 1.0.0 is the first under it. The icon is a placeholder until the real one is made.*
+Revera is an independent community fork of Orpheon / Myspoti. Original credits and GPL-3.0 licensing are preserved.
 
 This is the **caruno-git fork** of [kota-zo/Orpheon](https://github.com/kota-zo/Orpheon), formerly Myspoti. Original authorship and GPL-3.0 notices are retained.
 
-Download this fork from [our releases](https://github.com/caruno-git/Orpheon/releases/latest). Report fork-specific bugs in [our issues](https://github.com/caruno-git/Orpheon/issues).
+Download this fork from [our releases](https://github.com/caruno-git/Revera/releases/latest). Report fork-specific bugs in [our issues](https://github.com/caruno-git/Revera/issues).
 
-[![Download latest](https://img.shields.io/badge/Orpheon-download_latest-blue)](https://github.com/caruno-git/Orpheon/releases/latest)
-[![License: GPL-3.0](https://img.shields.io/github/license/caruno-git/Orpheon)](LICENSE)
+[![Download latest](https://img.shields.io/badge/Revera-download_latest-blue)](https://github.com/caruno-git/Revera/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/github/license/caruno-git/Revera)](LICENSE)
 [![Upstream Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/jXKnGVFnGS)
 
 **A music player for Android, Android TV and Wear OS, with your Spotify account.** Your own Spotify account, playlists and Wrapped, in a native Android app, with sound and offline downloads through extensions you install.
 
 <p align="center">
-  <img src="docs/screenshots/banner.jpg" alt="Orpheon in its two looks: the Immersive home and player, the Classic player and an artist page" width="100%">
+  <img src="docs/screenshots/banner.jpg" alt="Revera in its two looks: the Immersive home and player, the Classic player and an artist page" width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/caruno-git/Orpheon/releases/latest"><b>⬇ Download this fork — latest ARM64 APK</b></a>
+  <a href="https://github.com/caruno-git/Revera/releases/latest"><b>⬇ Download this fork — latest ARM64 APK</b></a>
 </p>
 
 <p align="center"><sub>The Immersive look comes from <a href="https://github.com/kushagrasinghx/BitChord">BitChord</a>: see <a href="#bitchord">Credits</a>.</sub></p>
@@ -27,37 +27,37 @@ Download this fork from [our releases](https://github.com/caruno-git/Orpheon/rel
   <a href="https://github.com/sponsors/kota-zo"><img src="https://img.shields.io/badge/Sponsor_on_GitHub-%E2%9D%A4-ea4aaa?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor kota-zo on GitHub" height="56"></a>
 </p>
 
-## Why Orpheon
+## Why Revera
 
 ### ⬇️ Offline downloads, through extensions
-Orpheon has no download source of its own. Install a **download-source extension** (Settings, Extensions) and you can download a song, an album, a playlist or all your Liked Songs, and listen with no connection: on the plane, in the metro, with no data. The extension decides where the files come from and in which formats (FLAC, M4A or MP3); Orpheon keeps them encrypted on your phone, refuses a file that is not the song's length, and keeps downloaded playlists in step: songs you add on Spotify download by themselves.
+Revera has no download source of its own. Install a **download-source extension** (Settings, Extensions) and you can download a song, an album, a playlist or all your Liked Songs, and listen with no connection: on the plane, in the metro, with no data. The extension decides where the files come from and in which formats (FLAC, M4A or MP3); Revera keeps them encrypted on your phone, refuses a file that is not the song's length, and keeps downloaded playlists in step: songs you add on Spotify download by themselves.
 
 ### ✨ And everything you expect from Spotify, and more
 Your home, search, library, playlists, podcasts, Spotify Connect and Android Auto, plus **word-by-word lyrics** and **song meanings from Genius**.
 
 ## What is it?
 
-Orpheon is a Spotify app for Android that you install yourself. You sign in with your usual Spotify account, on Spotify's own login page: Orpheon never sees your password. A free account is enough.
+Revera is a Spotify app for Android that you install yourself. You sign in with your usual Spotify account, on Spotify's own login page: Revera never sees your password. A free account is enough.
 
-Under the hood, the official Spotify Web Player plays the music, hidden inside the app, with your phone's DRM. Orpheon draws its own screens on top and drives it. Your plays are reported to Spotify exactly as in a browser: they count for the artists, in your history and in your Wrapped.
+Under the hood, the official Spotify Web Player plays the music, hidden inside the app, with your phone's DRM. Revera draws its own screens on top and drives it. Your plays are reported to Spotify exactly as in a browser: they count for the artists, in your history and in your Wrapped.
 
 ## Get started
 
-1. Download `app-release.apk` from [this fork’s latest release](https://github.com/caruno-git/Orpheon/releases/latest) and open it (Android 10 or later, ARM64). Android asks once to allow installs from your browser or file manager.
+1. Download `app-release.apk` from [this fork’s latest release](https://github.com/caruno-git/Revera/releases/latest) and open it (Android 10 or later, ARM64). Android asks once to allow installs from your browser or file manager.
 2. Tap **Log in with Spotify** and sign in.
 3. Pick the sound quality, allow what you want (notifications, Bluetooth, local files…), and you are in.
 
-For this fork, download updates from [our releases](https://github.com/caruno-git/Orpheon/releases/latest). Local performance builds do not have the upstream in-app updater enabled.
+For this fork, download updates from [our releases](https://github.com/caruno-git/Revera/releases/latest). Local performance builds do not have the upstream in-app updater enabled.
 
-This fork publishes an **ARM64** `app-release.apk`, installed as **Orpheon dev** (`app.orpheon.beta.dev`). It installs alongside upstream stable/beta packages.
+This fork publishes an **ARM64** `app-release.apk`, installed as **Revera dev** (`app.revera.dev`). It installs alongside upstream stable/beta packages.
 
-For Obtainium, add `https://github.com/caruno-git/Orpheon` and use the APK filter `^app-release\.apk$`.
+For Obtainium, add `https://github.com/caruno-git/Revera` and use the APK filter `^app-release\.apk$`.
 
 ## What you get
 
 **Listening**
 - Home, search, Browse, New releases, Your Library with folders, artist, album, playlist and profile pages, with Spotify's own content.
-- Pick any song: shuffle (Spotify's, or Orpheon's own that plays every song once before any repeats), Smart Shuffle, the queue (drag to reorder), repeat (all, the song for good, the song once), crossfade, sleep timer.
+- Pick any song: shuffle (Spotify's, or Revera's own that plays every song once before any repeats), Smart Shuffle, the queue (drag to reorder), repeat (all, the song for good, the song once), crossfade, sleep timer.
 - For extension, downloaded and device songs: a 10-band **equalizer** with presets, playback speed and skip silence; **Stats for nerds** shows the codec, sample rate, bit depth, bitrate and output of what plays.
 - Podcasts and audiobooks, with their own player (speed, ±15 s, mark as played).
 - Spotify Connect, Jam, Bluetooth with your headphones' name, lock screen, notification, widget and Android Auto.
@@ -74,7 +74,7 @@ For Obtainium, add `https://github.com/caruno-git/Orpheon` and use the APK filte
 
 **Offline**
 - With a download-source extension installed: download songs, albums, playlists and Liked Songs, in the formats the extension offers (or re-encoded to small AAC on the phone).
-- Downloads are encrypted and stay in Orpheon. Lists you downloaded stay in step with Spotify.
+- Downloads are encrypted and stay in Revera. Lists you downloaded stay in step with Spotify.
 - Your local audio files too.
 
 **Extensions**
@@ -124,17 +124,17 @@ Two looks, switched in Settings, Display.
 
 ## Questions
 
-**Is it safe for my account?** Orpheon talks to Spotify the way its web player does, and you sign in on Spotify's own page. Ads play as Spotify sends them, except on a Spotify Connect device you send the music to from the app, where they are muted and their ad hosts refused; blocking ads is against Spotify's Terms of Use (see the disclaimer below).
+**Is it safe for my account?** Revera talks to Spotify the way its web player does, and you sign in on Spotify's own page. Ads play as Spotify sends them, except on a Spotify Connect device you send the music to from the app, where they are muted and their ad hosts refused; blocking ads is against Spotify's Terms of Use (see the disclaimer below).
 
-**"Spotify refused to play this"?** Some new or free accounts get refused by Spotify. Settings → **Export a diagnostic report** and attach it to an [issue](https://github.com/caruno-git/Orpheon/issues): it holds the app's recent log (what Spotify answered) and your phone's model, never your password or your login tokens.
+**"Spotify refused to play this"?** Some new or free accounts get refused by Spotify. Settings → **Export a diagnostic report** and attach it to an [issue](https://github.com/caruno-git/Revera/issues): it holds the app's recent log (what Spotify answered) and your phone's model, never your password or your login tokens.
 
-**Do downloads count in my Wrapped?** They always count in Orpheon's own recap. A downloaded song plays only from the phone: it is not played on Spotify and nothing is reported. Streamed songs count as usual.
+**Do downloads count in my Wrapped?** They always count in Revera's own recap. A downloaded song plays only from the phone: it is not played on Spotify and nothing is reported. Streamed songs count as usual.
 
 **What leaves my phone?** Your plays go to Spotify. Lyrics are looked up on lyrics sites, song meanings on Genius, translations on Google Translate, and downloads on the hosts your download-source extension names (shown before you install it). Live Radio, once turned on, searches [Radio Browser](https://www.radio-browser.info) and loads each station's logo and stream from that station's own server. Nothing is sent to the developer.
 
 ## Not included
 
-- No DRM circumvention, and no Spotify audio download: offline songs come from the download-source extension you install, and a song it has no file for is marked unavailable. Orpheon ships no download source of its own.
+- No DRM circumvention, and no Spotify audio download: offline songs come from the download-source extension you install, and a song it has no file for is marked unavailable. Revera ships no download source of its own.
 - No ad is ever marked as heard.
 
 ## Disclaimer
@@ -147,7 +147,7 @@ Not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB
 
 To support the original author (not this fork’s maintainer), visit [Ko-fi](https://ko-fi.com/myspoti) or [GitHub Sponsors](https://github.com/sponsors/kota-zo), also from **About** in the app. Nothing is locked behind a donation.
 
-Original project community: the [upstream Discord server](https://discord.gg/jXKnGVFnGS). Bugs and requests: [GitHub issues](https://github.com/caruno-git/Orpheon/issues).
+Original project community: the [upstream Discord server](https://discord.gg/jXKnGVFnGS). Bugs and requests: [GitHub issues](https://github.com/caruno-git/Revera/issues).
 
 ## For developers
 
@@ -201,7 +201,7 @@ Full notices: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## License
 
-GPL-3.0. If you reuse this code, you must credit Orpheon, keep the license notices and
+GPL-3.0. If you reuse this code, you must credit Myspoti (https://github.com/kota-zo/myspoti), Orpheon and Revera, keep the license notices and
 publish your complete source under GPL-3.0. Closed-source or uncredited copies are
 violations and will be reported to the hosting platform (DMCA takedown). See also
 [`AGENTS.md`](AGENTS.md).

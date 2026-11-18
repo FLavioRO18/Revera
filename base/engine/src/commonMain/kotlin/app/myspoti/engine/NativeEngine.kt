@@ -418,6 +418,9 @@ class NativeEngine(
     // ---------------------------------------------------------------- loading and finalizing
 
     /** [track] comes from the same state machine as [state]: a PUT answer in between may renumber tracks. */
+    private var blockedAdUri: String? = null
+    private var adRecoverySent = false
+
     private suspend fun load(
         state: SmState,
         track: SmTrack,
@@ -437,11 +440,37 @@ class NativeEngine(
                 if (acknowledgeAtMs != null) ackCommand(acknowledgeAtMs)
                 finalizeOutgoing(outgoing, state.id)
             }
+            if (blockedAdUri == track.metadata.uri) {
+                if (!adRecoverySent) {
+                    adRecoverySent = true
+                    val sm = machine
+                    val visited = HashSet<String>()
+                    var next = state
+                    var target: SmTrack? = null
+                    while (sm != null && visited.add(next.id)) {
+                        val ref = next.transitions.skipNext ?: next.transitions.advance ?: break
+                        next = sm.states.getOrNull(ref.stateIndex ?: break) ?: break
+                        val candidate = sm.tracks.getOrNull(next.track) ?: break
+                        if (candidate.contentType != "AD" && candidate.metadata.uri.startsWith("spotify:track:")) {
+                            target = candidate
+                            break
+                        }
+                    }
+                    val uri = target?.metadata?.uri
+                    if (uri != null) scope.launch {
+                        runCatching { play(uri) }.onFailure { emit(EngineEvent.Failure("ad recovery failed: ${it.message}")) }
+                    } else emit(EngineEvent.Failure("ad stalled: no music transition in server queue"))
+                }
+                return
+            }
+            blockedAdUri = track.metadata.uri
+            adRecoverySent = false
             emit(EngineEvent.AdBreak(track.metadata.uri, track.metadata.duration))
             // On to the next song (outside this handler: a command waits for the lock it holds).
             scope.launch { runCatching { command("skip_next") }.onFailure { emit(EngineEvent.Failure("ad not passed: ${it.message}")) } }
             return
         }
+        blockedAdUri = null
         emit(EngineEvent.TrackLoading(track.metadata.uri, state.id))
         val file = Resolver.chooseFile(track, formatFilter, lowestQuality) ?: throw EngineException.Protocol("no playable file for ${track.metadata.uri}")
         val t0 = env.nowMs()

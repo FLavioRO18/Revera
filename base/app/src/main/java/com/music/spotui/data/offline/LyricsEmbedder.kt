@@ -158,7 +158,7 @@ object LyricsEmbedder {
             pos += 4 + size
         }
         // Existing comments, minus LYRICS; the vendor string is kept as read.
-        var vendor = "Orpheon".toByteArray(Charsets.UTF_8)
+        var vendor = "Revera".toByteArray(Charsets.UTF_8)
         val kept = ArrayList<Pair<String, String>>()
         val commentIndex = blocks.indexOfFirst { it.type == 4 }
         if (commentIndex >= 0) {

@@ -42,18 +42,18 @@ android {
     // signed with the first key, as "Orpheon Beta"; releases are "app.orpheon",
     // signed with their own key, as "Orpheon". (Provisional ids: the rename from Myspoti.)
     // Local builds (no version given) are on the beta side, like the phone test builds.
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.2"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.3"
     // "-beta" as in UpdateChecker.isBeta, one predicate for the app id, the label and the log stripping.
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
         applicationId = if (automixLab) "app.revera.automixlab" else "app.revera"
-        manifestPlaceholders["appLabel"] = if (automixLab) "Myspoti Mix Lab" else "Revera"
+        manifestPlaceholders["appLabel"] = if (automixLab) "Revera Mix Lab" else "Revera"
         // The adb command line (com.music.spotui.cli): betas and debug builds only.
         manifestPlaceholders["cliEnabled"] = beta.toString()
         minSdk = 29
         targetSdk = 36
         // CI release builds pass the tag's version (-PappVersionName / -PappVersionCode).
-        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 202
+        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 203
         versionName = version
         // GitHub "owner/repo" whose releases the app checks for updates; empty = off
         // (local builds). CI sets it to the repository it builds.
@@ -103,7 +103,7 @@ android {
         debug {
             // Installs next to the release apps (own data, own sign-in).
             if (!automixLab) applicationIdSuffix = ".dev"
-            manifestPlaceholders["appLabel"] = if (automixLab) "Myspoti Mix Lab" else "Revera dev"
+            manifestPlaceholders["appLabel"] = if (automixLab) "Revera Mix Lab" else "Revera dev"
             manifestPlaceholders["cliEnabled"] = "true"
             buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
         }
@@ -250,7 +250,7 @@ dependencies {
  */
 tasks.register("collectApks") {
     mustRunAfter("assembleRelease")
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.2"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.3"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     val app = when { findProperty("overDev") != null -> "$APK_NAME-dev"; beta -> "$APK_NAME-Beta"; else -> APK_NAME }
     // Copies: the configuration cache cannot keep a reference to the script's own values.

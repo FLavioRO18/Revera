@@ -10,14 +10,13 @@ android {
     namespace = "app.myspoti.wear"
     compileSdk = 37
 
-    val version = (findProperty("appVersionName") as String?) ?: "1.0.0"
+    val version = (findProperty("appVersionName") as String?) ?: "1.0.3"
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        // As the phone's app (base/app): betas "app.orpheon.beta", releases "app.orpheon", debug builds ".dev".
-        applicationId = if (beta) "app.orpheon.beta" else "app.orpheon"
+        applicationId = "app.revera"
         minSdk = 30
         targetSdk = 36
-        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 200
+        versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 203
         versionName = version
     }
     buildTypes {

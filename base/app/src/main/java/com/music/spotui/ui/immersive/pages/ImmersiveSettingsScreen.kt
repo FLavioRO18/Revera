@@ -1146,6 +1146,7 @@ private fun AppPage(navController: NavController, back: () -> Unit) {
     val check = com.music.spotui.data.api.rememberUpdateCheckState(ctx)
     ImmersivePage(title = stringResource(R.string.settings_section_app), onBack = back) {
         immersiveGroup("updates") {
+            row { com.music.spotui.ui.components.CopyAppLogButton() }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_auto_update_title), checked = com.music.spotui.data.preferences.AutoUpdateCheckPref.on,
                     onChecked = { com.music.spotui.data.preferences.AutoUpdateCheckPref.set(ctx, it) }, detail = stringResource(R.string.settings_auto_update_detail))

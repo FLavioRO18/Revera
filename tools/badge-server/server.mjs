@@ -323,7 +323,7 @@ export async function startServer(opts = {}) {
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   startServer()
     .then((handle) => {
-      process.stdout.write(`Orpheon badge server listening on ${handle.url}\n`);
+      process.stdout.write(`Revera badge server listening on ${handle.url}\n`);
       process.stdout.write(`Public key: ${handle.config.publicKeyB64}\n`);
     })
     .catch((err) => {

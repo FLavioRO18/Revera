@@ -31,8 +31,8 @@ object SessionActions {
      * With other accounts kept on the phone, this one is removed and the one used last takes over.
      */
     fun openSpotifyLogin(context: android.content.Context) {
-        val app = context.applicationContext
-        com.music.spotui.data.preferences.AccountProviderPref.set(app, AccountProviders.SPOTIFY)
+        val appCtx = context.applicationContext
+        com.music.spotui.data.preferences.AccountProviderPref.set(appCtx, AccountProviders.SPOTIFY)
         Logbook.log("account: opening Spotify sign-in (multiProfile=${MyspotiRuntime.host.multiProfile})")
         _signedOut.value = true
         _loginRequest.value += 1L
@@ -115,12 +115,12 @@ object SessionActions {
     }
 
     fun addAccount(context: android.content.Context) {
-        val app = context.applicationContext
-        com.music.spotui.data.preferences.AccountProviderPref.set(app, AccountProviders.SPOTIFY)
+        val appCtx = context.applicationContext
+        com.music.spotui.data.preferences.AccountProviderPref.set(appCtx, AccountProviders.SPOTIFY)
         val host = MyspotiRuntime.host
         if (!host.multiProfile) { logout(context); return }
         Logbook.log("account: adding an account")
-        leaveAccount(app, forget = false)
+        leaveAccount(appCtx, forget = false)
         _signedOut.value = true
         _loginRequest.value += 1L
         host.addProfile()
