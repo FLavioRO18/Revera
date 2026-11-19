@@ -38,6 +38,7 @@ import androidx.compose.material.icons.outlined.AddCircleOutline
 import androidx.compose.material.icons.outlined.ArrowCircleDown
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Radio
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Block
@@ -112,6 +113,11 @@ fun SongOptionsSheet(
     var showSpeed by remember { mutableStateOf(false) }
     var showNerd by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
+    var showAbLoop by remember { mutableStateOf(false) }
+    if (showAbLoop) {
+        AbLoopSheet(onDismiss = { showAbLoop = false; onDismiss() })
+        return
+    }
     if (showNerd) {
         StatsForNerdsSheet(onDismiss = { showNerd = false; onDismiss() })
         return
@@ -348,6 +354,12 @@ fun SongOptionsSheet(
                     stringResource(R.string.context_menu_sleep_timer),
                     tint = if (active) MenuGreen else MenuIconColor,
                 ) { showSleep = true }
+                val ab = SongPlayer.abLoop.value
+                MenuRow(
+                    Icons.Outlined.Repeat,
+                    stringResource(R.string.ab_loop_title),
+                    tint = if (ab.aMs != null || ab.bMs != null) MenuGreen else MenuIconColor,
+                ) { showAbLoop = true }
                 // The source line of the player is turned off: its sheet is here instead.
                 if (!com.music.spotui.data.preferences.PlayerSourceLinePref.shown) {
                     MenuRow(Icons.Outlined.GraphicEq, stringResource(R.string.quality_sheet_title)) { showQuality = true }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SortByAlpha
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -96,6 +97,8 @@ fun ImmersiveSongOptionsSheet(
     var showNerd by remember { mutableStateOf(false) }
     var showQuality by remember { mutableStateOf(false) }
     var showDevices by remember { mutableStateOf(false) }
+    var showAbLoop by remember { mutableStateOf(false) }
+    if (showAbLoop) { com.music.spotui.ui.components.AbLoopSheet(onDismiss = { showAbLoop = false; onDismiss() }); return }
     if (showQuality) { com.music.spotui.ui.components.QualitySheet(onDismiss = { showQuality = false; onDismiss() }); return }
     if (showDevices) { com.music.spotui.ui.components.DevicesSheet(onDismiss = { showDevices = false; onDismiss() }); return }
     if (showNerd) { com.music.spotui.ui.components.StatsForNerdsSheet(onDismiss = { showNerd = false; onDismiss() }); return }
@@ -333,6 +336,12 @@ fun ImmersiveSongOptionsSheet(
                 stringResource(R.string.context_menu_sleep_timer),
                 tint = if (SongPlayer.sleepEndsAt.value != null) LocalImmersiveSheetTint.current.accent else null,
             ) { showSleep = true }
+            val ab = SongPlayer.abLoop.value
+            ImmersiveSheetRow(
+                Icons.Rounded.Repeat,
+                stringResource(R.string.ab_loop_title),
+                tint = if (ab.aMs != null || ab.bMs != null) LocalImmersiveSheetTint.current.accent else null,
+            ) { showAbLoop = true }
             // The player's source line and capsule are turned off: their sheets are here instead.
             if (!com.music.spotui.data.preferences.PlayerSourceLinePref.shown) {
                 ImmersiveSheetRow(Icons.Rounded.GraphicEq, stringResource(R.string.quality_sheet_title)) { showQuality = true }

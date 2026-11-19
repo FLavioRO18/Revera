@@ -447,6 +447,28 @@ internal fun PlayerScrubber(
             Immersive.Accent,
             Modifier.align(Alignment.CenterHorizontally),
         )
+        val ab by com.music.spotui.di.SongPlayer.abLoop
+        if (ab.aMs != null) {
+            val aStr = com.music.spotui.ui.components.formatAbMs(ab.aMs!!)
+            val bStr = ab.bMs?.let { com.music.spotui.ui.components.formatAbMs(it) }
+            val text = if (bStr != null) stringResource(R.string.ab_loop_active, aStr, bStr) else stringResource(R.string.ab_loop_waiting_b, aStr)
+            Text(
+                text = text,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(50))
+                    .background(Immersive.Accent.copy(alpha = 0.85f))
+                    .clickable {
+                        if (ab.bMs == null) com.music.spotui.di.SongPlayer.setAbLoopB()
+                        else com.music.spotui.di.SongPlayer.clearAbLoop()
+                    }
+                    .padding(horizontal = 10.dp, vertical = 3.dp),
+            )
+        }
     }
 }
 

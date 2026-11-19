@@ -809,6 +809,7 @@ object SongPlayer {
         if (item != null && trackChanged && playing && !adState.value && uri.startsWith(SPOTIFY_TRACK_PREFIX)) skipHidden(id, uri)
         currentContextUri = s.contextUri.orEmpty()
         if (item != null) { checkEndOfTrackTimer(id); currentTrackId = id }
+        if (_abLoop.value.trackUri.isNotBlank() && uri.isNotBlank() && uri != _abLoop.value.trackUri) clearAbLoop()
         _nowPlaying.value = NowPlaying(
             contextUri = s.contextUri.orEmpty(),
             contextName = s.contextName.orEmpty(),
@@ -3394,6 +3395,78 @@ object SongPlayer {
         // Done by [endOfTrackWatch], which pauses before the next item starts.
     }
 
+    // ── A-B loop ──
+    data class AbLoopState(val trackUri: String = "", val aMs: Long? = null, val bMs: Long? = null) {
+        val active: Boolean get() = aMs != null && bMs != null && bMs > aMs
+    }
+
+    private val _abLoop = mutableStateOf(AbLoopState())
+    val abLoop: State<AbLoopState> get() = _abLoop
+    private var lastAbSeekAt = 0L
+
+    private val abLoopWatch = object : Runnable {
+        override fun run() {
+            val st = _abLoop.value
+            if (!st.active) return
+            val uri = _nowPlaying.value.uri
+            if (uri.isNotBlank() && st.trackUri.isNotBlank() && uri != st.trackUri) {
+                clearAbLoop()
+                return
+            }
+            val a = st.aMs!!
+            val b = st.bMs!!
+            val now = SystemClock.elapsedRealtime()
+            if (isPlaying() && now - lastAbSeekAt > 350L && getCurrentPosition() >= b) {
+                lastAbSeekAt = now
+                seekTo(a)
+            }
+            main.postDelayed(this, 150L)
+        }
+    }
+
+    fun setAbLoopA(ms: Long = getCurrentPosition()) {
+        val uri = _nowPlaying.value.uri
+        if (uri.isBlank()) return
+        val cur = _abLoop.value.takeIf { it.trackUri == uri } ?: AbLoopState(uri)
+        val clamped = ms.coerceAtLeast(0L)
+        val b = cur.bMs?.takeIf { it > clamped + 200L }
+        _abLoop.value = AbLoopState(uri, clamped, b)
+        main.removeCallbacks(abLoopWatch)
+        if (_abLoop.value.active) main.post(abLoopWatch)
+    }
+
+    fun setAbLoopB(ms: Long = getCurrentPosition()) {
+        val uri = _nowPlaying.value.uri
+        if (uri.isBlank()) return
+        val cur = _abLoop.value.takeIf { it.trackUri == uri } ?: AbLoopState(uri)
+        val a = cur.aMs ?: 0L
+        val clamped = ms.coerceAtLeast(a + 200L).let { if (durationMs > 0L) it.coerceAtMost(durationMs) else it }
+        _abLoop.value = AbLoopState(uri, a, clamped)
+        main.removeCallbacks(abLoopWatch)
+        main.post(abLoopWatch)
+    }
+
+    fun nudgeAbLoopA(deltaMs: Long) {
+        val cur = _abLoop.value
+        val a = cur.aMs ?: return
+        val next = (a + deltaMs).coerceAtLeast(0L)
+        val limit = cur.bMs?.let { it - 200L } ?: (durationMs.takeIf { it > 0L } ?: Long.MAX_VALUE)
+        _abLoop.value = cur.copy(aMs = next.coerceAtMost(limit))
+    }
+
+    fun nudgeAbLoopB(deltaMs: Long) {
+        val cur = _abLoop.value
+        val b = cur.bMs ?: return
+        val min = (cur.aMs ?: 0L) + 200L
+        val max = durationMs.takeIf { it > 0L } ?: Long.MAX_VALUE
+        _abLoop.value = cur.copy(bMs = (b + deltaMs).coerceIn(min, max))
+    }
+
+    fun clearAbLoop() {
+        main.removeCallbacks(abLoopWatch)
+        _abLoop.value = AbLoopState()
+    }
+
     /** "End of track": pauses just before the item ends, or as soon as another one plays. */
     private val endOfTrackWatch = object : Runnable {
         override fun run() {
@@ -3807,6 +3880,7 @@ object SongPlayer {
             // A song an extension streams keeps its Spotify uri: its lyrics, Canvas and artists load as for Spotify.
             val uri = if (trackId.isNotBlank()) SPOTIFY_TRACK_PREFIX + trackId else "local:${t.id}"
             val songChanged = _nowPlaying.value.uri != uri
+            if (songChanged && _abLoop.value.trackUri.isNotBlank() && uri != _abLoop.value.trackUri) clearAbLoop()
             // From the list, its song radio, or the songs the user queued (as Spotify's player says).
             val shown = NowPlaying(uri = uri, contextUri = LocalPlayer.contextUri, contextName = LocalPlayer.contextName,
                 provider = if (LocalPlayer.fromQueue()) "queue" else "")

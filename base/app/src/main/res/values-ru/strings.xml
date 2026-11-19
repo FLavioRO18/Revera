@@ -35,4 +35,10 @@
     <string name="tv_settings_sign_out">Выйти из аккаунта</string>
     <string name="tv_search_button">Найти</string>
     <string name="tv_clear_button">Очистить</string>
+    <string name="ab_loop_title">Повтор A–B</string>
+    <string name="ab_loop_set_a">Точка A</string>
+    <string name="ab_loop_set_b">Точка B</string>
+    <string name="ab_loop_clear">Сбросить</string>
+    <string name="ab_loop_waiting_b">A: %1$s · Точка B</string>
+    <string name="ab_loop_active">Повтор %1$s – %2$s</string>
 </resources>

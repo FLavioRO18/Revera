@@ -35,4 +35,10 @@
     <string name="tv_settings_sign_out" tools:ignore="MissingTranslation">Sign out</string>
     <string name="tv_search_button" tools:ignore="MissingTranslation">Search</string>
     <string name="tv_clear_button" tools:ignore="MissingTranslation">Clear</string>
+    <string name="ab_loop_title" tools:ignore="MissingTranslation">A-B loop</string>
+    <string name="ab_loop_set_a" tools:ignore="MissingTranslation">Set A</string>
+    <string name="ab_loop_set_b" tools:ignore="MissingTranslation">Set B</string>
+    <string name="ab_loop_clear" tools:ignore="MissingTranslation">Clear</string>
+    <string name="ab_loop_waiting_b" tools:ignore="MissingTranslation">A: %1$s · Set B</string>
+    <string name="ab_loop_active" tools:ignore="MissingTranslation">Loop %1$s – %2$s</string>
 </resources>
