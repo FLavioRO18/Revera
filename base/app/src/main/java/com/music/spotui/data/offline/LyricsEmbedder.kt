@@ -1037,7 +1037,8 @@ object LyricsEmbedder {
             val tempHead = temp.inputStream().use { readFully(it, newHead.size) } ?: return false
             if (lrc.isNotBlank() && readFlacLyrics(tempHead) != lrc) return false
             if (cover != null && readFlacPicture(tempHead)?.contentEquals(cover.bytes) != true) return false
-            return temp.renameTo(file)
+            java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            return true
         } finally {
             if (temp.exists()) temp.delete()
         }
@@ -1105,7 +1106,8 @@ object LyricsEmbedder {
             if (!tempTag.contentEquals(newTag)) return false
             if (lrc.isNotBlank() && readMp3Uslt(tempTag) != lrc) return false
             if (cover != null && readMp3Apic(tempTag)?.contentEquals(cover.bytes) != true) return false
-            return temp.renameTo(file)
+            java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            return true
         } finally {
             if (temp.exists()) temp.delete()
         }
@@ -1123,7 +1125,8 @@ object LyricsEmbedder {
             val written = runCatching { temp.readBytes() }.getOrNull() ?: return false
             if (lrc.isNotBlank() && readM4aLyrics(written) != lrc) return false
             if (cover != null && readM4aCover(written)?.contentEquals(cover.bytes) != true) return false
-            return temp.renameTo(file)
+            java.nio.file.Files.move(temp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            return true
         } finally {
             if (temp.exists()) temp.delete()
         }

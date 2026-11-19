@@ -34,15 +34,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -262,23 +262,43 @@ internal fun CurrentLyricStrip(
     onOpenLyrics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val enabled = com.music.spotui.data.preferences.PlayerLyricsCardPref.shown && !state.adPlaying
     if (!visible) return
-    if (!enabled) {
-        Spacer(Modifier.height(8.dp))
-        return
-    }
     val vm: LyricsViewModel = viewModel()
     val hold = state.blend?.outgoingWords == true
     val lyricsState = com.music.spotui.ui.screens.rememberLyricsState(vm, state.title, state.artist, hold)
-    val frame = rememberFrameClock(state.playing && !state.buffering && lyricsState is LyricsViewModel.State.Loaded, fps = 8)
-    val activeLine by remember(lyricsState, state) {
+    CurrentLyricLine(
+        lyricsState = lyricsState,
+        playing = state.playing && !state.buffering,
+        position = { if (hold && state.blend != null) state.blend.positionMs() else state.positionMs() },
+        onOpenLyrics = onOpenLyrics,
+        modifier = modifier,
+    )
+}
+
+internal val LYRIC_LINE_HEIGHT = 28.dp
+
+@Composable
+internal fun CurrentLyricLine(
+    lyricsState: LyricsViewModel.State,
+    playing: Boolean,
+    position: () -> Long,
+    onOpenLyrics: () -> Unit,
+    modifier: Modifier = Modifier,
+    visible: Boolean = true,
+) {
+    if (!visible) {
+        Spacer(modifier.height(LYRIC_LINE_HEIGHT))
+        return
+    }
+    val frame = rememberFrameClock(playing && lyricsState is LyricsViewModel.State.Loaded, fps = 8)
+    val currentPosition by androidx.compose.runtime.rememberUpdatedState(position)
+    val activeLine by remember(lyricsState, frame) {
         derivedStateOf {
             frame.value
             val loaded = lyricsState as? LyricsViewModel.State.Loaded ?: return@derivedStateOf null
             val lyrics = loaded.lyrics
             if (!lyrics.synced || lyrics.lines.isEmpty()) return@derivedStateOf null
-            val pos = (if (hold && state.blend != null) state.blend.positionMs() else state.positionMs()).coerceAtLeast(0L)
+            val pos = currentPosition().coerceAtLeast(0L)
             val line = lyrics.lines.lastOrNull { it.timeMs <= pos + 180L }?.text?.trim().orEmpty()
             line.takeIf { it.isNotBlank() && it != "♪" && it != "•••" && it != "..." }
         }
@@ -286,8 +306,7 @@ internal fun CurrentLyricStrip(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(28.dp)
-            .offset(y = 4.dp)
+            .height(LYRIC_LINE_HEIGHT)
             .then(
                 if (activeLine != null) {
                     Modifier.clickable(
@@ -360,28 +379,30 @@ internal fun PlayerScrubber(
             activeColor = androidx.compose.ui.graphics.lerp(Color.White, tint, 0.30f).copy(alpha = 0.95f),
             inactiveColor = tint.copy(alpha = 0.30f),
         )
-        ScrubTimes(
-            frame = frame,
-            scrub = scrub,
-            state = state,
-            centerContent = if (onSource != null) {
-                {
-                    PlaybackQualityBadge(
-                        state = state,
-                        onSource = onSource,
-                        onSourceLong = onSourceLong ?: {},
-                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 8.dp),
-                    )
-                }
-            } else {
-                null
+        PlayerScrubberReadout(
+            times = { ScrubTimes(frame, scrub, state) },
+            source = {
+                if (onSource != null) PlaybackQualityBadge(
+                    state = state,
+                    onSource = onSource,
+                    onSourceLong = onSourceLong ?: {},
+                )
             },
         )
         com.music.spotui.ui.components.PlaybackSpeedNote(
             LocalPlayerTint.current.copy(alpha = 0.8f),
             Immersive.Accent,
-            Modifier.align(Alignment.CenterHorizontally).offset(y = (-4).dp),
+            Modifier.align(Alignment.CenterHorizontally),
         )
+    }
+}
+
+/** Keep the source below the times rather than layering a variable-width badge between them. */
+@Composable
+internal fun PlayerScrubberReadout(times: @Composable () -> Unit, source: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        times()
+        source()
     }
 }
 
@@ -390,35 +411,31 @@ private fun ScrubTimes(
     frame: State<Long>,
     scrub: PlayerScrub,
     state: ImmersivePlayerState,
-    centerContent: (@Composable BoxScope.() -> Unit)? = null,
 ) {
     frame.value
     val shown = scrub.shown(state.positionMs(), state.durationMs)
     val duration = state.durationMs.coerceAtLeast(0L)
     val elapsed = (shown * duration).toLong()
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .offset(y = (-9).dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = formatTime(elapsed),
-                style = Immersive.Caption,
-                color = LocalPlayerTint.current.copy(alpha = 0.72f),
-            )
-            Text(
-                text = "-" + formatTime(duration - elapsed),
-                style = Immersive.Caption,
-                color = LocalPlayerTint.current.copy(alpha = 0.72f),
-            )
-        }
-        if (centerContent != null) {
-            centerContent()
-        }
+    PlayerTimeLabels {
+        Text(
+            text = formatTime(elapsed),
+            style = Immersive.Caption,
+            color = LocalPlayerTint.current.copy(alpha = 0.72f),
+        )
+        Text(
+            text = "-" + formatTime(duration - elapsed),
+            style = Immersive.Caption,
+            color = LocalPlayerTint.current.copy(alpha = 0.72f),
+        )
+    }
+}
+
+/** Source metadata never shares this row. Very large times can wrap onto separate rows. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun PlayerTimeLabels(modifier: Modifier = Modifier, labels: @Composable () -> Unit) {
+    FlowRow(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        labels()
     }
 }
 
@@ -445,8 +462,9 @@ private fun PlaybackQualityBadge(
     val routing = SongPlayer.routing
     val sourceLabel = com.music.spotui.ui.components.playingSourceLabel()
     val answers = ExtensionAudio.answers.intValue
-    val stream = remember(state.trackId, answers) {
-        state.trackId.takeIf { it.isNotBlank() }?.let(ExtensionAudio::streamOf)
+    val localTrack = if (com.music.spotui.di.LocalPlayer.active.value) com.music.spotui.di.LocalPlayer.current() else null
+    val stream = remember(localTrack, answers) {
+        localTrack?.uri?.takeIf { it.scheme == ExtensionAudio.SCHEME }?.lastPathSegment?.let(ExtensionAudio::streamOf)
     }
     val clickableModifier = modifier.combinedClickable(
         interactionSource = remember { MutableInteractionSource() },
@@ -462,6 +480,11 @@ private fun PlaybackQualityBadge(
             pulsing = true,
             modifier = clickableModifier,
         )
+        return
+    }
+    // A download's metadata should not be mistaken for a live lossless/high-quality stream badge.
+    if (localTrack?.uri?.scheme == "file" && sourceLabel.isNotBlank()) {
+        QualityBadgeRow(sourceLabel, iconPainter = null, animated = false, modifier = clickableModifier)
         return
     }
     val codec = stream?.codec.orEmpty()
@@ -511,7 +534,7 @@ private fun PlaybackQualityBadge(
 }
 
 @Composable
-private fun QualityBadgeRow(
+internal fun QualityBadgeRow(
     text: String,
     iconPainter: Painter?,
     animated: Boolean,
@@ -778,7 +801,7 @@ private fun TransportGlyph(
     }
 }
 
-internal val VOLUME_ROW_HEIGHT = 32.dp
+private val VOLUME_ROW_HEIGHT = 32.dp
 
 @Composable
 internal fun VolumeRow(volume: PlayerVolume) {

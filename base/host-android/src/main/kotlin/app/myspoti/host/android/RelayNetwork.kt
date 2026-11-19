@@ -85,9 +85,16 @@ internal object NetworkReport {
     }
 }
 
-/** Told when the phone starts or stops ringing or being in a call (Android 12+), on a thread of its own. */
+/** The last observed call state and its changes, delivered on the main thread. */
 object PhoneCall {
-    @Volatile var listener: ((busy: Boolean) -> Unit)? = null
+    var busy: Boolean = false
+        private set
+    var listener: ((busy: Boolean) -> Unit)? = null
+
+    internal fun update(busy: Boolean) {
+        this.busy = busy
+        listener?.invoke(busy)
+    }
 }
 
 /**
@@ -104,7 +111,7 @@ internal object AudioModeWatch {
         if (android.os.Build.VERSION.SDK_INT < 31) { installCallState(context); return }
         runCatching {
             val audio = context.getSystemService(android.media.AudioManager::class.java)
-            audio.addOnModeChangedListener(java.util.concurrent.Executors.newSingleThreadExecutor()) { mode ->
+            audio.addOnModeChangedListener(context.mainExecutor) { mode ->
                 val name = when (mode) {
                     android.media.AudioManager.MODE_NORMAL -> "normal"
                     android.media.AudioManager.MODE_RINGTONE -> "ringing"
@@ -114,9 +121,21 @@ internal object AudioModeWatch {
                     else -> "mode $mode"
                 }
                 Logbook.log("audio mode: $name")
-                PhoneCall.listener?.invoke(mode != android.media.AudioManager.MODE_NORMAL)
+                PhoneCall.update(isCallMode(mode))
             }
-        }
+            // Registration alone does not report a call already in progress at app startup.
+            PhoneCall.update(isCallMode(audio.mode))
+        }.onFailure { Logbook.log("audio mode not watched: ${it.javaClass.simpleName}") }
+    }
+
+    private fun isCallMode(mode: Int): Boolean = when (mode) {
+        android.media.AudioManager.MODE_RINGTONE,
+        android.media.AudioManager.MODE_IN_CALL,
+        android.media.AudioManager.MODE_IN_COMMUNICATION,
+        android.media.AudioManager.MODE_CALL_SCREENING,
+        android.media.AudioManager.MODE_CALL_REDIRECT,
+        android.media.AudioManager.MODE_COMMUNICATION_REDIRECT -> true
+        else -> false
     }
 
     /**
@@ -137,7 +156,7 @@ internal object AudioModeWatch {
                         else -> "normal"
                     }
                     Logbook.log("call state: $name")
-                    PhoneCall.listener?.invoke(state != android.telephony.TelephonyManager.CALL_STATE_IDLE)
+                    PhoneCall.update(state != android.telephony.TelephonyManager.CALL_STATE_IDLE)
                 }
             }, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
         }.onFailure { Logbook.log("call state not watched: ${it.javaClass.simpleName}") }

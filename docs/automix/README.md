@@ -45,8 +45,15 @@ mobile data" is on, never under the data saver), to mid and side at 22.05 kHz.
   structural boundaries and an 8-bar phrase fallback; key (Krumhansl–Kessler on the chroma),
   loudness, where the sound starts and ends. Voice-like activity uses existing spectral features,
   including absolute centre and mono uncertainty: it is a heuristic, not a vocal separation model.
-- The result is cached (`cache/automix4/`, format 4_09), about 10 KB a song. Source metadata/path
-  and local file size/modification time identify the recording; expiring access tokens do not.
+- The result is cached in `files/automix4/`. Exact-source entries use stream metadata/path or
+  local file size/modification time. Extension encodings can also share derived analysis when
+  the same provider asserts the same recording and timeline for the same track (`recordingId`),
+  durations agree within 50 ms, decoded timestamps are continuous, and cached cues fit both
+  durations. Encoded media bytes still use their own cache identity. Without compatible evidence,
+  AutoMix uses exact-source analysis or analyzes the new source.
+- Android regression class: `com.music.spotui.automix.TrackAnalysisCacheInstrumentedTest`.
+  It uses isolated app-private files and tests the restart path by reopening the disk cache
+  without any in-memory state; it does not require an extension account or network playback.
 - Speed: on the S24, 5 to 11 s a song (decoding 3–6 s, analysis 3–5 s). The decoder never waits on
   the codec while it has work; the onset features (in slices) and Beat This (its 15-s chunks side by
   side, one ONNX thread each) run at once on all cores but two. The song after the next one is

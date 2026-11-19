@@ -11,10 +11,10 @@ import app.myspoti.automix.MixPlan
 import app.myspoti.automix.MixPlanner
 import app.myspoti.automix.TrackAnalysis
 import app.myspoti.automix.DurationBounds
+import app.myspoti.extensions.AudioStream
 import com.music.spotui.di.Graph
 import com.music.spotui.extensions.ExtensionAudio
 import java.io.File
-import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
@@ -293,9 +293,10 @@ object AutoMix {
     private val asked = HashSet<String>()
     private val retry = AnalysisRetry()
     private val fileVersions = java.util.concurrent.ConcurrentHashMap<String, String>()
-    private val streamKeys = ArrayDeque<Pair<app.myspoti.extensions.AudioStream, String>>()
+    private val streamKeys = ArrayDeque<Triple<String, AudioStream, String>>()
     private val baseKeys = java.util.concurrent.ConcurrentHashMap<String, String>()
     @Volatile private var cacheEpoch = 0L
+    private val diskLock = Any()
     /** Songs without an analysis for now, and why (shown through [missing]). */
     private val refused = HashMap<String, Reason>()
     @Volatile private var wanted: Set<String> = emptySet()
@@ -330,25 +331,31 @@ object AutoMix {
                 for (uri in jobs) {
                     if (epoch != cacheEpoch || requestId(uri) !in wanted) continue
                     refreshFileVersion(uri)
-                    prepareStreamKey(uri)
-                    val k = key(uri)
+                    val stream = streamOf(uri)
+                    if (uri.scheme == ExtensionAudio.SCHEME && stream == null) { pending += uri; continue }
+                    val k = prepareStreamKey(uri, stream) ?: key(uri)
                     if (synchronized(memory) { memory.containsKey(k) }) continue
-                    val cached = if (uri.scheme != ExtensionAudio.SCHEME || ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty()) != null) load(k) else null
-                    if (cached != null) { synchronized(memory) { memory[k] = cached; refused -= requestId(uri) }; ready() }
-                    else pending += uri
+                    val cached = load(k, AnalysisIdentity.recording(requestId(uri), stream))
+                    if (cached != null) publish(uri, k, cached, epoch, ready) else pending += uri
                 }
                 if (pending.isNotEmpty()) waitForThePage()
                 for (uri in pending) {
                     val id = requestId(uri)
                     if (epoch != cacheEpoch || id !in wanted) continue
                     val result = analyse(uri, epoch)
-                    if (result != null && epoch == cacheEpoch && id in wanted && result.first == key(uri)) {
-                        synchronized(memory) { memory[result.first] = result.second; refused -= id; retry.succeeded(result.first) }
-                        ready()
-                    }
+                    if (result != null) publish(uri, result.first, result.second, epoch, ready)
                 }
             } finally { synchronized(memory) { jobs.forEach { asked -= requestId(it) } } }
         }
+    }
+
+    private fun publish(uri: Uri, k: String, analysis: TrackAnalysis, epoch: Long, ready: () -> Unit) {
+        val id = requestId(uri)
+        synchronized(memory) {
+            if (epoch != cacheEpoch || id !in wanted || k != key(uri)) return
+            memory[k] = analysis; refused -= id; retry.succeeded(k)
+        }
+        ready()
     }
 
     @Volatile private var pageWaited = false
@@ -372,35 +379,41 @@ object AutoMix {
         var cacheKey = key(uri)
         try {
             var hintDurationUs = -1L
+            var recording: RecordingIdentity? = null
+            var resolved: AudioStream? = null
             if (uri.scheme == ExtensionAudio.SCHEME) {
                 val saver = com.music.spotui.data.DataSaver.active
                 if (com.music.spotui.data.DataSaver.metered && (saver || !analyzeOnMobileData)) {
                     synchronized(memory) { refused[id] = Reason.MobileData }
                     return null
                 }
-                val resolved = ExtensionAudio.resolve(uri, ahead = true) ?: throw java.io.IOException("no stream")
-                if ((resolved.durationMs ?: 0L) > 0L) hintDurationUs = resolved.durationMs!! * 1_000L
-                prepareStreamKey(uri)
-                cacheKey = key(uri)
-                load(cacheKey)?.let { return cacheKey to it }
+                resolved = ExtensionAudio.resolve(uri, ahead = true) ?: throw java.io.IOException("no stream")
+                if (resolved !== streamOf(uri)) return null
+                resolved.durationMs?.takeIf { it in 1L..Long.MAX_VALUE / 1_000L }?.let { hintDurationUs = it * 1_000L }
+                cacheKey = prepareStreamKey(uri, resolved) ?: return null
+                recording = AnalysisIdentity.recording(id, resolved)
+                load(cacheKey, recording)?.let { return cacheKey to it }
             }
             if (cancelled()) return null
             val t0 = System.currentTimeMillis()
-            val pcm = TrackDecoder.decode(uri, cancelled, hintDurationUs)
+            val pcm = TrackDecoder.decode(uri, { cancelled() || resolved !== streamOf(uri) }, hintDurationUs)
             val t1 = System.currentTimeMillis()
             // On battery 3: measured on the S24, 5 made the same song's analysis slower (7.6 s against 5.5 s),
             // the extra cores being small ones and the next song's decode running meanwhile.
             val threads = if (performancePriority) 1 else if (frugal()) 2 else if (charging()) THREADS else minOf(THREADS, 3)
-            val a = Analyzer.analyze(pcm.mid, pcm.side, model(), cancelled, threads, pcm.length)
-            if (cancelled() || cacheKey != key(uri)) return null
-            save(cacheKey, a)
+            val a = Analyzer.analyze(pcm.mid, pcm.side, model(), { cancelled() || resolved !== streamOf(uri) }, threads, pcm.length)
+            if (cancelled() || cacheKey != key(uri) || resolved !== streamOf(uri)) return null
+            synchronized(diskLock) {
+                if (cancelled()) return null
+                AnalysisDiskCache(dir()).save(cacheKey, a, recording?.takeIf { pcm.shareableTimeline })
+            }
             journal(String.format("analysed %s: %.1f BPM%s, %d bars, key %d, decode %d ms (bytes %d ms, %.1f MB, convert %d ms, %d restarts), analysis %d ms on %d threads", label(uri), a.bpm,
                 if (a.steady) " steady" else (if (a.tail != null) " (tail grid)" else " (no grid)"), a.bars, a.key, t1 - t0, pcm.readMs, pcm.bytes / 1e6, pcm.convertMs, pcm.restarts,
                 System.currentTimeMillis() - t1, threads) +
                 (if (a.note.isNotEmpty()) " | grids refused: ${a.note}" else ""))
             return cacheKey to a
         } catch (e: Exception) {
-            if (cancelled() || e is InterruptedException) return null
+            if (cancelled() || cacheKey != key(uri) || e is InterruptedException) return null
             val permanent = e.message == "song too long to analyse" || e.message == "decoded audio too short"
             synchronized(memory) {
                 if (permanent) retry.giveUp(cacheKey) else retry.failed(cacheKey, android.os.SystemClock.elapsedRealtime())
@@ -467,66 +480,47 @@ object AutoMix {
         return d
     }
 
-    private fun load(key: String): TrackAnalysis? = runCatching {
-        File(dir(), key).takeIf { it.exists() }?.let { f ->
-            // Used now: the last to go when the cache is trimmed.
-            f.setLastModified(System.currentTimeMillis())
-            f.inputStream().buffered().use { TrackAnalysis.read(it) }
-        }
-    }.getOrNull()
-
-    private fun save(key: String, a: TrackAnalysis) {
-        runCatching {
-            val f = File(dir(), key)
-            val tmp = File(dir(), "$key.tmp")
-            tmp.outputStream().buffered().use { a.write(it) }
-            tmp.renameTo(f)
-            dir().listFiles()?.let { files ->
-                AnalysisCache.toTrim(files.map { AnalysisCache.Entry(it.name, it.length(), it.lastModified()) })
-                    .forEach { File(dir(), it).delete() }
-            }
-        }
+    private fun load(key: String, recording: RecordingIdentity?): TrackAnalysis? = synchronized(diskLock) {
+        AnalysisDiskCache(dir()).load(key, recording)
     }
 
     private fun requestId(uri: Uri): String =
         if (uri.scheme == ExtensionAudio.SCHEME) "ext:" + uri.lastPathSegment.orEmpty() else uri.toString()
 
+    private fun streamOf(uri: Uri): AudioStream? = if (uri.scheme == ExtensionAudio.SCHEME)
+        ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty()) else null
+
     /** No file I/O or large manifest hashing on the player/UI thread. */
     fun key(uri: Uri): String {
         val id = requestId(uri)
-        if (uri.scheme == ExtensionAudio.SCHEME) {
-            val stream = ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty())
-            if (stream != null) return synchronized(streamKeys) {
-                streamKeys.firstOrNull { it.first === stream }?.second ?: "$id:pending:${System.identityHashCode(stream)}"
-            }
+        val stream = streamOf(uri)
+        if (stream != null) return synchronized(streamKeys) {
+            streamKeys.firstOrNull { it.first == id && it.second === stream }?.third ?: "$id:pending:${System.identityHashCode(stream)}"
         }
-        return fileVersions[id] ?: baseKeys.getOrPut(id) { digest(id) }
+        return fileVersions[id] ?: baseKeys.getOrPut(id) { AnalysisIdentity.digest(id) }
     }
 
-    private fun prepareStreamKey(uri: Uri) {
-        if (uri.scheme != ExtensionAudio.SCHEME) return
-        val stream = ExtensionAudio.streamOf(uri.lastPathSegment.orEmpty()) ?: return
-        synchronized(streamKeys) { if (streamKeys.any { it.first === stream }) return }
-        // Signed query strings expire; provider, recording path and audio metadata do not.
-        val k = digest(AnalysisIdentity.stream(requestId(uri), stream.providerId, stream.durationMs, stream.codec, stream.source, stream.url, stream.manifest))
+    private fun prepareStreamKey(uri: Uri, stream: AudioStream?): String? {
+        if (stream == null) return null
+        val id = requestId(uri)
+        synchronized(streamKeys) { streamKeys.firstOrNull { it.first == id && it.second === stream }?.let { return it.third } }
+        val k = AnalysisIdentity.exact(id, stream)
         synchronized(streamKeys) {
-            streamKeys.addLast(stream to k)
+            streamKeys.addLast(Triple(id, stream, k))
             while (streamKeys.size > 24) streamKeys.removeFirst()
         }
+        return k
     }
-
-    private fun digest(id: String): String = MessageDigest.getInstance("SHA-1").digest(id.toByteArray())
-        .joinToString("") { "%02x".format(it) }.take(24)
 
     /** Only the worker stats files; replacing an existing file invalidates its analysis. */
     private fun refreshFileVersion(uri: Uri) {
         if (uri.scheme == "file") {
             val file = File(uri.path ?: return)
-            fileVersions[requestId(uri)] = digest(AnalysisIdentity.file(uri.toString(), file.length(), file.lastModified()))
+            fileVersions[requestId(uri)] = AnalysisIdentity.digest(AnalysisIdentity.file(uri.toString(), file.length(), file.lastModified()))
         } else if (uri.scheme == "content") {
             runCatching {
                 Graph.app.contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.SIZE, android.provider.MediaStore.MediaColumns.DATE_MODIFIED), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) fileVersions[requestId(uri)] = digest(AnalysisIdentity.file(uri.toString(), cursor.getLong(0), cursor.getLong(1)))
+                    if (cursor.moveToFirst()) fileVersions[requestId(uri)] = AnalysisIdentity.digest(AnalysisIdentity.file(uri.toString(), cursor.getLong(0), cursor.getLong(1)))
                 }
             }
         }
@@ -542,14 +536,15 @@ object AutoMix {
 
     /** Off the main thread: every song analysed is dropped (they are analysed again when played). */
     fun clearCache() {
-        cacheEpoch++
-        synchronized(memory) { memory.clear(); retry.clear(); refused.clear() }
-        fileVersions.clear()
-        dir().listFiles()?.forEach { it.delete() }
+        synchronized(diskLock) {
+            synchronized(memory) { cacheEpoch++; memory.clear(); retry.clear(); refused.clear() }
+            fileVersions.clear()
+            AnalysisDiskCache(dir()).clear()
+        }
     }
 
     /** The space the analyses take on disk, in bytes (off the main thread). */
-    fun cacheBytes(): Long = dir().listFiles()?.sumOf { it.length() } ?: 0L
+    fun cacheBytes(): Long = synchronized(diskLock) { AnalysisDiskCache(dir()).bytes() }
 }
 
 /** Invalid persisted pairs recover together to Auto; max=0 means no configured maximum. */

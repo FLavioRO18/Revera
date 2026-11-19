@@ -10,6 +10,7 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheWriter
+import com.music.spotui.automix.AnalysisIdentity
 import com.music.spotui.di.SongPlayer
 import com.music.spotui.extensions.ExtensionAudio
 
@@ -62,15 +63,8 @@ object ExtStreamCache {
         override fun close() = active.close()
     }
 
-    /**
-     * The file an extension answered with for a song, as far as its answer says: the extension and
-     * its source, the codec, depth, rate, type, length and transform. Two answers for one song can
-     * be two files (a 24-bit master one day, a 16-bit copy the next), which the cache, keyed by the
-     * song, cannot tell apart.
-     */
-    internal fun identity(s: app.myspoti.extensions.AudioStream): String = listOf(
-        s.providerId, s.source, s.codec, s.bitDepth, s.sampleRate, s.mimeType, s.durationMs, s.transform?.let { it::class.simpleName },
-    ).joinToString("|")
+    /** Encoded file identity, deliberately not the track-level analysis identity. */
+    internal fun identity(s: app.myspoti.extensions.AudioStream): String = AnalysisIdentity.encoding(s)
 
     /** Every song's file identity as last cached, at most this many (then started over: each song's cache is dropped once). */
     private const val IDENTITIES_MAX = 1000

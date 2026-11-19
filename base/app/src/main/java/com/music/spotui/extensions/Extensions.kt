@@ -775,6 +775,10 @@ object Extensions {
         return isReady && (providing(Hook.AUDIO_SOURCE).isNotEmpty() || startingAudioSource())
     }
 
+    /** An answer already obtained must still belong to an eligible source above Spotify. */
+    internal fun canUseAudioAnswer(id: String?): Boolean =
+        id != null && providing(Hook.AUDIO_SOURCE).any { (provider, _) -> provider == id }
+
     /** The audio-source extensions on at launch are still being started. */
     fun starting(): Boolean = !audioStarted.isCompleted
 

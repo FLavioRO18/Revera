@@ -40,6 +40,7 @@ object TrackDecoder {
     class Pcm(val mid: FloatArray, val side: FloatArray?, val length: Int) {
         var readMs = 0L; var bytes = 0L
         var convertMs = 0L; var restarts = 0
+        internal var shareableTimeline = false
     }
 
     fun decode(uri: Uri, cancelled: () -> Boolean, hintDurationUs: Long = -1L): Pcm {
@@ -61,6 +62,11 @@ object TrackDecoder {
                 it.readMs = source.readNs / 1_000_000
                 it.bytes = source.readBytes
                 it.restarts = source.restarts
+                // The decoder concatenates PCM without applying container gapless trim.
+                val gaplessTrim = listOf(MediaFormat.KEY_ENCODER_DELAY, MediaFormat.KEY_ENCODER_PADDING)
+                    .any { key -> format.containsKey(key) && format.getInteger(key) != 0 }
+                it.shareableTimeline = it.shareableTimeline && !gaplessTrim && formatDurationUs > 0 &&
+                    kotlin.math.abs(formatDurationUs / 1_000_000.0 - it.length.toDouble() / RATE) <= 0.05
             }
         } finally {
             runCatching { extractor.release() }
@@ -78,16 +84,19 @@ object TrackDecoder {
         cancelled: () -> Boolean,
     ): Pcm {
         val out = Resampler(format.getInteger(MediaFormat.KEY_SAMPLE_RATE), durationUs, maxSec, stereoMaxSec)
+        val timeline = DecodedTimeline()
+        var sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
         var channels = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
         var encoding = if (format.containsKey(MediaFormat.KEY_PCM_ENCODING)) format.getInteger(MediaFormat.KEY_PCM_ENCODING) else AudioFormat.ENCODING_PCM_16BIT
         var shorts = ShortArray(0); var floats = FloatArray(0)
         var convertNs = 0L
         // Copied out in one go per buffer (a value at a time through the ByteBuffer is slow).
-        fun takeTimed(buffer: ByteBuffer) {
+        fun takeTimed(buffer: ByteBuffer, timestampUs: Long) {
             val float = encoding == AudioFormat.ENCODING_PCM_FLOAT
             if (!float && encoding != AudioFormat.ENCODING_PCM_16BIT) throw IOException("unsupported decoded PCM")
             val values = buffer.remaining() / (if (float) 4 else 2)
             val frames = values / channels
+            timeline.add(timestampUs, frames, sampleRate)
             if (float) { if (floats.size < values) floats = FloatArray(values); buffer.asFloatBuffer().get(floats, 0, values) }
             else { if (shorts.size < values) shorts = ShortArray(values); buffer.asShortBuffer().get(shorts, 0, values) }
             for (i in 0 until frames) {
@@ -97,9 +106,13 @@ object TrackDecoder {
                 out.push(if (l.isFinite()) l else 0f, if (r.isFinite()) r else 0f)
             }
         }
-        fun take(buffer: ByteBuffer) {
+        fun take(buffer: ByteBuffer, timestampUs: Long) {
             val t0 = System.nanoTime()
-            try { takeTimed(buffer) } finally { convertNs += System.nanoTime() - t0 }
+            try { takeTimed(buffer, timestampUs) } finally { convertNs += System.nanoTime() - t0 }
+        }
+        fun result() = out.result().also {
+            it.convertMs = convertNs / 1_000_000
+            it.shareableTimeline = timeline.shareable
         }
         if (mime == "audio/raw") {
             val packet = ByteBuffer.allocateDirect(1 shl 20).order(ByteOrder.LITTLE_ENDIAN)
@@ -109,10 +122,10 @@ object TrackDecoder {
                 val size = extractor.readSampleData(packet, 0)
                 if (size < 0) break
                 packet.position(0); packet.limit(size)
-                take(packet)
+                take(packet, extractor.sampleTime)
                 extractor.advance()
             }
-            return out.result().also { it.convertMs = convertNs / 1_000_000 }
+            return result()
         }
         val codec = MediaCodec.createDecoderByType(mime)
         var started = false
@@ -140,10 +153,13 @@ object TrackDecoder {
                         val f = codec.outputFormat
                         channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
                         encoding = if (f.containsKey(MediaFormat.KEY_PCM_ENCODING)) f.getInteger(MediaFormat.KEY_PCM_ENCODING) else AudioFormat.ENCODING_PCM_16BIT
-                        out.rate(f.getInteger(MediaFormat.KEY_SAMPLE_RATE))
+                        sampleRate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        out.rate(sampleRate)
                     } else if (slot >= 0) {
                         val buf = codec.getOutputBuffer(slot)?.order(ByteOrder.LITTLE_ENDIAN)
-                        if (buf != null && info.size > 0) { buf.position(info.offset); buf.limit(info.offset + info.size); take(buf) }
+                        if (buf != null && info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                            buf.position(info.offset); buf.limit(info.offset + info.size); take(buf, info.presentationTimeUs)
+                        }
                         codec.releaseOutputBuffer(slot, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) { ended = true; break }
                     }
@@ -154,7 +170,7 @@ object TrackDecoder {
             if (started) runCatching { codec.stop() }
             codec.release()
         }
-        return out.result().also { it.convertMs = convertNs / 1_000_000 }
+        return result()
     }
 
     /**

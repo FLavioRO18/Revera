@@ -85,6 +85,20 @@ object SolidNavBar {
     }
 }
 
+/** Best effort only: Android and the current audio route still control whether media is audible. */
+object MusicDuringCallsPref {
+    private const val KEY = "music_during_calls"
+    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, false))
+        private set
+
+    fun set(c: Context, value: Boolean) {
+        if (on == value) return
+        on = value
+        prefs(c).edit().putBoolean(KEY, value).apply()
+        com.music.spotui.di.SongPlayer.refreshCallPolicy()
+    }
+}
+
 /** "When your music ends, keep playing similar songs" (on by default). Read by the player. */
 object AutoplayPref {
     private const val KEY = "autoplay_similar"

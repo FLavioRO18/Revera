@@ -4,7 +4,7 @@
 
 Modifications in this fork:
 
-- Rebranded package and app labels to **Revera** (`app.revera`, updates via `caruno-git/Revera`).
+- Rebranded package and app labels to **Revera** (`app.revera` / `app.revera.dev` for debug builds, updates via `caruno-git/Revera`).
 - Visible downloads saved in `Download/Revera` (with backwards-compatible reading of `Download/Orpheon` and `Music/Orpheon`).
 - Lyrics and cover embedded in the downloaded file (USLT+SYLT / APIC for MP3, ©lyr / covr for M4A, Vorbis LYRICS + PICTURE + `.lrc` sidecar for FLAC), before the public scan or the private encryption.
 - A lyrics badge in the track rows (checked over Wi-Fi only, cached).

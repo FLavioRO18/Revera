@@ -24,6 +24,12 @@ class SpotifySyncRulesTest {
         assertEquals(a, SpotifySyncRules.playContext("", a, emptySet()))
     }
 
+    @Test fun `a track context from an earlier song is not a list for the current song`() {
+        val earlier = "spotify:track:1x9QTgYhQmw8BFXMuaTnXc"
+        val current = "spotify:track:6s3fRCeYOdwKDCrC9jI9wT"
+        assertEquals(current, SpotifySyncRules.playContext(earlier, current, emptySet()))
+    }
+
     @Test fun `a page back after an ad or a reload keeps the list of the local queue (#144)`() {
         val playlist = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
         // The same context the start used: the song sent again is played in its list, not alone.

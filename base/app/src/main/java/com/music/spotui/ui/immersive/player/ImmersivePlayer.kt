@@ -699,15 +699,17 @@ fun ImmersivePlayer(
                     PlayerDismissStrip(tint) { actions.close() }
                 }
 
+                val lyricPreview = com.music.spotui.data.preferences.PlayerLyricsCardPref.shown && !state.adPlaying
+                val titleGap = ART_TITLE_GAP + if (lyricPreview) LYRIC_LINE_HEIGHT else 0.dp
                 val blockMax = if (window.large) minOf(playerWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH) +
-                    ART_BOX_TOP_PAD + ART_TITLE_GAP + HEADER_HEIGHT + 16.dp else Dp.Infinity
+                    ART_BOX_TOP_PAD + titleGap + HEADER_HEIGHT + 16.dp else Dp.Infinity
                 Column(Modifier.weight(1f).fillMaxWidth().zIndex(1f), verticalArrangement = Arrangement.Center) {
                 BoxWithConstraints(Modifier.weight(1f, fill = !window.large).heightIn(max = blockMax).fillMaxWidth()) {
                     val contentWidth = minOf(maxWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH)
                     val left = (maxWidth - contentWidth) / 2
-                    val fullArt = minOf(contentWidth, maxHeight - ART_BOX_TOP_PAD - ART_TITLE_GAP - HEADER_HEIGHT - 16.dp)
+                    val fullArt = minOf(contentWidth, maxHeight - ART_BOX_TOP_PAD - titleGap - HEADER_HEIGHT - 16.dp)
                         .coerceAtLeast(THUMB_SIZE)
-                    val spare = (maxHeight - ART_BOX_TOP_PAD - fullArt - ART_TITLE_GAP - HEADER_HEIGHT - 16.dp)
+                    val spare = (maxHeight - ART_BOX_TOP_PAD - fullArt - titleGap - HEADER_HEIGHT - 16.dp)
                         .coerceAtLeast(0.dp)
                     val groupTop = spare / 2
                     val heroBleedTop = statusTop + DISMISS_STRIP_HEIGHT
@@ -717,7 +719,7 @@ fun ImmersivePlayer(
                     fun artHeight(): Dp = if (heroMode) lerp(heroBleedTop + heroBottomInBox, THUMB_SIZE, p()) else lerp(fullArt, THUMB_SIZE, p())
                     fun artTop(): Dp = if (heroMode) lerp(-heroBleedTop, ART_BOX_TOP_PAD, p()) else ART_BOX_TOP_PAD + lerp(groupTop, 0.dp, p())
                     fun artStart(): Dp = if (heroMode) lerp(0.dp, left, p()) else left + lerp((contentWidth - fullArt) / 2, 0.dp, p())
-                    fun titleTop(): Dp = ART_BOX_TOP_PAD + lerp(spare + fullArt + ART_TITLE_GAP, 0.dp, p())
+                    fun titleTop(): Dp = ART_BOX_TOP_PAD + lerp(spare + fullArt + titleGap, 0.dp, p())
                     fun titleStart(): Dp = lerp(0.dp, THUMB_SIZE + 12.dp, p())
                     val scrolls by remember { derivedStateOf { collapse.value < 0.01f } }
 
@@ -869,6 +871,15 @@ fun ImmersivePlayer(
                         }
                     }
 
+                    CurrentLyricStrip(
+                        state = state,
+                        visible = lyricPreview && panel == Panel.NONE && scrolls,
+                        onOpenLyrics = { panel = Panel.LYRICS },
+                        modifier = Modifier
+                            .zIndex(2f)
+                            .offset { IntOffset(left.roundToPx(), (titleTop() - LYRIC_LINE_HEIGHT).roundToPx()) }
+                            .width(contentWidth),
+                    )
                     Row(
                         modifier = Modifier
                             .zIndex(2f)
@@ -919,7 +930,6 @@ fun ImmersivePlayer(
                         onSource = { showQuality = true },
                         onSourceLong = { showNerd = true },
                     )
-                    if (!showVolume) Spacer(Modifier.height(12.dp - 4.dp + VOLUME_ROW_HEIGHT + 6.dp))
                 }
                 }
                 }
@@ -1140,11 +1150,6 @@ private fun PlayerControlsBlock(
     onSourceLong: (() -> Unit)? = null,
     compact: Boolean = false,
 ) {
-    CurrentLyricStrip(
-        state = state,
-        visible = !lyricsOpen,
-        onOpenLyrics = onToggleLyrics,
-    )
     PlayerScrubber(
         state = state,
         onSeek = actions.seekTo,
@@ -1316,6 +1321,11 @@ private fun LandscapePlayer(
             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 val showVolume = com.music.spotui.data.preferences.PlayerVolumePref.on && maxHeight >= LANDSCAPE_VOLUME_MIN_HEIGHT
                 Column(Modifier.widthIn(max = PLAYER_MAX_WIDTH).verticalScroll(rememberScrollState())) {
+                    CurrentLyricStrip(
+                        state = state,
+                        visible = panel == Panel.NONE && !state.adPlaying && com.music.spotui.data.preferences.PlayerLyricsCardPref.shown,
+                        onOpenLyrics = onToggleLyrics,
+                    )
                     Row(Modifier.fillMaxWidth().height(HEADER_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
                         PlayerCredits(state, actions, tint, scrolls = true, collapse = { 0f }, coverSwipe = coverSwipe, onMore = onMore)
                     }

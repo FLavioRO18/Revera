@@ -181,6 +181,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
 
     private val queuedSteps = java.util.concurrent.atomic.AtomicInteger(0)
     private val drainingSteps = java.util.concurrent.atomic.AtomicBoolean(false)
+    internal val skipInFlight: Boolean get() = drainingSteps.get() || queuedSteps.get() != 0
 
     fun skipNextQueued() {
         queuedSteps.incrementAndGet()
@@ -236,7 +237,9 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Mutex()
     private var engine: NativeEngine? = null
-    private var player: Media3DrmPlayer? = null
+    @Volatile private var player: Media3DrmPlayer? = null
+
+    internal fun refreshAudioFocus() { player?.refreshAudioFocus() }
     private var http: ChromiumHttp? = null
     @Volatile private var commandAtMs = 0L
     @Volatile private var lastEvent = ""
@@ -296,7 +299,11 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         val spotify = MyspotiRuntime.spotify
         val chromium = ChromiumHttp(context).also { http = it }
         val logged = LoggedHttp(chromium)
-        val p = Media3DrmPlayer(context, chromium, log = ::log, forceL3 = forceL3).also { player = it }
+        val p = Media3DrmPlayer(context, chromium, log = ::log, forceL3 = forceL3,
+            relaxAudioFocus = { SongPlayer.relaxCallFocus }).also {
+            player = it
+            it.refreshAudioFocus()
+        }
         val config = NativeTokens.config(spotify.http)
         val e = NativeEngine(logged, NativeTokens(spotify.http), OkHttpWebSockets(MyspotiRuntime.apiHttp), Observed(p), AndroidEnvironment, config, scope)
         // A pause the player made itself (focus lost, headphones out) becomes a pause command, so

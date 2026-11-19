@@ -99,7 +99,15 @@ export function canonicalPayload({ userId, perks, issuedAt, expiresAt, badges })
   ].join("\n");
 }
 
-export function signAssertion({ userId, perks, badges, ttlSeconds, privateKeyB64, publicKeyB64, now = Date.now() }) {
+export function importPrivateKey(privateKeyB64) {
+  return crypto.createPrivateKey({
+    key: Buffer.from(privateKeyB64, "base64"),
+    format: "der",
+    type: "pkcs8",
+  });
+}
+
+export function signAssertion({ userId, perks, badges, ttlSeconds, privateKeyB64, privateKeyObj, publicKeyB64, now = Date.now() }) {
   const cleanBadges = (Array.isArray(badges) ? badges : []).map((b) => normalizeBadge(b, b?.id || "badge"));
   const cleanPerks = Boolean(perks);
   const issuedAt = Math.trunc(now);
@@ -111,11 +119,7 @@ export function signAssertion({ userId, perks, badges, ttlSeconds, privateKeyB64
     expiresAt,
     badges: cleanBadges,
   });
-  const keyObj = crypto.createPrivateKey({
-    key: Buffer.from(privateKeyB64, "base64"),
-    format: "der",
-    type: "pkcs8",
-  });
+  const keyObj = privateKeyObj || importPrivateKey(privateKeyB64);
   const signature = crypto.sign("sha256", Buffer.from(payload, "utf8"), keyObj).toString("base64");
   return {
     userId: String(userId),

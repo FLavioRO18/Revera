@@ -91,4 +91,13 @@ class BadgeClientTest {
         assertNull(BadgeClient.parseAndVerify(json, "u2", pinnedKeyB64 = pub1, nowMs = 5_000L))
         assertNull(BadgeClient.parseAndVerify(json, "u1", pinnedKeyB64 = pub2, nowMs = 5_000L))
     }
+
+    @Test
+    fun rejectsEmptyPinnedKeyEvenWhenPayloadCarriesMatchingPublicKey() {
+        val kp = newKeyPair()
+        val badges = listOf(BadgeClient.UserBadge("vip", "VIP", "#1ED760"))
+        val json = signedJson("u1", true, badges, 1_000L, 10_000L, kp)
+        assertNull(BadgeClient.parseAndVerify(json, "u1", pinnedKeyB64 = "", nowMs = 5_000L))
+        assertNull(BadgeClient.parseAndVerify(json, "u1", pinnedKeyB64 = "   ", nowMs = 5_000L))
+    }
 }

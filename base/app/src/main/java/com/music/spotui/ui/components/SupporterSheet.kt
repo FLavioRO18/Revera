@@ -122,7 +122,6 @@ fun SupporterSheet(onDismiss: () -> Unit) {
     val scope = rememberCoroutineScope()
     val state = BadgeClient.myState
     var code by remember { mutableStateOf("") }
-    var serverUrl by remember { mutableStateOf(BadgeClient.baseUrl(context)) }
     var busy by remember { mutableStateOf(false) }
     var statusText by remember { mutableStateOf<String?>(null) }
     var statusError by remember { mutableStateOf(false) }
@@ -289,39 +288,6 @@ fun SupporterSheet(onDismiss: () -> Unit) {
                     }
                 }
                 Text(stringResource(R.string.supporter_icon_note), color = AppMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-            }
-
-            if (BadgeClient.isConfigurableBuild()) {
-                Spacer(Modifier.height(22.dp))
-                OutlinedTextField(
-                    value = serverUrl,
-                    onValueChange = { serverUrl = it },
-                    label = { Text(stringResource(R.string.badge_server_label)) },
-                    singleLine = true,
-                    colors = fieldColors,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                TextButton(
-                    enabled = !busy,
-                    onClick = {
-                        BadgeClient.setCustomServerUrl(context, serverUrl)
-                        busy = true
-                        statusText = null
-                        scope.launch {
-                            val updated = BadgeClient.refreshMe(context)
-                            if (updated == null) {
-                                statusError = true
-                                statusText = msgNetwork
-                            } else {
-                                statusError = false
-                            }
-                            busy = false
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.End).padding(top = 4.dp),
-                ) {
-                    Text(stringResource(R.string.badge_server_save), color = AppAccent, fontWeight = FontWeight.Bold)
-                }
             }
         }
     }

@@ -28,6 +28,17 @@ class SettingsSearchTest {
         assertTrue(SettingsSearch.classic.all { it.place == "transitions" || it.place.toIntOrNull() in 0..7 })
     }
 
+    @Test fun musicDuringCallsIsIndexedUnderPlaybackInBothLooks() {
+        val title = app.myspoti.engine.R.string.music_during_calls_title
+        val detail = app.myspoti.engine.R.string.music_during_calls_detail
+        val immersive = SettingsSearch.immersive.single { it.title == title }
+        val classic = SettingsSearch.classic.single { it.title == title }
+        assertEquals(detail, immersive.detail)
+        assertEquals(detail, classic.detail)
+        assertEquals("Playback", immersive.place)
+        assertEquals("0", classic.place)
+    }
+
     /** The listen sync and the passing to another device sit with the music account, the library rows on their own. */
     @Test fun rowsSitWithWhatTheyAreAbout() {
         fun place(list: List<SettingsEntry>, title: Int) = list.first { it.title == title }.place

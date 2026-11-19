@@ -57,12 +57,15 @@ object LocalPlayer {
      * pause it again when it ends.
      */
     @Volatile private var mirrorActive = false
-    /** This player answers calls by itself through the audio focus. */
-    val holdsFocus: Boolean get() = active.value && !mirrorActive
+    private val managesAudioFocus: Boolean get() = !mirrorActive && !SongPlayer.relaxCallFocus
+    /** The main deck normally handles focus itself; the other decks follow it. */
+    val holdsFocus: Boolean get() = active.value && managesAudioFocus
     fun setMirrorFocus(on: Boolean) {
         mirrorActive = on
-        android.os.Handler(android.os.Looper.getMainLooper()).post { exo?.setAudioAttributes(audioAttributes, !on) }
+        android.os.Handler(android.os.Looper.getMainLooper()).post { refreshAudioFocus() }
     }
+
+    internal fun refreshAudioFocus() { exo?.setAudioAttributes(audioAttributes, managesAudioFocus) }
 
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     /** Each player's automation stage, set as its renderers are built (see [AudioRenderers]). */
@@ -72,7 +75,7 @@ object LocalPlayer {
     private fun build(main: Boolean, deck: Boolean = false): ExoPlayer = ExoPlayer.Builder(Graph.app, if (deck) DeckRenderers else Renderers)
         // The fading-out copy of a crossfade owns neither the audio focus nor the noisy-audio pause:
         // the main player has them and the fade follows its play state.
-        .setAudioAttributes(audioAttributes, main && !mirrorActive)
+        .setAudioAttributes(audioAttributes, main && managesAudioFocus)
         .setHandleAudioBecomingNoisy(main)
         // Downloaded songs are encrypted files: the player reads them through the decrypting source.
         // An extension's songs go through the media cache (see ExtStreamCache).
@@ -501,6 +504,7 @@ object LocalPlayer {
      * is put there paused (another source picked for it while it was paused), the user's play starts it.
      */
     fun play(list: List<LocalTrack>, index: Int, shuffle: Boolean = false, context: String? = null, contextUri: String = "", startMs: Long = 0L, continues: Boolean = false, paused: Boolean = false) {
+        MixedPlaylistQueue.clear()
         if (list.isEmpty()) return
         // Another song picked: repeat once was for the song left.
         val shown = SongPlayer.nowPlaying.value.uri.substringAfterLast(':')
@@ -1187,7 +1191,7 @@ object LocalPlayer {
         a.repeatMode = Player.REPEAT_MODE_OFF
         // The focus moves with the main role: given up by the old player first, so it does not pause.
         a.setAudioAttributes(audioAttributes, false); a.setHandleAudioBecomingNoisy(false)
-        d.setAudioAttributes(audioAttributes, !mirrorActive); d.setHandleAudioBecomingNoisy(true)
+        d.setAudioAttributes(audioAttributes, managesAudioFocus); d.setHandleAudioBecomingNoisy(true)
         mainListener = listenerFor(d).also(d::addListener)
         exo = d
         outgoing = a
@@ -1987,6 +1991,7 @@ object LocalPlayer {
      */
     private fun atEnd(p: ExoPlayer): Boolean {
             if (p.hasNextMediaItem()) return false
+            if (MixedPlaylistQueue.onLocalEnded()) return true
             continueIfLast(p)
         if (radioOf == null || radioOf != spotifyId(current())) return false
         if (radioEmpty) spotifyContinues() else moveOnWhenReady = true

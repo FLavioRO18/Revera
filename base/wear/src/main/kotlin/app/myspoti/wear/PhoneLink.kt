@@ -40,21 +40,21 @@ class WatchList(val uri: String, val name: String, val subtitle: String)
 class PhoneLink(private val context: Context) : TokenSource {
     private val store = WatchStore(context)
 
-    private suspend fun ask(path: String, body: String = ""): String {
-        val viaLayer = runCatching { askLayer(path, body) }
-        viaLayer.getOrNull()?.let { return it }
-        val viaLan = runCatching { askLan(path, body) }
-        viaLan.getOrNull()?.let { return it }
-        Log.d(TAG, "phone not reached for $path: ${viaLayer.exceptionOrNull()?.message}; Wi-Fi: ${viaLan.exceptionOrNull()?.message}")
-        throw viaLayer.exceptionOrNull() ?: IllegalStateException("no phone")
+    private suspend fun ask(path: String, body: String = ""): String = companionFallback(
+        layer = { withTimeout(ASK_MS) { askLayer(path, body) }.also { Log.d(TAG, "watch link: $path via Data Layer") } },
+        lan = { askLan(path, body).also { Log.d(TAG, "watch link: $path via Wi-Fi") } },
+    )
+
+    private suspend fun phoneNode() = Wearable.getNodeClient(context).connectedNodes.await().let { nodes ->
+        nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull() ?: error("no phone connected")
     }
 
     private suspend fun askLayer(path: String, body: String): String {
-        val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-        val node = nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull() ?: throw IllegalStateException("no phone connected")
-        val answer = withTimeout(ASK_MS) { Wearable.getMessageClient(context).sendRequest(node.id, path, body.encodeToByteArray()).await() }
-        return answer.decodeToString().also { if (it.startsWith("error:")) throw IllegalStateException(it.removePrefix("error:").trim()) }
+        val answer = Wearable.getMessageClient(context).sendRequest(phoneNode().id, path, body.encodeToByteArray()).await()
+        return answer.decodeToString().checkedAnswer()
     }
+
+    private fun String.checkedAnswer() = also { if (it.startsWith("error:")) error(it.removePrefix("error:").trim()) }
 
     /** The phone over the Wi-Fi: at its last address, else where its announce says it is now. */
     private suspend fun askLan(path: String, body: String): String = withContext(Dispatchers.IO) {
@@ -159,18 +159,21 @@ class PhoneLink(private val context: Context) : TokenSource {
      * What the watch plays from its extensions, told to the phone ([body]: the song and its state, or
      * `{"stopped":true}`): with "Count extension plays" on there, the phone's account plays it unheard.
      */
-    suspend fun listen(body: String) { ask(LISTEN, body) }
+    suspend fun listen(body: String) { askLan(LISTEN, body) } // The phone only dispatches this path on LAN.
 
     /** The phone's extensions (packages and state, as the pass carries them): through a Data Layer channel, else the Wi-Fi. */
-    suspend fun extensions(): String = runCatching {
-        val nodes = Wearable.getNodeClient(context).connectedNodes.await()
-        val node = nodes.firstOrNull { it.isNearby } ?: nodes.first()
+    suspend fun extensions(): String = companionFallback(
+        layer = { extensionsLayer().checkedAnswer().also { Log.d(TAG, "watch link: $EXTENSIONS via Data Layer") } },
+        lan = { askLan(EXTENSIONS, "").also { Log.d(TAG, "watch link: $EXTENSIONS via Wi-Fi") } },
+    )
+
+    private suspend fun extensionsLayer(): String {
         val client = Wearable.getChannelClient(context)
-        val channel = client.openChannel(node.id, EXTENSIONS).await()
-        try {
+        val channel = withTimeout(ASK_MS) { client.openChannel(phoneNode().id, EXTENSIONS).await() }
+        return try {
             withTimeout(EXTENSIONS_MS) { withContext(Dispatchers.IO) { client.getInputStream(channel).await().use { it.readBytes().decodeToString() } } }
-        } finally { runCatching { client.close(channel).await() } }
-    }.getOrElse { askLan(EXTENSIONS, "") }.also { if (it.startsWith("error:")) throw IllegalStateException(it.removePrefix("error:").trim()) }
+        } finally { client.close(channel) }
+    }
 
     companion object {
         const val SESSION = "/orpheon/session"
@@ -181,7 +184,7 @@ class PhoneLink(private val context: Context) : TokenSource {
         private const val TAG = "Revera"
         private const val SESSION_FILE = "session"
         private const val LINK = "link"
-        private const val ASK_MS = 20_000L
+        private const val ASK_MS = 30_000L // Allow for the phone's 25-second reply deadline.
         private const val FIND_MS = 5_000L
         private const val EXTENSIONS_MS = 60_000L
         private const val EARLY_MS = 60_000L

@@ -72,6 +72,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -134,7 +135,7 @@ fun activeDeviceIcon(): ImageVector {
 /**
  * Where the sound comes from while Myspoti's own player plays a song (an extension's stream: its
  * name and the quality it announced; a download; Spotify's codec and bitrate), shown under the
- * output device; "" while a song is being asked for or on another device.
+ * output device. Spotify music has a label even before codec and bitrate are known.
  */
 @Composable
 fun playingSourceLabel(): String {
@@ -150,28 +151,31 @@ fun playingSourceLabel(): String {
     return if (temporary == null || label.isBlank() || uri.startsWith("spotify:episode:")) label else "$label · $temporary"
 }
 
-/**
- * What Spotify streams while its own player plays here: "Spotify · AAC · 160 kbit/s", read from the
- * page once the song has loaded (it reports the stream a moment after the start); "" on another
- * device or while it is not known. Same line, same tap (the quality sheet) as an extension's source.
- */
 /** How many times (every 2 s, about half a minute) the page is asked for the stream it plays. */
 private const val QUALITY_TRIES = 15
 
+/** Keep the source's tap target while waiting for its codec and bitrate. */
 @Composable
 private fun spotifyQualityLabel(uri: String): String {
-    if (SongPlayer.activeDevice.value != null || uri.isBlank()) return ""
-    val label by androidx.compose.runtime.produceState("", uri) {
-        value = ""
-        // The Immersive player is composed from the song's start, before the page has loaded the
-        // stream (later still after a pause or a slow start): asked again until it is known.
-        repeat(QUALITY_TRIES) { i ->
-            kotlinx.coroutines.delay(if (i == 0) 1500L else 2000L)
-            val (bitrate, mime) = app.myspoti.host.android.MyspotiRuntime.spotify.player.audioInfo()
-            if (bitrate > 0) { value = "${codecName(mime)} · ${bitrate / 1000} kbit/s"; return@produceState }
+    if (SongPlayer.activeDevice.value != null || uri.isBlank() ||
+        com.music.spotui.cast.CastPlayback.device.value != null) return ""
+    // Start with fresh quality state on a track change, not the previous stream's bitrate.
+    return key(uri) {
+        val details by androidx.compose.runtime.produceState("") {
+            repeat(QUALITY_TRIES) { i ->
+                kotlinx.coroutines.delay(if (i == 0) 1500L else 2000L)
+                val (bitrate, mime) = app.myspoti.host.android.MyspotiRuntime.spotify.player.audioInfo()
+                if (bitrate > 0) { value = "${codecName(mime)} · ${bitrate / 1000} kbit/s"; return@produceState }
+            }
         }
+        formatSpotifySourceLabel(uri, details, stringResource(R.string.sources_account), stringResource(R.string.player_source_spotify))
     }
-    return if (label.isBlank()) "" else stringResource(R.string.player_source_spotify, label)
+}
+
+internal fun formatSpotifySourceLabel(uri: String, details: String, name: String, qualityFormat: String): String = when {
+    details.isNotBlank() -> qualityFormat.format(details)
+    uri.startsWith("spotify:track:") && uri.length > "spotify:track:".length -> name
+    else -> ""
 }
 
 /** The name of the extension streaming the song playing, for the mini player; null otherwise (see [playingSourceLabel]). */
@@ -321,6 +325,7 @@ internal fun streamingLabel(q: com.music.spotui.data.preferences.StreamingQualit
 @Composable
 fun QualitySheet(onDismiss: () -> Unit) {
     val local = com.music.spotui.di.LocalPlayer.active.value
+    val sourceLabel = if (local && com.music.spotui.di.LocalPlayer.current()?.uri?.scheme == "file") playingSourceLabel() else ""
     // Read again when another source plays the song (picked below, see SourcePicker).
     val answers = com.music.spotui.extensions.ExtensionAudio.answers.intValue
     val now by androidx.compose.runtime.produceState<String?>(null, local, answers) {
@@ -350,6 +355,11 @@ fun QualitySheet(onDismiss: () -> Unit) {
                 },
                 color = Green, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
+            if (sourceLabel.isNotBlank()) {
+                // The player may ellipsize the source; the sheet shows the complete label.
+                Text(sourceLabel, color = AppText, fontSize = 15.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+            }
             // A song an extension gives: the sources asked for it, and why this one plays.
             val extId = if (local) com.music.spotui.di.LocalPlayer.current()?.uri
                 ?.takeIf { it.scheme == com.music.spotui.extensions.ExtensionAudio.SCHEME }?.lastPathSegment else null

@@ -311,6 +311,25 @@ class SpotifyListenSyncTest {
         assertEquals(emptyList<QueueTake>(), r.sync.adoptRemoteQueue(listOf(track(idA))))
     }
 
+    @Test fun `mirror recovery does not restore an earlier song used as the local context`() = runTest {
+        val r = started()
+        r.page.ready.value = false; runCurrent()
+        r.host.now = live(idB, at = 0).copy(contextUri = a)
+        r.sync.onLocal(r.host.now!!)
+        r.page.calls.clear()
+        advanceTimeBy(1_000); runCurrent()
+        assertEquals(emptyList<String>(), r.page.calls)
+
+        r.page.ready.value = true; runCurrent()
+        advanceTimeBy(SpotifyListenSync.START_COALESCE_MS + 1); runCurrent()
+        assertEquals(listOf("mirroring true", "play $b null 1300"), r.page.calls)
+        assertFalse(r.sync.status().landed, "sending a play does not confirm playback")
+        r.page.state.value = state(b, paused = false, at = r.host.local()!!.positionMs, time = testScheduler.currentTime)
+        r.sync.onProviderState(r.page.state.value!!)
+        assertTrue(r.sync.status().landed)
+        assertEquals(emptyList<String>(), r.host.calls)
+    }
+
     // ── Ads on the page: they play to their end, the mirror waits and comes back where the local player is ──
 
     @Test fun `an ad holds the mirror, and its end puts the local player's song back at once, where it is`() = runTest {

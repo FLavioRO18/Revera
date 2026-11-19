@@ -33,4 +33,30 @@ class CallPauseTest {
         c.modeChanged(busy = true, playing = true, nowMs = 0)
         assertEquals(Action.NONE, c.modeChanged(busy = false, playing = false, nowMs = 2_000))
     }
+
+    @Test fun optInDoesNotPauseOrResume() {
+        val c = CallPause()
+        assertEquals(Action.NONE, c.modeChanged(busy = true, playing = true, nowMs = 0, allowMusic = true))
+        assertEquals(Action.NONE, c.modeChanged(busy = false, playing = false, nowMs = 1_000, allowMusic = true))
+    }
+
+    @Test fun optingInMidCallDiscardsEarlierAutoResume() {
+        val c = CallPause()
+        assertEquals(Action.PAUSE, c.modeChanged(busy = true, playing = true, nowMs = 0))
+        assertEquals(Action.NONE, c.modeChanged(busy = true, playing = false, nowMs = 1_000, allowMusic = true))
+        assertEquals(Action.NONE, c.modeChanged(busy = false, playing = false, nowMs = 2_000))
+    }
+
+    @Test fun optingOutMidCallRestoresTheFallbackPause() {
+        val c = CallPause()
+        assertEquals(Action.NONE, c.modeChanged(busy = true, playing = true, nowMs = 0, allowMusic = true))
+        assertEquals(Action.PAUSE, c.modeChanged(busy = true, playing = true, nowMs = 1_000))
+        assertEquals(Action.RESUME, c.modeChanged(busy = false, playing = false, nowMs = 2_000))
+    }
+
+    @Test fun nativeFocusIsOnlyRelaxedForAnOptedInCall() {
+        assertEquals(false, shouldRelaxCallFocus(optedIn = false, busy = true))
+        assertEquals(false, shouldRelaxCallFocus(optedIn = true, busy = false))
+        assertEquals(true, shouldRelaxCallFocus(optedIn = true, busy = true))
+    }
 }

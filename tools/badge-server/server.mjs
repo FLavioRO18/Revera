@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ensureEnv,
+  importPrivateKey,
   normalizeBadge,
   sanitizeField,
   signAssertion,
@@ -13,6 +14,61 @@ import {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 16384;
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isValidUserId(userId) {
+  return Boolean(userId) && !userId.includes("/") && !FORBIDDEN_KEYS.has(userId);
+}
+
+function toNullProtoMap(raw) {
+  const out = Object.create(null);
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const key of Object.keys(raw)) {
+    if (!FORBIDDEN_KEYS.has(key)) {
+      out[key] = raw[key];
+    }
+  }
+  return out;
+}
+
+function createRateLimiter(windowMs, maxRequests) {
+  const buckets = new Map();
+  let lastPrune = Date.now();
+  return (key, now = Date.now()) => {
+    if (now - lastPrune > windowMs) {
+      for (const [k, entry] of buckets) {
+        if (now >= entry.resetAt) buckets.delete(k);
+      }
+      lastPrune = now;
+    }
+    let entry = buckets.get(key);
+    if (!entry || now >= entry.resetAt) {
+      entry = { count: 0, resetAt: now + windowMs };
+      buckets.set(key, entry);
+    }
+    entry.count += 1;
+    if (entry.count > maxRequests) {
+      return { allowed: false, retryAfterSec: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)) };
+    }
+    return { allowed: true, retryAfterSec: 0 };
+  };
+}
+
+function getClientIp(req) {
+  const remote = req.socket?.remoteAddress || "unknown";
+  if (remote === "127.0.0.1" || remote === "::1" || remote === "::ffff:127.0.0.1") {
+    const xff = req.headers["x-forwarded-for"];
+    if (typeof xff === "string" && xff.trim()) {
+      return xff.split(",")[0].trim();
+    }
+    const realIp = req.headers["x-real-ip"];
+    if (typeof realIp === "string" && realIp.trim()) {
+      return realIp.trim();
+    }
+  }
+  return remote;
+}
 
 function generateCode() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -26,15 +82,15 @@ function generateCode() {
 }
 
 function loadStore(storePath) {
-  if (!fs.existsSync(storePath)) return { users: {}, codes: {} };
+  if (!fs.existsSync(storePath)) return { users: Object.create(null), codes: Object.create(null) };
   try {
     const parsed = JSON.parse(fs.readFileSync(storePath, "utf8"));
     return {
-      users: parsed && typeof parsed.users === "object" && parsed.users ? parsed.users : {},
-      codes: parsed && typeof parsed.codes === "object" && parsed.codes ? parsed.codes : {},
+      users: toNullProtoMap(parsed?.users),
+      codes: toNullProtoMap(parsed?.codes),
     };
   } catch {
-    return { users: {}, codes: {} };
+    return { users: Object.create(null), codes: Object.create(null) };
   }
 }
 
@@ -49,16 +105,21 @@ function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
+    let settled = false;
     req.on("data", (chunk) => {
+      if (settled) return;
       total += chunk.length;
       if (total > MAX_BODY_BYTES) {
+        settled = true;
+        req.pause();
         reject(Object.assign(new Error("payload_too_large"), { status: 413 }));
-        req.destroy();
         return;
       }
       chunks.push(chunk);
     });
     req.on("end", () => {
+      if (settled) return;
+      settled = true;
       if (chunks.length === 0) {
         resolve({});
         return;
@@ -74,16 +135,21 @@ function readJsonBody(req) {
         reject(Object.assign(new Error("invalid_json"), { status: 400 }));
       }
     });
-    req.on("error", (err) => reject(err));
+    req.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
   });
 }
 
-function sendJson(res, status, body) {
+function sendJson(res, status, body, extraHeaders = {}) {
   const raw = JSON.stringify(body);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(raw, "utf8"),
     "Cache-Control": "no-store",
+    ...extraHeaders,
   });
   res.end(raw);
 }
@@ -101,26 +167,39 @@ export async function startServer(opts = {}) {
   const storePath = path.join(dataDir, "store.json");
 
   const cfg = ensureEnv(envPath);
+  const privateKeyObj = importPrivateKey(cfg.privateKeyB64);
   const host = opts.host ?? cfg.host;
   const port = opts.port ?? cfg.port;
   const store = loadStore(storePath);
+  const rl = opts.rateLimit || {};
+  const checkPublicLimit = createRateLimiter(rl.windowMs ?? 60_000, rl.publicMax ?? 120);
+  const checkRedeemLimit = createRateLimiter(rl.windowMs ?? 60_000, rl.redeemMax ?? 15);
+  const checkAdminLimit = createRateLimiter(rl.windowMs ?? 60_000, rl.adminMax ?? 60);
+  const checkAdminFailLimit = createRateLimiter(rl.windowMs ?? 60_000, rl.adminFailMax ?? 10);
 
   fs.mkdirSync(path.dirname(logFile), { recursive: true });
   const writeLog = (msg) => {
     try {
+      try {
+        const st = fs.statSync(logFile);
+        if (st.size >= MAX_LOG_BYTES) {
+          fs.renameSync(logFile, `${logFile}.1`);
+        }
+      } catch {
+      }
       fs.appendFileSync(logFile, `${new Date().toISOString()} ${msg}\n`, "utf8");
     } catch {
     }
   };
 
   const signFor = (userId) => {
-    const entry = store.users[userId];
+    const entry = Object.hasOwn(store.users, userId) ? store.users[userId] : null;
     return signAssertion({
       userId,
       perks: Boolean(entry?.perks),
       badges: entry?.badges || [],
       ttlSeconds: cfg.ttlSeconds,
-      privateKeyB64: cfg.privateKeyB64,
+      privateKeyObj,
       publicKeyB64: cfg.publicKeyB64,
     });
   };
@@ -137,6 +216,7 @@ export async function startServer(opts = {}) {
       const parsedUrl = new URL(req.url || "/", "http://127.0.0.1");
       const pathname = parsedUrl.pathname;
       const method = req.method || "GET";
+      const clientIp = getClientIp(req);
 
       if (method === "GET" && pathname === "/health") {
         sendJson(res, 200, { ok: true, publicKey: cfg.publicKeyB64 });
@@ -144,6 +224,11 @@ export async function startServer(opts = {}) {
       }
 
       if (method === "GET" && pathname.startsWith("/api/v1/badges/")) {
+        const limit = checkPublicLimit(clientIp);
+        if (!limit.allowed) {
+          sendJson(res, 429, { error: "rate_limited" }, { "Retry-After": String(limit.retryAfterSec) });
+          return;
+        }
         const rawUserId = pathname.slice("/api/v1/badges/".length);
         let userId = "";
         try {
@@ -152,7 +237,7 @@ export async function startServer(opts = {}) {
           sendJson(res, 400, { error: "invalid_user_id" });
           return;
         }
-        if (!userId || userId.includes("/")) {
+        if (!isValidUserId(userId)) {
           sendJson(res, 400, { error: "invalid_user_id" });
           return;
         }
@@ -161,6 +246,11 @@ export async function startServer(opts = {}) {
       }
 
       if (method === "POST" && pathname === "/api/v1/badges/redeem") {
+        const limit = checkRedeemLimit(clientIp);
+        if (!limit.allowed) {
+          sendJson(res, 429, { error: "rate_limited" }, { "Retry-After": String(limit.retryAfterSec) });
+          return;
+        }
         const body = await readJsonBody(req);
         const userId = sanitizeField(body.userId, 128);
         const code = sanitizeField(body.code, 64).toUpperCase();
@@ -168,7 +258,11 @@ export async function startServer(opts = {}) {
           sendJson(res, 400, { error: "missing_fields" });
           return;
         }
-        const entry = store.codes[code];
+        if (!isValidUserId(userId)) {
+          sendJson(res, 400, { error: "invalid_user_id" });
+          return;
+        }
+        const entry = Object.hasOwn(store.codes, code) ? store.codes[code] : null;
         if (!entry) {
           sendJson(res, 404, { error: "invalid_code" });
           return;
@@ -186,7 +280,9 @@ export async function startServer(opts = {}) {
           entry.usesLeft -= 1;
           redeemedBy.push(userId);
         }
-        const user = store.users[userId] || (store.users[userId] = { perks: false, badges: [] });
+        const user = Object.hasOwn(store.users, userId)
+          ? store.users[userId]
+          : (store.users[userId] = { perks: false, badges: [] });
         user.perks = Boolean(user.perks || entry.perks);
         if (entry.badge) {
           mergeBadge(user, normalizeBadge(entry.badge, entry.badge.id || "supporter"));
@@ -198,7 +294,17 @@ export async function startServer(opts = {}) {
       }
 
       if (pathname.startsWith("/api/v1/admin/")) {
+        const adminLimit = checkAdminLimit(clientIp);
+        if (!adminLimit.allowed) {
+          sendJson(res, 429, { error: "rate_limited" }, { "Retry-After": String(adminLimit.retryAfterSec) });
+          return;
+        }
         if (!isAuthorized(req)) {
+          const failLimit = checkAdminFailLimit(clientIp);
+          if (!failLimit.allowed) {
+            sendJson(res, 429, { error: "rate_limited" }, { "Retry-After": String(failLimit.retryAfterSec) });
+            return;
+          }
           sendJson(res, 401, { error: "unauthorized" });
           return;
         }
@@ -211,11 +317,13 @@ export async function startServer(opts = {}) {
         if (method === "POST" && pathname === "/api/v1/admin/grant") {
           const body = await readJsonBody(req);
           const userId = sanitizeField(body.userId, 128);
-          if (!userId) {
-            sendJson(res, 400, { error: "missing_user_id" });
+          if (!isValidUserId(userId)) {
+            sendJson(res, 400, { error: "invalid_user_id" });
             return;
           }
-          const user = store.users[userId] || (store.users[userId] = { perks: false, badges: [] });
+          const user = Object.hasOwn(store.users, userId)
+            ? store.users[userId]
+            : (store.users[userId] = { perks: false, badges: [] });
           if (typeof body.perks === "boolean") {
             user.perks = body.perks;
           } else if (body.perks === undefined && !user.perks) {
@@ -234,13 +342,13 @@ export async function startServer(opts = {}) {
           const body = await readJsonBody(req);
           const userId = sanitizeField(body.userId, 128);
           const badgeId = sanitizeField(body.badgeId || "", 32).toLowerCase();
-          if (!userId) {
-            sendJson(res, 400, { error: "missing_user_id" });
+          if (!isValidUserId(userId)) {
+            sendJson(res, 400, { error: "invalid_user_id" });
             return;
           }
           if (!badgeId || badgeId === "*") {
             delete store.users[userId];
-          } else if (store.users[userId]) {
+          } else if (Object.hasOwn(store.users, userId)) {
             store.users[userId].badges = (store.users[userId].badges || []).filter((b) => b.id !== badgeId);
             if (store.users[userId].badges.length === 0 && !store.users[userId].perks) {
               delete store.users[userId];
@@ -255,10 +363,14 @@ export async function startServer(opts = {}) {
         if (method === "POST" && pathname === "/api/v1/admin/codes") {
           const body = await readJsonBody(req);
           let code = sanitizeField(body.code || "", 64).toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+          if (code && FORBIDDEN_KEYS.has(code)) {
+            sendJson(res, 400, { error: "invalid_code" });
+            return;
+          }
           if (!code) {
             do {
               code = generateCode();
-            } while (store.codes[code]);
+            } while (Object.hasOwn(store.codes, code));
           }
           const badge = normalizeBadge(body.badge || {}, body.badge?.id || "supporter");
           const perks = body.perks !== false;
@@ -288,7 +400,9 @@ export async function startServer(opts = {}) {
     } catch (err) {
       const status = err?.status || 500;
       const code = status === 500 ? "internal_error" : err.message;
-      writeLog(`error status=${status} msg=${err?.message || err}`);
+      if (status >= 500) {
+        writeLog(`error status=${status} msg=${err?.message || err}`);
+      }
       if (!res.headersSent) {
         sendJson(res, status, { error: code });
       }

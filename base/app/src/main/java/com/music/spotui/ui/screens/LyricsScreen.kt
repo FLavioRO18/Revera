@@ -371,7 +371,7 @@ private fun LyricLineText(
     }
     Column(lineModifier) {
         val words = line.words
-        if (state == 0 && words != null) {
+        if (state == 0 && words != null && swept.isWordSynced) {
             // Karaoke: each word goes straight from the upcoming colour to white as it is sung (drawn
             // on each frame, the line is not recomposed). Words in another colour were hard to tell apart.
             val shown = remember(line) { words.joinToString("") { it.text }.trimEnd() }

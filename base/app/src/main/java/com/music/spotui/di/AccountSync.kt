@@ -30,6 +30,17 @@ import com.music.spotui.extensions.ExtensionAudio
  * event; this only translates the app's tracks and commands. One provider at a time: changing it ends
  * the running sync ([providerChanged]).
  */
+internal fun isMirrorEligibleLocal(
+    uriScheme: String?,
+    downloadedTrackId: String?,
+    downloadedIsEpisode: Boolean,
+    online: Boolean,
+): Boolean = when {
+    uriScheme == ExtensionAudio.SCHEME -> true
+    downloadedTrackId != null && !downloadedIsEpisode && online && SpotifySyncRules.isTrackId(downloadedTrackId) -> true
+    else -> false
+}
+
 object AccountSync {
     /** The providers' syncs made so far (each on first use; Spotify's reads its page only once the session runs). */
     private val made = LinkedHashMap<String, ListenSync>()
@@ -165,8 +176,15 @@ object AccountSync {
     /** The local player on [t], whose state is [playing] (play when ready), [positionMs], [durationMs]; the rest read now. */
     fun localNow(t: LocalTrack, playing: Boolean, positionMs: Long, durationMs: Long): LocalNow {
         val (previous, next) = LocalPlayer.neighbourIds()
+        val downloaded = com.music.spotui.data.offline.OfflineStore.byLocalId(t.id)
+        val live = isMirrorEligibleLocal(
+            uriScheme = t.uri.scheme,
+            downloadedTrackId = downloaded?.trackId,
+            downloadedIsEpisode = downloaded?.isEpisode == true,
+            online = com.music.spotui.data.offline.OfflineStore.isOnline(Graph.app),
+        )
         return LocalNow(
-            track = trackOf(t), live = t.uri.scheme == ExtensionAudio.SCHEME,
+            track = trackOf(t), live = live,
             playing = playing, positionMs = positionMs, durationMs = durationMs,
             knownLengthMs = LocalPlayer.knownLength(), buffering = LocalPlayer.isBuffering(), audible = LocalPlayer.isPlaying(),
             rate = LocalPlayer.rate(), repeatsCurrent = LocalPlayer.repeatsCurrent(),

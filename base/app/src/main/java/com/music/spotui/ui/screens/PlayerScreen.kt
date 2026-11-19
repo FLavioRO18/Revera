@@ -1,6 +1,8 @@
 package com.music.spotui.ui.screens
 
 import com.music.spotui.ui.components.mixBeat
+import com.music.spotui.ui.immersive.player.CurrentLyricLine
+import com.music.spotui.ui.immersive.player.PlayerTimeLabels
 import com.music.spotui.ui.components.mixSqueeze
 import com.music.spotui.ui.components.mixWave
 import androidx.compose.ui.draw.drawWithContent
@@ -402,7 +404,7 @@ fun PlayerScreen(navController: NavController) {
         // Without lyrics the strip stays empty (it was taken away for #85: their place came first).
         // Only the setting that hides the card gives the strip to the page.
         // The state is read here too, as the card sits below the page and is not composed to load it.
-        val lyricsState = rememberLyricsState(viewModel<com.music.spotui.ui.viewmodel.LyricsViewModel>(), songTitle, songSinger)
+        val lyricsState = rememberLyricsState(viewModel<com.music.spotui.ui.viewmodel.LyricsViewModel>(), songTitle, songSinger, hold = outgoing != null)
         // A window under 640 dp tall (a small phone, a phone on its side): the fixed gaps of the
         // controls shrink and the lyrics card peeks in less, so the cover keeps a real size (it was
         // 124 dp on a 320 x 568 phone) and the Connect row is not cut off in landscape.
@@ -636,6 +638,16 @@ fun PlayerScreen(navController: NavController) {
             // Immersive mode keeps none of this: the compact strip at the bottom of
             // the screen replaces the title block and every control.
             if (!immersive) {
+                if (com.music.spotui.data.preferences.PlayerLyricsCardPref.shown && !adPlaying) {
+                    CurrentLyricLine(
+                        lyricsState = lyricsState,
+                        playing = songPlayingState && !audioBuffering,
+                        position = { blend?.takeIf { outgoing != null }?.positionMs() ?: mv.position() },
+                        onOpenLyrics = { showLyrics = true },
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        visible = !showLyrics,
+                    )
+                }
                 PlayerInfo(
                     songTitle = outgoing?.title ?: songTitle,
                     songSinger = outgoing?.artist ?: songSinger,
@@ -683,12 +695,7 @@ fun PlayerScreen(navController: NavController) {
                         .padding(horizontal = 24.dp)
                         .padding(top = if (shortWindow) 6.dp else 11.dp),
                 )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                PlayerTimeLabels(Modifier.padding(horizontal = 24.dp)) {
                     ElapsedLabel(songPlayingState, if (isDragging) (dragValue * duration).toLong() else null,
                         position = outgoingAt?.let { o -> { o.positionMs() } } ?: mv::position) {
                         playerViewModel.formatDuration(it)
@@ -1491,7 +1498,7 @@ fun PlayerConnectRow(
         // Spotify Connect: current device, opens the device picker.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.heightIn(min = com.music.spotui.ui.components.MinTouch).clickable(
+            modifier = Modifier.weight(1f, fill = false).heightIn(min = com.music.spotui.ui.components.MinTouch).clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
             ) { onDevices() },

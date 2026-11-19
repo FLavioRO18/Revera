@@ -178,8 +178,8 @@ class TrackAnalysis(
             val duration = i.readDouble(); val cs = i.readDouble(); val ce = i.readDouble(); val loud = i.readDouble()
             val key = i.readInt(); val ks = i.readDouble(); val bpm = i.readDouble(); val steady = i.readBoolean()
             val head = readGrid(i); val tail = readGrid(i)
-            val beats = DoubleArray(i.readInt()) { i.readDouble() }
-            val n = i.readInt()
+            val beats = DoubleArray(readCount(i)) { i.readDouble() }
+            val n = readCount(i)
             val starts = DoubleArray(n) { i.readDouble() }
             val arrays = List(5) { FloatArray(n) { i.readFloat() } }
             val phrase = i.readInt(); val stereo = i.readBoolean(); val headDown = i.readDouble(); val tailDown = i.readDouble(); val note = i.readUTF()
@@ -187,8 +187,10 @@ class TrackAnalysis(
             val audioKey = i.readUTF()
             val bass = FloatArray(n) { i.readFloat() }
             val headPhase = readPhase(i); val tailPhase = readPhase(i); val headMetre = i.readFloat(); val tailMetre = i.readFloat()
-            val modelBeats = DoubleArray(i.readInt()) { i.readDouble() }
-            val barDown = FloatArray(i.readInt()) { i.readFloat() }
+            val modelBeats = DoubleArray(readCount(i)) { i.readDouble() }
+            val downCount = readCount(i)
+            if (downCount != 0 && downCount != n) return null
+            val barDown = FloatArray(downCount) { i.readFloat() }
             return TrackAnalysis(duration, cs, ce, loud, key, ks, bpm, steady, head, tail, beats, starts,
                 arrays[0], arrays[1], arrays[2], arrays[3], arrays[4], phrase, stereo, headDown, tailDown, note, vocal,
                 audioKey, bass, headPhase, tailPhase, headMetre, tailMetre, modelBeats, barDown)
@@ -196,6 +198,10 @@ class TrackAnalysis(
 
         private fun gridKey(g: Grid, down: Double): String = app.myspoti.automix.segue.SegueCodec.hex(
             "${Math.round(g.first * 1e6)}|${Math.round(g.period * 1e9)}|${g.count}|${if (down.isNaN()) "-" else Math.round(down * 1e6).toString()}".toByteArray())
+
+        private fun readCount(i: DataInputStream): Int = i.readInt().also {
+            if (it !in 0..100_000) throw java.io.IOException("invalid analysis array length")
+        }
 
         private fun writePhase(o: DataOutputStream, p: PhaseStats?) {
             o.writeBoolean(p != null)

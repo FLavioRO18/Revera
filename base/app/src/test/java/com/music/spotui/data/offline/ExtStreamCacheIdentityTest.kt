@@ -24,17 +24,22 @@ class ExtStreamCacheIdentityTest {
         AudioStream(url = url, headers = emptyMap(), mimeType = "audio/flac", durationMs = 165_000, providerId = "audio.example",
             bitDepth = bits, sampleRate = rate, codec = "FLAC", source = "Example")
 
-    @Test fun anotherFileIsAnotherIdentityAndANewAddressIsNot() {
-        assertEquals(ExtStreamCache.identity(flac(16, 44_100)), ExtStreamCache.identity(flac(16, 44_100, url = "https://example.invalid/b")))
+    @Test fun anotherFileIsAnotherIdentityAndANewTokenIsNot() {
+        assertEquals(ExtStreamCache.identity(flac(16, 44_100, url = "https://example.invalid/a?token=old")),
+            ExtStreamCache.identity(flac(16, 44_100, url = "https://example.invalid/a?token=new")))
+        assertNotEquals(ExtStreamCache.identity(flac(16, 44_100)), ExtStreamCache.identity(flac(16, 44_100, url = "https://example.invalid/b")))
+        // Same recording can share analysis but never identifies the same encoded bytes.
+        assertNotEquals(ExtStreamCache.identity(flac(16, 44_100).copy(recordingId = "studio")),
+            ExtStreamCache.identity(flac(24, 48_000).copy(recordingId = "studio")))
         assertNotEquals(ExtStreamCache.identity(flac(16, 44_100)), ExtStreamCache.identity(flac(24, 48_000)))
     }
 
     @Test fun theCacheGoesOnlyWhenTheFileChanges() {
         val app = RuntimeEnvironment.getApplication()
         // Never seen: whatever is cached for the song is not known to be this file.
-        assertTrue(ExtStreamCache.answered(app, "t1", flac(16, 44_100)))
+        assertTrue(ExtStreamCache.answered(app, "t1", flac(16, 44_100, url = "https://example.invalid/a?token=old")))
         // The same file again (a new address, a retry): the cache stays.
-        assertFalse(ExtStreamCache.answered(app, "t1", flac(16, 44_100, url = "https://example.invalid/b")))
+        assertFalse(ExtStreamCache.answered(app, "t1", flac(16, 44_100, url = "https://example.invalid/a?token=new")))
         // Another master: dropped, and then kept for it.
         assertTrue(ExtStreamCache.answered(app, "t1", flac(24, 48_000)))
         assertFalse(ExtStreamCache.answered(app, "t1", flac(24, 48_000)))

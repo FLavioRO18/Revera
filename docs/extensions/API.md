@@ -389,6 +389,7 @@ asked in the user's order, Spotify included; the ones under Spotify are not aske
   mimeType: 'audio/mp4',                  // optional
   durationMs: 215000,                     // optional
   expiresInMs: 300000,                    // optional: how long the address stays good
+  recordingId: 'provider-123-master-v1',  // optional: exact recording and playback timeline across encodings
   codec: 'flac', bitDepth: 24, sampleRate: 96000,  // optional: the quality, shown as you say it
   source: 'FLAC · 16-bit · 44.1 kHz' }    // optional: free text shown when the three above are absent (80 characters)
 ```
@@ -417,6 +418,13 @@ shown instead (80 characters at most; feature `audio.source`), else nothing. Fea
 No `url` (or a null answer) means "no audio for this song". A `file:`/`content:` URL or a
 private address is an error. Note the returned `url` is checked for being public, not against your
 `network` hosts.
+
+**AutoMix reuse.** `recordingId` is optional for URLs and DASH (1–128 characters, no whitespace
+or control characters). Only set it with a positive `durationMs` if you can guarantee that
+the encodings with this ID are the same master and have the same playback time zero and cue
+positions. Use a different ID for edits, changed timing or another master; a Spotify ID, ISRC,
+title or duration alone is not sufficient evidence. The app scopes this ID to the track and
+answering extension. It is not a media byte-cache key.
 
 **When it is asked.** Every play of a song goes to the active `audio-source` extension first,
 wherever it starts: a list or an album, a search result, an artist, Home, Recents, shuffle, a

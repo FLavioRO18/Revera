@@ -94,6 +94,8 @@ class Media3DrmPlayer(
     /** Asks MediaDrm for L3 even on an L1 phone: a diagnostic for licences refused on L1. */
     private val forceL3: Boolean = false,
     looper: Looper? = null,
+    /** The phone app's call-scoped policy. Read on the player thread; Wear keeps normal focus. */
+    private val relaxAudioFocus: () -> Boolean = { false },
 ) : DrmPlayer {
     /**
      * The player paused itself (audio focus lost for good, headphones unplugged): the caller should
@@ -132,6 +134,8 @@ class Media3DrmPlayer(
     private var volume = 1f
     private var playbackSpeed = 1f
     private var muted = false
+    private var released = false
+    private val managesAudioFocus: Boolean get() = !muted && !relaxAudioFocus()
     /** The audio renderer, decoding or silent (see [MirrorAudioRenderer]); set when the player is built. */
     private var audioRenderer: MirrorAudioRenderer? = null
 
@@ -182,7 +186,7 @@ class Media3DrmPlayer(
             .setContinueLoadingCheckIntervalBytes(128 * 1024)
         exo = ExoPlayer.Builder(app, Renderers())
             .setLooper(handler.looper)
-            .setAudioAttributes(MUSIC, true)
+            .setAudioAttributes(MUSIC, managesAudioFocus)
             .setHandleAudioBecomingNoisy(true)
             .setWakeMode(C.WAKE_MODE_NETWORK)
             // The Web Player kept 10-20 s ahead (two segments at start, then one every 10 s).
@@ -338,11 +342,18 @@ class Media3DrmPlayer(
     override fun setMuted(muted: Boolean) = onPlayer {
         if (this.muted == muted) return@onPlayer
         this.muted = muted
-        exo.setAudioAttributes(MUSIC, !muted)
+        applyAudioFocus()
         exo.setHandleAudioBecomingNoisy(!muted)
         exo.volume = if (muted) 0f else volume
         audioRenderer?.let { exo.createMessage(it).setType(MirrorAudioRenderer.MSG_SET_SILENT).setPayload(muted).send() }
         log("player: ${if (muted) "silent (mirror, not decoded)" else "decoded and heard"}")
+    }
+
+    private fun applyAudioFocus() { exo.setAudioAttributes(MUSIC, managesAudioFocus) }
+
+    /** Focus updates shouldn't wait behind a load's network/DRM work. Read the latest policy here. */
+    fun refreshAudioFocus() {
+        handler.post { if (!released && ::exo.isInitialized) applyAudioFocus() }
     }
 
     override fun metrics(): PlaybackMetrics {
@@ -367,6 +378,7 @@ class Media3DrmPlayer(
             preloads.values.forEach(::releaseOnPlayback)
             preloads.clear()
             if (drmHeld) Handler(exo.playbackLooper).post { drm.release() }
+            released = true
             exo.release()
         }
         thread?.quitSafely()

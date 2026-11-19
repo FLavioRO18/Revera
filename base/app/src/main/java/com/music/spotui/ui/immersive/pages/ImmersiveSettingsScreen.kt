@@ -357,6 +357,14 @@ private fun PlaybackPage(navController: NavController, open: (SettingsPage) -> U
             }
             row {
                 ImmersiveSwitchRow(
+                    stringResource(R.string.music_during_calls_title),
+                    checked = com.music.spotui.data.preferences.MusicDuringCallsPref.on,
+                    onChecked = { com.music.spotui.data.preferences.MusicDuringCallsPref.set(ctx, it) },
+                    detail = stringResource(R.string.music_during_calls_detail),
+                )
+            }
+            row {
+                ImmersiveSwitchRow(
                     stringResource(R.string.myspoti_shuffle_title),
                     checked = com.music.spotui.data.preferences.AppShufflePref.on,
                     onChecked = { com.music.spotui.data.preferences.AppShufflePref.set(ctx, it) },

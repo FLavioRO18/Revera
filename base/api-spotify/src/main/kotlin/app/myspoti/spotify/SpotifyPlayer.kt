@@ -702,11 +702,13 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         fun describe() = "paused=$paused muted=$muted volume=$level own=$own t=${"%.1f".format(time)} ready=$readyState net=$networkState error=${error ?: "none"} keys=$keys keyWaits=$keyWaits active=$active"
     }
 
-    private suspend fun readMedia(): Media? {
+    private suspend fun readMedia(requirePauseEvidence: Boolean = false): Media? {
         val o = bridge.call("media.state", timeoutMs = MEDIA_TIMEOUT_MS, quiet = true) as? JsonObject ?: return null
         fun p(k: String) = o[k] as? kotlinx.serialization.json.JsonPrimitive
+        val paused = p("paused")?.booleanOrNull
+        if (requirePauseEvidence && paused == null) return null
         return Media(
-            paused = p("paused")?.booleanOrNull ?: true,
+            paused = paused ?: true,
             muted = p("muted")?.booleanOrNull ?: false,
             level = p("level")?.doubleOrNull ?: 1.0,
             own = p("own")?.doubleOrNull ?: 1.0,
@@ -1832,6 +1834,13 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     }
 
     override suspend fun pause() = pauseOver(PAUSE_MS)
+
+    /** A handoff needs local output confirmation, not a Connect pause command's reply alone. */
+    suspend fun outputPausedForHandoff(): Boolean {
+        if (_shown.value?.isPaused != true || _adPlaying.value || mirroring) return false
+        if (engineHolds()) return outside()?.now?.value?.let { !it.playing && !it.buffering } == true
+        return readMedia(requirePauseEvidence = true)?.let { it.paused && it.active != false } == true
+    }
 
     /** The sleep timer's end: the same pause over [fadeMs], and the level back for the next play. A cancel keeps the song playing. */
     override suspend fun pauseSlowly(fadeMs: Long) = pauseOver(fadeMs)

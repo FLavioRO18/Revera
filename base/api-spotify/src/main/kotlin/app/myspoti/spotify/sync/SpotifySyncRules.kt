@@ -15,13 +15,15 @@ object SpotifySyncRules {
 
     /**
      * The list the page plays [trackUri] in: the local queue's Spotify list ([contextUri]), so
-     * other devices see that queue after it, else the track alone. Never an artist: its context is
-     * only the artist's top songs, a song of a list taken from an artist page (a mix, the radio,
-     * other artists) is often not in it, and the page then plays the artist's first song instead.
-     * Nor a list that already put the page on another song ([missed]).
+     * other devices see that queue after it, else the track alone. A single-track context cannot
+     * select a different song, and an artist's context is only its top songs, not mixes or radio
+     * opened from its page. Also exclude any context that already put the page on another song.
      */
     fun playContext(contextUri: String, trackUri: String, missed: Set<String>): String =
-        contextUri.takeIf { it.startsWith("spotify:") && !it.startsWith("spotify:artist:") && it !in missed } ?: trackUri
+        contextUri.takeIf {
+            it.startsWith("spotify:") && !it.startsWith(TRACK_PREFIX) &&
+                !it.startsWith("spotify:artist:") && it !in missed
+        } ?: trackUri
 
     /**
      * Spotify's own app on this very phone, when it is the device playing: active, not this app's

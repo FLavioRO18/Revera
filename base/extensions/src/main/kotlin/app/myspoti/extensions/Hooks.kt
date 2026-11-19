@@ -122,6 +122,8 @@ data class AudioStream(
      */
     val source: String? = null,
     val transform: FileTransform? = null,
+    /** Provider-scoped identity of the exact recording and playback timeline, stable across encodings. */
+    val recordingId: String? = null,
 ) {
     /** How long the app keeps this answer: [expiresInMs], at most [maxMs]. */
     fun keepMs(maxMs: Long): Long = expiresInMs?.coerceIn(0, maxMs) ?: maxMs
@@ -141,7 +143,7 @@ data class AudioStream(
         private const val MAX_SOURCE = 80
 
         /**
-         * `{ url | manifest, headers?, mimeType?, durationMs?, expiresInMs?, bitDepth?, sampleRate?, codec?, source? }`;
+         * `{ url | manifest, headers?, mimeType?, durationMs?, expiresInMs?, bitDepth?, sampleRate?, codec?, source?, recordingId? }`;
          * null when the extension has no audio for it.
          */
         fun parse(json: String): AudioStream? {
@@ -151,8 +153,10 @@ data class AudioStream(
             val duration = (o["durationMs"] as? JsonPrimitive)?.longOrNull
             val source = (o["source"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.replace(Regex("\\s+"), " ")?.trim()
                 ?.take(MAX_SOURCE)?.ifBlank { null }
+            val recordingId = (o["recordingId"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ?.takeIf { it.length in 1..128 && it.none { c -> c.isWhitespace() || c.isISOControl() } }
             val base = AudioStream(
-                "", headersOf(o["headers"]), mime, duration, source = source,
+                "", headersOf(o["headers"]), mime, duration, source = source, recordingId = recordingId,
                 expiresInMs = long("expiresInMs")?.coerceAtLeast(0),
                 bitDepth = long("bitDepth")?.toInt()?.takeIf { it in 8..32 },
                 sampleRate = long("sampleRate")?.toInt()?.takeIf { it in 8_000..768_000 },

@@ -2,16 +2,19 @@
 package com.music.spotui.di
 
 /**
- * Music through a call. The web player's audio holds no audio focus, so a call only muted it: the
- * song went on unheard (reported). It pauses when the call comes and plays again after, unless the
- * user touched the player meanwhile or the call lasted so long that music coming back would surprise.
+ * Fallback for playback that needs an explicit call pause. Resume only what we paused, unless the
+ * user acted meanwhile, enabled playback during calls, or the pause is too old.
  */
 internal class CallPause(private val longestMs: Long = 30 * 60_000L) {
     enum class Action { PAUSE, RESUME, NONE }
 
     private var heldAt: Long? = null
 
-    fun modeChanged(busy: Boolean, playing: Boolean, nowMs: Long): Action {
+    fun modeChanged(busy: Boolean, playing: Boolean, nowMs: Long, allowMusic: Boolean = false): Action {
+        if (allowMusic) {
+            heldAt = null
+            return Action.NONE
+        }
         val held = heldAt
         return when {
             busy && held == null && playing -> { heldAt = nowMs; Action.PAUSE }
@@ -23,3 +26,6 @@ internal class CallPause(private val longestMs: Long = 30 * 60_000L) {
 
     fun userActed() { heldAt = null }
 }
+
+/** Never change normal media-focus handling merely because the preference is on. */
+internal fun shouldRelaxCallFocus(optedIn: Boolean, busy: Boolean): Boolean = optedIn && busy

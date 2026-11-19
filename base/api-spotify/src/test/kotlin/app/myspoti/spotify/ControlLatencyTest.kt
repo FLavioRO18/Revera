@@ -21,6 +21,7 @@ class ControlLatencyTest {
         override val messages = MutableSharedFlow<String>(extraBufferCapacity = 64)
         val calls = CopyOnWriteArrayList<Triple<String, String, Long>>()
         var now = { 0L }
+        var mediaPaused = false
         private val gates = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
 
         fun block(method: String) {
@@ -37,7 +38,7 @@ class ControlLatencyTest {
             calls += Triple(method, m.groupValues[3], now())
             gates[method]?.await()
             val value = if (method == "media.state") {
-                """{"paused":false,"muted":false,"level":1,"own":1,"time":10,"active":true}"""
+                """{"paused":$mediaPaused,"muted":false,"level":1,"own":1,"time":10,"active":true}"""
             } else "null"
             messages.emit("""{"type":"result","id":${m.groupValues[1]},"ok":true,"value":$value}""")
         }
@@ -136,6 +137,18 @@ class ControlLatencyTest {
         delay(40)
         assertEquals(1, called("player.pause"))
         pausing.await()
+    }
+
+    @Test fun `handoff requires paused state and a fresh paused element reading`() = time.test {
+        playing()
+        player.pause()
+        assertEquals(1, called("player.pause"))
+        assertEquals(false, player.outputPausedForHandoff(), "pause reply is not a paused state")
+        host.post("""{"type":"state","state":{"track":${track("A")},"contextUri":"spotify:playlist:C","isPaused":true,"isBuffering":false,"positionMs":10160,"timestamp":${time.now()},"restrictions":{}}}""")
+        time.waitFor("paused state", 1_000) { player.state.value?.isPaused == true }
+        assertEquals(false, player.outputPausedForHandoff(), "the element is still playing")
+        host.mediaPaused = true
+        assertEquals(true, player.outputPausedForHandoff())
     }
 
     @Test fun `fallback rise keeps its grace after the next song is reported`() = time.test {

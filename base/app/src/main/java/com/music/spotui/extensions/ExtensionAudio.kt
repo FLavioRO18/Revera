@@ -8,8 +8,7 @@ import com.music.spotui.data.local.LocalTrack
 import com.music.spotui.data.offline.OfflineStore
 import com.music.spotui.di.LocalPlayer
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -113,6 +112,7 @@ object ExtensionAudio {
                 s.sampleRate?.let { put("rate", kotlinx.serialization.json.JsonPrimitive(it)) }
                 s.codec?.let { put("codec", kotlinx.serialization.json.JsonPrimitive(it)) }
                 s.source?.let { put("source", kotlinx.serialization.json.JsonPrimitive(it)) }
+                s.recordingId?.let { put("recordingId", kotlinx.serialization.json.JsonPrimitive(it)) }
             }.toString()
             runCatching {
                 val p = prefs
@@ -137,7 +137,7 @@ object ExtensionAudio {
                     fun num(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
                     val headers = (o["headers"] as? kotlinx.serialization.json.JsonObject)?.mapValues { (it.value as kotlinx.serialization.json.JsonPrimitive).content }.orEmpty()
                     val s = AudioStream(str("url").orEmpty(), headers, str("mime"), num("duration"), str("provider"), str("manifest"),
-                        num("expires"), num("bits")?.toInt(), num("rate")?.toInt(), str("codec"), str("source"))
+                        num("expires"), num("bits")?.toInt(), num("rate")?.toInt(), str("codec"), str("source"), recordingId = str("recordingId"))
                     val k = Known(s, num("at") ?: 0L)
                     if (k.fresh && known[id] == null) known[id] = k
                 }
@@ -148,20 +148,34 @@ object ExtensionAudio {
     /** [stream], from the source picked for it in the player (SongPlayer.switchSource), is the song [trackId]'s audio from now on. */
     fun use(trackId: String, stream: AudioStream) = keep(trackId, stream)
 
+    internal fun hasFreshAnswer(trackId: String): Boolean {
+        Saved.load()
+        return known[trackId]?.fresh == true
+    }
+
+    internal data class Handoff(val tracks: List<LocalTrack>, val index: Int, val stream: AudioStream)
+
+    /** Resolve in the ordinary provider order, without changing the active player or answer cache. */
+    internal suspend fun prepareHandoff(trackId: String, songs: List<SongsModel>?, song: SongsModel?): Handoff? {
+        picking.incrementAndGet()
+        try {
+            return withContext(Dispatchers.IO) {
+                val list = AudioRoute.songsFor(trackId, songs) { song ?: lookup(trackId) } ?: return@withContext null
+                val picked = list.first { it.spotifyTrackId == trackId }
+                if (!Extensions.awaitStarted(START_WAIT_MS)) return@withContext null
+                val info = Extensions.trackInfo(trackId, picked.title, picked.singer, picked.album, picked.durationMs.toLong(), picked.coverUri)
+                val stream = Extensions.audio(info) ?: return@withContext null
+                val (queue, index) = AudioRoute.queue(list, picked)
+                Handoff(queue.map(::localTrack), index, stream)
+            }
+        } finally {
+            picking.decrementAndGet()
+        }
+    }
+
     private val warming = ConcurrentHashMap.newKeySet<String>()
-
-    /** The songs whose extension answer is still awaited after Spotify started them ([playList]). */
-    private val awaited = ConcurrentHashMap.newKeySet<String>()
-
-    /** Whether the answer for [trackId] is still awaited: Spotify plays it for now, not for want of the extensions. */
-    fun awaiting(trackId: String): Boolean = trackId in awaited
-
     /** How long a song asked right after launch waits for the extensions to finish starting. */
     private const val START_WAIT_MS = 20_000L
-
-    /** Asks that outlive a tap's wait (see [playList]). */
-    private val late = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
-
     /** Taps being answered ([playList]): asking ahead waits, the extension's one thread is theirs. */
     private val picking = java.util.concurrent.atomic.AtomicInteger()
 
@@ -273,8 +287,7 @@ object ExtensionAudio {
         if (!OfflineStore.isDownloaded(picked.spotifyTrackId)) {
             // A tap waits [Extensions.PICK_AUDIO_MS] for the extensions, then Spotify plays the song.
             // The outer bound also covers a wait in the extension's queue or for extensions still loading.
-            // The ask itself goes on longer: an answer that comes after Spotify started the song
-            // takes it back to the extension where it is ([late]), rather than the user doing so by hand.
+            // The direct path has no safe handoff after fallback; do not detach the resolution.
             picking.incrementAndGet()
             val cached = known[picked.spotifyTrackId]?.takeIf { it.fresh }?.stream
             // Right after a launch the extension may still be starting: its "none" then only means it
@@ -282,25 +295,16 @@ object ExtensionAudio {
             // Spotify, and the song was then held there for the whole session).
             val wasStarting = Extensions.starting()
             val info = Extensions.trackInfo(picked.spotifyTrackId, picked.title, picked.singer, picked.album, picked.durationMs.toLong(), picked.coverUri)
-            val ask = if (cached != null) null else late.async {
-                Extensions.audio(info, timeoutMs = Extensions.AUDIO_MS)
-                    ?: if (wasStarting && Extensions.awaitStarted(START_WAIT_MS)) Extensions.audio(info, timeoutMs = Extensions.AUDIO_MS) else null
-            }
             val first = try {
-                cached ?: withTimeoutOrNull(Extensions.PICK_AUDIO_MS + 1_000) { ask!!.await() }
+                cached ?: withTimeoutOrNull(Extensions.PICK_AUDIO_MS + 1_000) {
+                    Extensions.audio(info, timeoutMs = Extensions.AUDIO_MS)
+                        ?: if (wasStarting && Extensions.awaitStarted(START_WAIT_MS)) Extensions.audio(info, timeoutMs = Extensions.AUDIO_MS) else null
+                }
             } finally { picking.decrementAndGet() } ?: run {
-                if (ask != null && !ask.isCompleted) {
-                    app.myspoti.host.android.Logbook.log("audio: no extension audio for ${picked.title} within ${(Extensions.PICK_AUDIO_MS + 1_000) / 1000} s: Spotify plays it, the extension's answer is still awaited")
-                    awaited.add(picked.spotifyTrackId)
-                    late.launch {
-                        val s = try { runCatching { ask.await() }.getOrNull() } finally { awaited.remove(picked.spotifyTrackId) } ?: return@launch
-                        keep(picked.spotifyTrackId, s)
-                        withContext(Dispatchers.Main) { com.music.spotui.di.SongPlayer.extensionAnsweredLate(picked.spotifyTrackId) }
-                    }
-                } else app.myspoti.host.android.Logbook.log("audio: no extension had ${picked.title}: Spotify plays it")
+                app.myspoti.host.android.Logbook.log("audio: no timely extension answer for ${picked.title}")
                 return false
             }
-            keep(picked.spotifyTrackId, first)
+            if (cached == null) withContext(Dispatchers.Main) { if (isLatest()) keep(picked.spotifyTrackId, first) }
         }
         // A newer tap answered meanwhile: nothing to build. The queue of a list of thousands (Liked
         // Songs) is built off the main thread: built on it, it held the screen until an ANR (#.money0).
@@ -372,13 +376,14 @@ object ExtensionAudio {
             ?: if (Extensions.hasAudioSource()) localTrack(s) else null
 
     /** The song's title, artists, album and length from Spotify, for a play that knows only its uri. */
-    private suspend fun lookup(trackId: String): SongsModel? = runCatching {
-        kotlinx.coroutines.withTimeout(LOOKUP_MS) {
+    private suspend fun lookup(trackId: String): SongsModel? = try {
+        withTimeoutOrNull(LOOKUP_MS) {
             val api = app.myspoti.host.android.MyspotiRuntime.api
             api.ready.first { it }
             com.music.spotui.di.Graph.api.songOf(api.catalog.track("spotify:track:$trackId"))
         }
-    }.getOrNull()
+    } catch (e: CancellationException) { throw e }
+    catch (_: Exception) { null }
 
     private const val LOOKUP_MS = 10_000L
 }

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // The Wear OS app: the native engine and its Android player on the watch (no WebView there), with
 // the account's session and the list of playlists asked to the phone's app over the Wearable Data
 // Layer. Same application id and signature as the phone's app: the Data Layer only links those.
@@ -6,26 +8,49 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Match :app's signing inputs and precedence. Resolve a relative CI path from base/app, as :app does.
+val envStore = providers.environmentVariable("MYSPOTI_KEYSTORE").orNull
+val localSigning = rootProject.layout.projectDirectory.file("keystore/keystore.properties")
+val localSigningBytes = providers.fileContents(localSigning).asBytes.orNull
+val hasReleaseKey = envStore != null || localSigningBytes != null
+val automixLab = providers.gradleProperty("automixLab").isPresent
+val overDev = providers.gradleProperty("overDev").isPresent
+
 android {
     namespace = "app.myspoti.wear"
     compileSdk = 37
 
     val version = (findProperty("appVersionName") as String?) ?: "1.0.4"
-    val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        applicationId = "app.revera"
+        applicationId = if (automixLab) "app.revera.automixlab" else "app.revera"
         minSdk = 30
         targetSdk = 36
         versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 204
         versionName = version
     }
+    signingConfigs {
+        create("release") {
+            if (envStore != null) {
+                storeFile = rootProject.file("app").resolve(envStore)
+                storePassword = providers.environmentVariable("MYSPOTI_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("MYSPOTI_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("MYSPOTI_KEY_PASSWORD").orNull
+            } else if (localSigningBytes != null) {
+                val properties = Properties().apply { localSigningBytes.inputStream().use { load(it) } }
+                storeFile = rootProject.file("keystore/${properties.getProperty("storeFile")}")
+                storePassword = properties.getProperty("storePassword")
+                keyAlias = properties.getProperty("keyAlias")
+                keyPassword = properties.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
-        debug { applicationIdSuffix = ".dev" }
+        debug { if (!automixLab) applicationIdSuffix = ".dev" }
         release {
+            if (overDev && !automixLab) applicationIdSuffix = ".dev"
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // The phone's release key in CI (the two apps must be signed alike); the debug key locally.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
     }
     buildFeatures { compose = true }

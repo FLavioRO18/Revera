@@ -514,12 +514,19 @@ class ContextViewModel(
         // Local files of the playlist (Spotify holds their tags only): one found on this device
         // plays from there, with the other such files of the list; one not found cannot play,
         // the next song that can does.
+        val app = Graph.app
+        val store = com.music.spotui.data.offline.OfflineStore
+        val limited = com.music.spotui.data.DataSaver.active || !store.isOnline(app)
         with(com.music.spotui.data.local.LocalFileMatch) {
             val sorted = sort.apply(p.tracks)
             if (song.isUnmatchedLocal) {
                 val after = sorted.drop(sorted.indexOfFirst { it.id == song.id && it.rowUid == song.rowUid } + 1)
                 val next = (after + sorted).firstOrNull { !it.isUnmatchedLocal } ?: return
                 return play(p, next, sort)
+            }
+            if (!limited && !com.music.spotui.extensions.Extensions.hasAudioSource() && com.music.spotui.di.MixedPlaylistQueue.isMixed(sorted)) {
+                com.music.spotui.di.MixedPlaylistQueue.start(sorted, song, state.shuffle.value, p.name, p.uri)
+                return
             }
             if (song.isDeviceFile) {
                 viewModelScope.launch {
@@ -534,9 +541,6 @@ class ContextViewModel(
         // No connection (the Web Player cannot stream), or the data saver on mobile data:
         // the page's downloaded songs play from the phone. Online, a downloaded song also plays
         // from its file when the whole list is downloaded (it used to stream anyway).
-        val app = Graph.app
-        val store = com.music.spotui.data.offline.OfflineStore
-        val limited = com.music.spotui.data.DataSaver.active || !store.isOnline(app)
         val ids = com.music.spotui.data.offline.LocalPlayPlan.localIds(
             sort.apply(p.tracks).map { it.spotifyTrackId }, song.spotifyTrackId, p.complete,
             offline = !store.isOnline(app), dataSaver = com.music.spotui.data.DataSaver.active, isDownloaded = store::isDownloaded,

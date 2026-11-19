@@ -25,7 +25,6 @@ import java.util.concurrent.TimeUnit
 
 object BadgeClient {
     private const val PREFS = "badges_prefs"
-    private const val KEY_CUSTOM_URL = "custom_server_url"
     private const val KEY_LAST_USER = "last_user_id"
     private const val KEY_RAW_PREFIX = "raw_"
     private const val PROFILE_CACHE_TTL_MS = 60_000L
@@ -64,21 +63,6 @@ object BadgeClient {
             .build()
     }
 
-    fun isConfigurableBuild(): Boolean =
-        BuildConfig.DEBUG || BuildConfig.APPLICATION_ID.endsWith(".dev") || BuildConfig.APPLICATION_ID.endsWith(".beta")
-
-    fun customServerUrl(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CUSTOM_URL, "").orEmpty().trim()
-
-    fun setCustomServerUrl(context: Context, url: String) {
-        val cleaned = url.trim().trimEnd('/')
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_CUSTOM_URL, cleaned)
-            .apply()
-        profileCache.clear()
-    }
-
     private fun isEmulator(): Boolean {
         val fp = Build.FINGERPRINT.orEmpty()
         val hw = Build.HARDWARE.orEmpty()
@@ -91,13 +75,8 @@ object BadgeClient {
             model.contains("Android SDK built for", ignoreCase = true)
     }
 
-    fun baseUrl(context: Context?): String {
-        val configured = if (context != null && isConfigurableBuild()) {
-            customServerUrl(context).ifBlank { BuildConfig.BADGE_SERVER_URL }
-        } else {
-            BuildConfig.BADGE_SERVER_URL
-        }
-        val trimmed = configured.trim().trimEnd('/')
+    fun baseUrl(@Suppress("UNUSED_PARAMETER") context: Context?): String {
+        val trimmed = BuildConfig.BADGE_SERVER_URL.trim().trimEnd('/')
         if (trimmed.isBlank()) return ""
         return if (isEmulator() && trimmed.startsWith("http://127.0.0.1")) {
             "http://10.0.2.2" + trimmed.removePrefix("http://127.0.0.1")
@@ -154,7 +133,7 @@ object BadgeClient {
             val issuedAt = obj.optLong("issuedAt", 0L)
             val expiresAt = obj.optLong("expiresAt", 0L)
             if (issuedAt <= 0L || expiresAt <= nowMs) return null
-            val key = pinnedKeyB64.ifBlank { obj.optString("publicKey", "") }.trim()
+            val key = pinnedKeyB64.trim()
             if (key.isBlank()) return null
             val signature = obj.optString("signature", "")
             val arr = obj.optJSONArray("badges")

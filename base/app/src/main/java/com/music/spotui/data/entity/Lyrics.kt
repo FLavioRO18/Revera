@@ -52,7 +52,7 @@ data class Lyrics(
     val translationLanguage: String? = null,
 ) {
     val isEmpty: Boolean get() = lines.isEmpty()
-    val wordSynced: Boolean get() = lines.any { it.words != null }
+    val wordSynced: Boolean get() = lines.any { line -> line.words?.any { it.text.isNotBlank() } == true }
 
     /** Some lines carry a romanization from the source. */
     val hasRomanization: Boolean get() = lines.any { !it.romanization.isNullOrBlank() }
