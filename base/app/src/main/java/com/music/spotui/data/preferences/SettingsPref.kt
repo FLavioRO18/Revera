@@ -146,9 +146,10 @@ object ConnectMirrorPref {
     private fun initial(c: Context): Boolean {
         val p = prefs(c)
         if (p.contains(KEY)) return p.getBoolean(KEY, false)
-        // Never set: an update of an older install had it on by default, a new install starts off.
-        val updated = runCatching { c.packageManager.getPackageInfo(c.packageName, 0).let { it.lastUpdateTime > it.firstInstallTime } }
-            .getOrDefault(false)
+        // Never set: an update of an older install or a TV had it on by default, a new phone install starts off.
+        val updated = com.music.spotui.ui.tv.Tv.isTv(c) ||
+            runCatching { c.packageManager.getPackageInfo(c.packageName, 0).let { it.lastUpdateTime > it.firstInstallTime } }
+                .getOrDefault(false)
         p.edit().putBoolean(KEY, updated).apply()
         return updated
     }

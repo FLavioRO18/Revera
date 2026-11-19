@@ -27,6 +27,13 @@ object TvCaps {
     /** On a TV: what has no screen there is turned off, and the energy saver on for a weak one. */
     fun apply(context: Context) {
         if (!Tv.isTv(context)) return
+        val prefs = context.getSharedPreferences("myspoti_prefs", Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("tv_mirror_seeded", false)) {
+            prefs.edit().putBoolean("tv_mirror_seeded", true).apply()
+            if (!com.music.spotui.data.preferences.ConnectMirrorPref.on) {
+                com.music.spotui.data.preferences.ConnectMirrorPref.set(context, true)
+            }
+        }
         val c = runCatching { probe(context) }.getOrNull() ?: return
         // Analysing every song (Beat This on ONNX) for a mix whose settings the TV does not show.
         if (com.music.spotui.automix.AutoMix.on) com.music.spotui.automix.AutoMix.set(false)

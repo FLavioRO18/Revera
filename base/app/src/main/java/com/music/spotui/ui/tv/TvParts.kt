@@ -95,7 +95,7 @@ internal val TvTitle = Color(0xFFF2F2F5)
 internal val TvSubtle = Color(0xFF8A8A8E)
 
 /** The tabs of the floating bar, in their order. */
-internal enum class TvTab { Home, Library, Search, Extensions, NowPlaying }
+internal enum class TvTab { Home, Library, Search, Extensions, NowPlaying, Settings }
 
 /**
  * How a focused card looks, as tv-material's Card and JetStream's MovieCard draw it: a soft scale, a

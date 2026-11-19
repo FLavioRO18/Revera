@@ -46,6 +46,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lyrics
@@ -114,7 +116,7 @@ private const val CHROME_HIDE_MS = 8_000L
  * synced lyrics. Idle, the controls fade and only the cover, its words and the lyrics remain.
  */
 @Composable
-internal fun TvNowPlaying(onArtist: (id: String, name: String) -> Unit) {
+internal fun TvNowPlaying(onArtist: (id: String, name: String) -> Unit, onBlackout: () -> Unit = {}) {
     // The TV opens its own artist page: the controller only satisfies the bridge.
     val bridge = rememberImmersivePlayer(rememberNavController())
     val state = bridge.state
@@ -130,6 +132,7 @@ internal fun TvNowPlaying(onArtist: (id: String, name: String) -> Unit) {
             }
         },
         onDevices = { devices = true },
+        onBlackout = onBlackout,
     ) { queue, modifier ->
         if (queue) ImmersiveQueuePanel(modifier, PaddingValues(vertical = 8.dp)) else ImmersiveLyricsPanel(modifier, PaddingValues(vertical = 8.dp))
     }
@@ -143,6 +146,7 @@ internal fun TvPlayerScreen(
     palette: com.music.spotui.ui.look.MeshPalette,
     onArtist: () -> Unit,
     onDevices: () -> Unit,
+    onBlackout: () -> Unit = {},
     panel: @Composable (queue: Boolean, Modifier) -> Unit,
 ) {
 
@@ -188,7 +192,20 @@ internal fun TvPlayerScreen(
             return@Box
         }
 
-        TvClock(Modifier.align(Alignment.TopEnd).padding(end = 32.dp, top = 18.dp).graphicsLayer { alpha = chromeAlpha })
+        val sleepEndsAt by com.music.spotui.di.SongPlayer.sleepEndsAt
+        Row(
+            Modifier.align(Alignment.TopEnd).padding(end = 32.dp, top = 18.dp).graphicsLayer { alpha = chromeAlpha },
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (sleepEndsAt != null) {
+                Text(
+                    tvSleepLabel(sleepEndsAt),
+                    style = TextStyle(fontSize = 14.sp, color = TvAccent, fontWeight = FontWeight.SemiBold, shadow = Shadow(Color.Black.copy(alpha = 0.8f), blurRadius = 8f)),
+                )
+            }
+            TvClock(Modifier)
+        }
 
         Row(Modifier.fillMaxSize().padding(horizontal = 72.dp, vertical = 36.dp), horizontalArrangement = Arrangement.spacedBy(64.dp)) {
             Column(
@@ -225,6 +242,12 @@ internal fun TvPlayerScreen(
                         tint = if (queue) TvAccent else Color.White.copy(alpha = 0.6f)) { queue = true }
                     TvIconButton(Icons.Default.Devices, stringResource(R.string.listen_on), size = 44.dp,
                         tint = if (state.deviceName != null) TvAccent else Color.White.copy(alpha = 0.6f), onClick = onDevices)
+                    TvIconButton(Icons.Default.Bedtime, stringResource(R.string.tv_sleep_timer), size = 44.dp,
+                        tint = if (sleepEndsAt != null) TvAccent else Color.White.copy(alpha = 0.6f)) {
+                        cycleTvSleepTimer(sleepEndsAt)
+                    }
+                    TvIconButton(Icons.Default.DarkMode, stringResource(R.string.tv_blackout_screen), size = 44.dp,
+                        tint = Color.White.copy(alpha = 0.6f), onClick = onBlackout)
                 }
                 // Lyrics are content, not chrome: they stay when the controls hide; the queue fades.
                 panel(queue, Modifier.weight(1f).fillMaxWidth().graphicsLayer { alpha = if (queue) chromeAlpha else 1f })

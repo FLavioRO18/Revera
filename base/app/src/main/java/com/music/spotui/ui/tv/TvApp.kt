@@ -54,9 +54,15 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.focusable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -121,6 +127,7 @@ fun TvApp() {
     // The tab the player was opened from, for Back.
     var from by remember { mutableStateOf(TvTab.Home) }
     val pages = remember { mutableStateListOf<TvPage>() }
+    var blackout by remember { mutableStateOf(false) }
     fun select(t: TvTab) {
         if (t == TvTab.NowPlaying && tab != TvTab.NowPlaying) from = tab
         pages.clear()
@@ -129,23 +136,45 @@ fun TvApp() {
     val open: (TvPage) -> Unit = { pages += it }
     val played: () -> Unit = { select(TvTab.NowPlaying) }
 
-    BackHandler(enabled = pages.isNotEmpty()) { pages.removeAt(pages.lastIndex) }
-    BackHandler(enabled = pages.isEmpty() && tab == TvTab.NowPlaying) { tab = from }
-    BackHandler(enabled = pages.isEmpty() && (tab == TvTab.Library || tab == TvTab.Search)) { tab = TvTab.Home }
+    BackHandler(enabled = blackout) { blackout = false }
+    BackHandler(enabled = !blackout && pages.isNotEmpty()) { pages.removeAt(pages.lastIndex) }
+    BackHandler(enabled = !blackout && pages.isEmpty() && tab == TvTab.NowPlaying) { tab = from }
+    BackHandler(enabled = !blackout && pages.isEmpty() && (tab == TvTab.Library || tab == TvTab.Search || tab == TvTab.Extensions || tab == TvTab.Settings)) { tab = TvTab.Home }
 
-    TvFrame(tab, ::select) {
-        when {
-            // The player's artist opens over the tab it was opened from.
-            tab == TvTab.NowPlaying -> TvNowPlaying(onArtist = { id, name -> tab = from; pages.clear(); pages += TvPage.Artist(id, name) })
-            pages.isNotEmpty() -> when (val p = pages.last()) {
-                is TvPage.Songs -> TvSongs(p.entry, played)
-                is TvPage.Artist -> TvArtist(p, open, played)
-                is TvPage.Show -> TvShow(p, played)
+    Box(Modifier.fillMaxSize()) {
+        TvFrame(tab, ::select) {
+            when {
+                // The player's artist opens over the tab it was opened from.
+                tab == TvTab.NowPlaying -> TvNowPlaying(
+                    onArtist = { id, name -> tab = from; pages.clear(); pages += TvPage.Artist(id, name) },
+                    onBlackout = { blackout = true },
+                )
+                pages.isNotEmpty() -> when (val p = pages.last()) {
+                    is TvPage.Songs -> TvSongs(p.entry, played)
+                    is TvPage.Artist -> TvArtist(p, open, played)
+                    is TvPage.Show -> TvShow(p, played)
+                }
+                tab == TvTab.Home -> TvHome(open)
+                tab == TvTab.Library -> TvLibrary(open)
+                tab == TvTab.Extensions -> TvExtensions()
+                tab == TvTab.Settings -> TvSettings(onBlackout = { blackout = true })
+                else -> TvSearch(open, played)
             }
-            tab == TvTab.Home -> TvHome(open)
-            tab == TvTab.Library -> TvLibrary(open)
-            tab == TvTab.Extensions -> TvExtensions()
-            else -> TvSearch(open, played)
+        }
+        if (blackout) {
+            val wakeFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { runCatching { delay(50); wakeFocus.requestFocus() } }
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color.Black)
+                    .focusRequester(wakeFocus)
+                    .focusable()
+                    .onPreviewKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyDown) { blackout = false; return@onPreviewKeyEvent true }
+                        false
+                    }
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { blackout = false },
+            )
         }
     }
 }
@@ -159,6 +188,7 @@ internal fun TvFrame(tab: TvTab, onSelect: (TvTab) -> Unit, page: @Composable ()
         TvTab.Search to stringResource(R.string.navigationbar_musicappitems_search_title),
         TvTab.Extensions to stringResource(R.string.extensions_title),
         TvTab.NowPlaying to stringResource(R.string.immersive_shell_now_playing),
+        TvTab.Settings to stringResource(R.string.tv_tab_settings),
     )
     Box(Modifier.fillMaxSize().background(TvBg)) {
         // The player runs under the bar to the top of the screen; the other pages start below it.
@@ -316,15 +346,29 @@ private fun TvSearch(onOpen: (TvPage) -> Unit, onPlayed: () -> Unit) {
     }
     LaunchedEffect(Unit) { runCatching { delay(80); field.requestFocus() } }
     Column(Modifier.fillMaxSize().padding(top = 16.dp)) {
-        TextField(query, { query = it }, singleLine = true, placeholder = { Text(stringResource(R.string.immersive_shell_search_hint)) },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { asked = query.trim() }),
-            shape = RoundedCornerShape(12.dp),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF2C2C2E), unfocusedContainerColor = Color(0xFF1C1C1E),
-                focusedTextColor = Color.White, unfocusedTextColor = Color.White,
-                focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, cursorColor = TvAccent,
-            ),
-            modifier = Modifier.padding(horizontal = TvSpace.start).width(560.dp).focusRequester(field))
+        Row(
+            Modifier.padding(horizontal = TvSpace.start),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TextField(query, { query = it }, singleLine = true, placeholder = { Text(stringResource(R.string.immersive_shell_search_hint)) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { asked = query.trim() }),
+                shape = RoundedCornerShape(12.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFF2C2C2E), unfocusedContainerColor = Color(0xFF1C1C1E),
+                    focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, cursorColor = TvAccent,
+                ),
+                modifier = Modifier.width(520.dp).focusRequester(field))
+            TvPillButton(Icons.Default.Search, stringResource(R.string.tv_search_button), filled = true) {
+                asked = query.trim()
+            }
+            if (query.isNotEmpty()) {
+                TvPillButton(Icons.Default.Clear, stringResource(R.string.tv_clear_button), filled = false) {
+                    query = ""; asked = ""; found = null; failed = false
+                }
+            }
+        }
         Spacer(Modifier.height(20.dp))
         val f = found
         when {

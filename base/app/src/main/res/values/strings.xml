@@ -21,4 +21,18 @@
     <string name="account_page_detail">Plan, privacy and devices, on spotify.com</string>
     <string name="player_source_downloaded">Downloaded</string>
     <string name="extension_change_write">Now also allowed to send to Spotify: %1$s</string>
+    <string name="tv_tab_settings" tools:ignore="MissingTranslation">Settings</string>
+    <string name="tv_blackout_screen" tools:ignore="MissingTranslation">Blackout screen</string>
+    <string name="tv_blackout_summary" tools:ignore="MissingTranslation">Turn the TV screen black for the night while music keeps playing. Press any remote key to wake.</string>
+    <string name="tv_sleep_timer" tools:ignore="MissingTranslation">Sleep timer</string>
+    <string name="tv_sleep_off" tools:ignore="MissingTranslation">Off</string>
+    <string name="tv_sleep_end_of_track" tools:ignore="MissingTranslation">End of track</string>
+    <string name="tv_sleep_minutes" tools:ignore="MissingTranslation">%1$d min</string>
+    <string name="tv_settings_connect_title" tools:ignore="MissingTranslation">Spotify Connect &amp; phone steering</string>
+    <string name="tv_settings_connect_summary" tools:ignore="MissingTranslation">Sync extension playback with your account so you can control the TV from your phone over Wi-Fi</string>
+    <string name="tv_settings_autoplay_title" tools:ignore="MissingTranslation">Autoplay similar songs</string>
+    <string name="tv_settings_autoplay_summary" tools:ignore="MissingTranslation">Keep playing similar tracks when a playlist or album ends</string>
+    <string name="tv_settings_sign_out" tools:ignore="MissingTranslation">Sign out</string>
+    <string name="tv_search_button" tools:ignore="MissingTranslation">Search</string>
+    <string name="tv_clear_button" tools:ignore="MissingTranslation">Clear</string>
 </resources>
