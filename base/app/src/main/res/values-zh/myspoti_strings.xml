@@ -822,4 +822,23 @@
     <string name="lyrics_hide_translation">隐藏翻译</string>
     <string name="lyrics_show_translate_button">显示翻译按钮</string>
     <string name="lyrics_button_detail">在歌词界面上</string>
+    <string name="settings_hide_podcasts_title">隐藏播客</string>
+    <string name="settings_hide_podcasts_detail">在主页、搜索和音乐库中隐藏播客节目及单集</string>
+    <string name="settings_download_public_title">将下载内容保存为可见文件</string>
+    <string name="settings_download_public_detail">新下载的歌曲将以未加密文件保存到 Download/Revera，可在文件管理器中查看，也可用其他应用播放。已下载的歌曲会保留在原位置。</string>
+    <string name="settings_download_public_needs_access">尚未授予“所有文件访问权限”。请在 Android 设置中授予权限，之后下载的歌曲将保存到 Download/Revera。</string>
+    <string name="badge_sheet_title">徽章与特权</string>
+    <string name="badge_row_detail">个人资料徽章、应用图标和强调色</string>
+    <string name="badge_none">此账号暂无已激活的徽章</string>
+    <string name="badge_code_label">激活码</string>
+    <string name="badge_code_activate">激活</string>
+    <string name="badge_refresh">查看状态</string>
+    <string name="badge_activated">徽章已激活</string>
+    <string name="badge_error_invalid">激活码无效</string>
+    <string name="badge_error_exhausted">激活码已使用</string>
+    <string name="badge_error_expired">激活码已过期</string>
+    <string name="badge_error_sign_in">请先登录账号</string>
+    <string name="badge_error_network">无法连接到徽章服务器</string>
+    <string name="badge_server_label">徽章服务器网址</string>
+    <string name="badge_server_save">保存</string>
 </resources>
