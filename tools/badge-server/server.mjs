@@ -285,7 +285,7 @@ export async function startServer(opts = {}) {
           : (store.users[userId] = { perks: false, badges: [] });
         user.perks = Boolean(user.perks || entry.perks);
         if (entry.badge) {
-          mergeBadge(user, normalizeBadge(entry.badge, entry.badge.id || "supporter"));
+          user.badges = [normalizeBadge(entry.badge, entry.badge.id || "supporter")];
         }
         saveStore(storePath, store);
         writeLog(`redeem user=${userId} code=${code} usesLeft=${entry.usesLeft}`);
