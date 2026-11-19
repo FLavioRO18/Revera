@@ -553,7 +553,7 @@ class NativeEngine(
 
     /** [track] comes from the same state machine as [state]: a PUT answer in between may renumber tracks. */
     private var blockedAdUri: String? = null
-    private var adRecoverySent = false
+    private var adStallReported = false
 
     private suspend fun load(
         state: SmState,
@@ -579,32 +579,32 @@ class NativeEngine(
                 finalizeOutgoing(outgoing, state.id)
             }
             if (blockedAdUri != null) {
-                if (!adRecoverySent) {
-                    adRecoverySent = true
-                    val sm = machine
-                    val visited = HashSet<String>()
-                    var next = state
-                    var target: SmTrack? = null
-                    while (sm != null && visited.add(next.id)) {
-                        val ref = next.transitions.skipNext ?: next.transitions.advance ?: break
-                        next = sm.states.getOrNull(ref.stateIndex ?: break) ?: break
-                        val candidate = sm.tracks.getOrNull(next.track) ?: break
-                        if (candidate.contentType != "AD" && candidate.metadata.uri.startsWith("spotify:track:")) {
-                            target = candidate
-                            break
-                        }
+                val sm = machine
+                val visited = HashSet<String>()
+                var next = state
+                var target: SmTrack? = null
+                while (sm != null && visited.add(next.id)) {
+                    val ref = next.transitions.skipNext ?: next.transitions.advance ?: break
+                    next = sm.states.getOrNull(ref.stateIndex ?: break) ?: break
+                    val candidate = sm.tracks.getOrNull(next.track) ?: break
+                    if (candidate.contentType != "AD" && candidate.metadata.uri.startsWith("spotify:track:")) {
+                        target = candidate
+                        break
                     }
-                    val uri = target?.metadata?.uri
-                    if (uri != null && sm != null) {
-                        stateIndex = sm.states.indexOfFirst { it.id == next.id }
-                        load(next, target, 0, paused, "remote", previousPosition)
-                        blockedAdUri = track.metadata.uri
-                    } else emit(EngineEvent.Failure("ad stalled: no music transition in server queue"))
+                }
+                val uri = target?.metadata?.uri
+                if (uri != null && sm != null) {
+                    stateIndex = sm.states.indexOfFirst { it.id == next.id }
+                    load(next, target, 0, paused, "remote", previousPosition)
+                    blockedAdUri = track.metadata.uri
+                } else if (!adStallReported) {
+                    adStallReported = true
+                    emit(EngineEvent.Failure("ad stalled: no music transition in server queue"))
                 }
                 return
             }
             blockedAdUri = track.metadata.uri
-            adRecoverySent = false
+            adStallReported = false
             emit(EngineEvent.AdBreak(track.metadata.uri, track.metadata.duration))
             // On to the next song (outside this handler: a command waits for the lock it holds).
             scope.launch { runCatching { command("skip_next") }.onFailure { emit(EngineEvent.Failure("ad not passed: ${it.message}")) } }

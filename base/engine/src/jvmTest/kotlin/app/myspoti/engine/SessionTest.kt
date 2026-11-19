@@ -490,6 +490,9 @@ class SessionTest {
         val frame = kotlinx.serialization.json.JsonObject(raw + ("payloads" to kotlinx.serialization.json.JsonArray(listOf(
             kotlinx.serialization.json.JsonObject(payload + ("state_machine" to patched))
         )))).toString()
+        val adOnly = rig.replaceState(2, paused = false).replace("\"content_type\":\"TRACK\"", "\"content_type\":\"AD\"")
+        repeat(4) { rig.engine.handleDealerFrame(adOnly); runCurrent() }
+        assertEquals(null, rig.player.loaded)
         repeat(4) { rig.engine.handleDealerFrame(frame); runCurrent() }
         val commands = rig.http.requests.filter { "/player/command/" in it.url }.map { rig.http.json(it).str("command", "endpoint") }
         assertEquals(listOf("skip_next"), commands)
