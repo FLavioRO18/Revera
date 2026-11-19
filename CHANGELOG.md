@@ -2,6 +2,14 @@
 
 Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
 
+## Unreleased
+
+- **A-B loop**: set, fine-tune (`-1s`/`+1s`), and clear A–B loop points from the Now Playing track menu or directly via the player scrubber pill across local, extension, Spotify, and Cast playback.
+- **Android TV improvements**: added **Night Blackout** screen-off mode (wakes on any remote key), **Sleep Timer**, a **Settings** tab (Spotify Connect sync, Autoplay, Battery Saver, Sign Out), Search/Clear remote buttons, and enabled Spotify Connect Wi-Fi phone steering by default on TV.
+- **CDN & VPN reliability**: added a 4 s timeout on native Rust CDN fetches with instant fallback to Android `HttpEngine`/Cronet, shorter Rust connection pool timeouts, and host penalty reset when all CDNs fail (fixes long startup delays and VPN-switch skips).
+- **Playback & Connect fixes**: restored extension audio source priority (`spotifyFirst = false`), fixed Autoplay continuing when disabled, fixed tapping a track in a list while connected to a remote Spotify Connect device, prevented AutoMix stutter during rapid manual skipping, fixed ghost `NativeAudio` devices staying active across restarts, prevented false-positive `skip chain` pauses on rapid user skips, and unblocked extension title/artist matching when Spotify WebView is not ready for ISRC lookups.
+- **Packaging**: unified `app.revera.dev` as the default `applicationId` across all builds and aligned Android audio native libraries for 16 KB page sizes.
+
 ## 1.0.6
 
 - **New Revera launcher icon**: vector **R** mark across all accent icon variants (`green`, `blue`, `orange`, `pink`, `purple`, monochrome, and Wear OS).
