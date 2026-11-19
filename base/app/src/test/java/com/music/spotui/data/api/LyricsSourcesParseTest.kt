@@ -109,4 +109,22 @@ class LyricsSourcesParseTest {
         assertEquals(3000L, l[0].words!!.last().endMs)
         assertEquals("Music", l[1].text)
     }
+
+    @Test
+    fun betterLyricsJsonParsesWordSyncedTtml() {
+        val ttml = """<tt xmlns="http://www.w3.org/ns/ttml" itunes:timing="Word"><body><div>
+            |<p begin="00:01.000" end="00:03.000"><span begin="00:01.000" end="00:01.800">Hello </span><span begin="00:01.800" end="00:03.000">world</span></p>
+            |</div></body></tt>""".trimMargin()
+        val body = org.json.JSONObject().put("ttml", ttml).toString()
+        val parsed = LyricsApi.parseBetterLyricsJson(body) { org.kxml2.io.KXmlParser() }
+        assertNotNull(parsed)
+        assertEquals("BetterLyrics", parsed!!.provider)
+        assertEquals("betterlyrics", LyricsApi.sourceOf(parsed))
+        assertEquals(1, parsed.lines.size)
+        assertEquals("Hello world", parsed.lines[0].text)
+        assertEquals(2, parsed.lines[0].words?.size)
+        assertEquals(1000L, parsed.lines[0].words!![0].startMs)
+        assertEquals(3000L, parsed.lines[0].words!![1].endMs)
+        assertNull(LyricsApi.parseBetterLyricsJson("{}") { org.kxml2.io.KXmlParser() })
+    }
 }

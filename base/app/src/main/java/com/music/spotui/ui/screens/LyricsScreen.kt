@@ -24,6 +24,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
@@ -814,7 +816,14 @@ private fun LyricsChip(label: String, icon: Painter?, active: Boolean, loading: 
         if (loading) CircularProgressIndicator(color = palette.highlight, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
         else if (icon != null) Icon(icon, contentDescription = null, tint = if (active) palette.background else palette.highlight, modifier = Modifier.size(16.dp))
         if (loading || icon != null) Spacer(Modifier.width(6.dp))
-        Text(label, color = if (active) palette.background else palette.highlight, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Text(
+            label,
+            color = if (active) palette.background else palette.highlight,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
@@ -850,7 +859,13 @@ private fun LyricsControls(
     val durationMs = SongPlayer.getDuration().coerceAtLeast(0L)
     val playing = com.music.spotui.di.Graph.currentSongState.playingState.value
     Column(modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 10.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(bottom = 10.dp),
+        ) {
             LyricsChip(stringResource(R.string.lyrics_fullscreen_chip_label_share), painterResource(R.drawable.ic_share), false, false, palette, onShare)
             if (com.music.spotui.data.preferences.LyricsTranslateButtonPref.on && (showTranslate || translationActive)) LyricsChip(stringResource(if (translationActive) R.string.lyrics_hide_translation else R.string.lyrics_fullscreen_chip_label_translate), painterResource(R.drawable.ic_translate_lyrics), translationActive, translating, palette, onTranslate)
             if (showRomanize) LyricsChip(stringResource(R.string.lyrics_romanize), rememberVectorPainter(Icons.Rounded.Abc), romanizationActive, false, palette, onRomanize)

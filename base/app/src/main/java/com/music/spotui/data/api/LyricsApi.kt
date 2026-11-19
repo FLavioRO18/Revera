@@ -209,12 +209,13 @@ object LyricsApi {
 
     private fun allSetAside(vararg ids: String): String? = ids.map { health.reason(it) }.takeIf { r -> r.all { it != null } }?.first()
 
-    private val WORD_SOURCES = setOf("amll", "lyricsplus", "lrcred", "netease", "kugou")
+    private val WORD_SOURCES = setOf("amll", "betterlyrics", "lyricsplus", "lrcred", "netease", "kugou")
 
     /** The providers that can be tried for [track], in the order the resolver prefers them; the extensions giving lyrics come last (`ext:<id>`). */
     fun sources(track: Track): List<Source> = buildList {
         if (track.trackId.isNotBlank()) add(Source("spotify", "Spotify", words = true))
         if (track.trackId.isNotBlank()) add(Source("amll", "AMLL TTML DB", true, allSetAside("amll")))
+        add(Source("betterlyrics", "BetterLyrics", true, allSetAside("betterlyrics")))
         add(Source("lyricsplus", "LyricsPlus", true, allSetAside(*LYRICS_PLUS.toTypedArray())))
         add(Source("lrcred", "lrc.red", true, allSetAside("lrcred")))
         add(Source("kugou", "Kugou", true, allSetAside("kugou")))
@@ -230,6 +231,7 @@ object LyricsApi {
         val p = lyrics.provider.orEmpty().lowercase()
         return when {
             "amll" in p -> "amll"
+            "betterlyrics" in p -> "betterlyrics"
             "lyricsplus" in p -> "lyricsplus"
             "lrc.red" in p -> "lrcred"
             "kugou" in p -> "kugou"
@@ -260,6 +262,7 @@ object LyricsApi {
                 sourceId.startsWith("ext:") -> com.music.spotui.extensions.Extensions.lyricsFromExtension(
                     sourceId.removePrefix("ext:"), track.trackId, track.title, track.artist, track.album, durationMs, track.coverUrl)
                 sourceId == "amll" -> byHand { fromAmll(track.trackId) }
+                sourceId == "betterlyrics" -> byHand { fromBetterLyrics(asked, artist, durationMs) }
                 sourceId == "lyricsplus" -> byHand { fromLyricsPlus(asked, title, artist, durationMs) }
                 sourceId == "lrcred" -> byHand { fromLrcRed(asked, title, artist, durationMs) }
                 sourceId == "kugou" -> byHand { fromKugou(title, artist, durationMs) }
@@ -529,6 +532,7 @@ object LyricsApi {
         val artist = track.artist.substringBefore(",").trim()
         val durationMs = track.durationMs
         val spotify = async { fromSpotify(track) }
+        val better = async { within(WORD_WAIT_MS) { asking("betterlyrics", track) { fromBetterLyrics(asked, artist, durationMs) } } }
         val plus = async { within(WORD_WAIT_MS) { asking("lyricsplus", track) { fromLyricsPlus(asked, title, artist, durationMs) } } }
         val red = async { within(WORD_WAIT_MS) { asking("lrcred", track) { fromLrcRed(asked, title, artist, durationMs) } } }
         val kugou = async { within(WORD_WAIT_MS) { asking("kugou", track) { fromKugou(title, artist, durationMs) } } }
@@ -540,13 +544,13 @@ object LyricsApi {
         if (sp != null) showEarly(track, sp)
         if (sp != null && sp.wordSynced && sp.uncapped) {
             kugou.cancel(); netease.cancel()
-            return@coroutineScope withBacks(sp, amll, plus, red)
+            return@coroutineScope withBacks(sp, amll, better, plus, red)
         }
         // Without Spotify's own (no account, or none for the song) every catalogue still answers.
-        val words = (amll.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
+        val words = (amll.await()?.takeIf { it.wordSynced } ?: better.await()?.takeIf { it.wordSynced } ?: plus.await()?.takeIf { it.wordSynced } ?: red.await()?.takeIf { it.wordSynced }
             ?: netease.await()?.takeIf { it.wordSynced } ?: kugou.await())?.takeIf { it.wordSynced }
         when {
-            words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, amll, plus, red) } ?: sp
+            words != null -> alignTo(words, sp)?.copy(colors = sp?.colors)?.let { withBacks(it, amll, better, plus, red) } ?: sp
             sp != null -> sp
             else -> lineFallbacks(track)
         }
@@ -903,6 +907,25 @@ object LyricsApi {
 
     /** Backing vocals as plain text: "(Woo-hoo)" → "Woo-hoo". */
     private fun backingText(s: String): String? = s.replace(spaces, " ").trim().removeSurrounding("(", ")").trim().ifEmpty { null }
+
+    internal fun parseBetterLyricsJson(
+        body: String,
+        newParser: () -> org.xmlpull.v1.XmlPullParser = { android.util.Xml.newPullParser() },
+    ): Lyrics? {
+        val ttml = runCatching { JSONObject(body).optString("ttml") }.getOrNull()?.takeIf { it.isNotBlank() } ?: return null
+        return parseTtml(ttml, newParser)?.copy(provider = "BetterLyrics")
+    }
+
+    private fun fromBetterLyrics(asked: String, artist: String, durationMs: Long): Lyrics? {
+        val dur = (durationMs / 1000).toInt()
+        val url = buildString {
+            append("https://lyrics-api.boidu.dev/getLyrics?s=").append(enc(asked))
+            if (artist.isNotBlank()) append("&a=").append(enc(artist))
+            if (dur > 0) append("&d=").append(dur)
+        }
+        val body = httpGet(url, timeoutMs = 5000, provider = "betterlyrics") ?: return null
+        return parseBetterLyricsJson(body)
+    }
 
     // ── Word by word: lrc.red (Apple Music TTML, found by ISRC) ──
     private fun fromLrcRed(asked: String, title: String, artist: String, durationMs: Long): Lyrics? {
