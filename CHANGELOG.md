@@ -5,6 +5,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 ## 1.0.7
 
 - **Two-line lyrics preview**: added a Display setting to switch the Immersive player's inline lyrics preview between 1 and 2 lines.
+- **Immersive UI & translations**: replaced the playlist/album track sort dropdown with a glass bottom sheet (`ImmersiveGlassSheet`) and added missing Simplified Chinese settings and badge translations.
+- **Badges**: allow redeeming and refreshing badges using the cached account ID when the WebView profile is not ready yet, and replace the active badge when redeeming a new code.
 - **A-B loop**: set, fine-tune (`-1s`/`+1s`), and clear A–B loop points from the Now Playing track menu or directly via the player scrubber pill across local, extension, Spotify, and Cast playback.
 - **Android TV improvements**: added **Night Blackout** screen-off mode (wakes on any remote key), **Sleep Timer**, a **Settings** tab (Spotify Connect sync, Autoplay, Battery Saver, Sign Out), Search/Clear remote buttons, and enabled Spotify Connect Wi-Fi phone steering by default on TV.
 - **CDN & VPN reliability**: added a 4 s timeout on native Rust CDN fetches with instant fallback to Android `HttpEngine`/Cronet, shorter Rust connection pool timeouts, and host penalty reset when all CDNs fail (fixes long startup delays and VPN-switch skips).
