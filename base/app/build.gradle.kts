@@ -105,7 +105,7 @@ android {
             if (!automixLab) applicationIdSuffix = ".dev"
             manifestPlaceholders["appLabel"] = if (automixLab) "Revera Mix Lab" else "Revera dev"
             manifestPlaceholders["cliEnabled"] = "true"
-            buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
+            buildConfigField("String", "UPDATE_REPO", "\"\"")
         }
         release {
             // Real key when provided (CI releases); otherwise the debug key, so a local
@@ -116,7 +116,7 @@ android {
             if (findProperty("overDev") != null && !automixLab) {
                 applicationIdSuffix = ".dev"
                 manifestPlaceholders["appLabel"] = "Revera dev"
-                buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
+                buildConfigField("String", "UPDATE_REPO", "\"\"")
             }
             // The Mix Lab stays drivable from the CLI in its optimised build, as in its debug one.
             if (automixLab) manifestPlaceholders["cliEnabled"] = "true"
