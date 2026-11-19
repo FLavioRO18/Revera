@@ -517,6 +517,10 @@ class ContextViewModel(
         val app = Graph.app
         val store = com.music.spotui.data.offline.OfflineStore
         val limited = com.music.spotui.data.DataSaver.active || !store.isOnline(app)
+        if (!limited && SongPlayer.activeDevice.value != null && !com.music.spotui.data.local.LocalFileMatch.run { song.isDeviceFile || song.isUnmatchedLocal }) {
+            playOnSpotify(p, song, sort)
+            return
+        }
         with(com.music.spotui.data.local.LocalFileMatch) {
             val sorted = sort.apply(p.tracks)
             if (song.isUnmatchedLocal) {

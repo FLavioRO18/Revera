@@ -798,9 +798,13 @@ object SongPlayer {
         // to after the previous one belongs to the show, not to that recommendation autoplay —
         // pausing it there is how a podcast "stopped by itself" (B11).
         if (item != null && item.provider == "autoplay" && uri.startsWith(SPOTIFY_TRACK_PREFIX) &&
-            uri != autoplayHandledUri && !com.music.spotui.data.preferences.AutoplayPref.on) {
-            autoplayHandledUri = uri
-            if (!s.isPaused) pauseSilently()
+            !com.music.spotui.data.preferences.AutoplayPref.on) {
+            if (!s.isPaused && uri != autoplayHandledUri) {
+                autoplayHandledUri = uri
+                pauseSilently()
+            }
+        } else if (item?.provider != "autoplay") {
+            autoplayHandledUri = ""
         }
         if (item != null && trackChanged && playing && !adState.value && uri.startsWith(SPOTIFY_TRACK_PREFIX)) skipHidden(id, uri)
         currentContextUri = s.contextUri.orEmpty()
@@ -1331,7 +1335,7 @@ object SongPlayer {
     fun playSong(
         song: String, context: Context? = null, contextUri: String? = null, order: List<String>? = null, positionMs: Long? = null,
         songs: List<SongsModel>? = null, askExtensions: Boolean = true, alone: Boolean = false,
-        spotifyFirst: Boolean = true,
+        spotifyFirst: Boolean = false,
     ) {
         userActed()
         MixedPlaylistQueue.clear()
@@ -1345,7 +1349,7 @@ object SongPlayer {
         // A song of another provider (the catalog's): played as its Spotify recording once found, alone.
         if (song.startsWith(com.music.spotui.data.catalog.CatalogRuntime.PLAY_PREFIX)) { playCatalogSong(song, context, askExtensions); return }
         val routedId = if (song.startsWith("episode:")) null else spotifyTrackIdForPlayback(song)
-        if (askExtensions && com.music.spotui.extensions.AudioRoute.asks(routedId, com.music.spotui.extensions.Extensions.hasAudioSource())) {
+        if (_activeDevice.value == null && askExtensions && com.music.spotui.extensions.AudioRoute.asks(routedId, com.music.spotui.extensions.Extensions.hasAudioSource())) {
             val ctx = if (alone) "" else (contextUri ?: contextRegistry[song]).orEmpty()
             val shuffle = isShuffleOn()
             playThroughExtensions(
@@ -1380,7 +1384,7 @@ object SongPlayer {
         }
         playedByHand = itemUri
         markPending(if (episodeId != null) "" else trackId, itemUri)
-        transport { isLatest ->
+        transport(pullBack = _activeDevice.value == null) { isLatest ->
             playChecked(itemUri, isLatest) {
                 Log.d(TAG, "playing $itemUri in ${ctx ?: "no context"}: ${queueTag()}")
                 if (ctx != null) {
@@ -1450,7 +1454,7 @@ object SongPlayer {
     fun playThroughExtensions(
         trackId: String, song: SongsModel?, contextName: String, fallback: () -> Unit,
         songs: List<SongsModel>? = null, contextUri: String = "",
-        spotifyFirst: Boolean = true,
+        spotifyFirst: Boolean = false,
         spotifySkip: Boolean = false,
         play: suspend (isLatest: () -> Boolean, shown: (SongsModel) -> Unit) -> Boolean,
     ) {
@@ -1929,7 +1933,7 @@ object SongPlayer {
      * song's last second; the song it moves on to is asked to the extensions again (backToExtensions).
      */
     fun continueOnSpotify(t: com.music.spotui.data.local.LocalTrack, trackId: String) {
-        if (trackId.isBlank() || com.music.spotui.data.DataSaver.active) return
+        if (!com.music.spotui.data.preferences.AutoplayPref.on || trackId.isBlank() || com.music.spotui.data.DataSaver.active) return
         app.myspoti.host.android.Logbook.log("local: queue ended, Spotify continues")
         spotifyFallbackId = trackId
         val end = (t.durationMs.takeIf { it > 0 } ?: LocalPlayer.duration()) - END_LEAD_MS
