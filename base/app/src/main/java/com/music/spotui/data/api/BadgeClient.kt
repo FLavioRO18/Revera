@@ -202,7 +202,10 @@ object BadgeClient {
     }
 
     suspend fun refreshMe(context: Context, userId: String? = ProfileCache.id): BadgeState? = withContext(Dispatchers.IO) {
-        val uid = userId?.takeIf { it.isNotBlank() } ?: return@withContext null
+        val uid = userId?.takeIf { it.isNotBlank() }
+            ?: myState?.userId?.takeIf { it.isNotBlank() }
+            ?: context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LAST_USER, null)?.takeIf { it.isNotBlank() }
+            ?: return@withContext null
         val url = baseUrl(context)
         if (url.isBlank()) return@withContext null
         val req = Request.Builder()
@@ -247,7 +250,10 @@ object BadgeClient {
     suspend fun redeem(context: Context, code: String): RedeemResult = withContext(Dispatchers.IO) {
         val trimmedCode = code.trim()
         if (trimmedCode.isBlank()) return@withContext RedeemResult.InvalidCode
-        val uid = ProfileCache.id ?: ProfileCache.awaitId(context, 3_000L)
+        val uid = ProfileCache.id
+            ?: ProfileCache.awaitId(context, 3_000L)
+            ?: myState?.userId?.takeIf { it.isNotBlank() }
+            ?: context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LAST_USER, null)?.takeIf { it.isNotBlank() }
             ?: return@withContext RedeemResult.NotSignedIn
         val url = baseUrl(context)
         if (url.isBlank()) return@withContext RedeemResult.Failed("server_unconfigured")
