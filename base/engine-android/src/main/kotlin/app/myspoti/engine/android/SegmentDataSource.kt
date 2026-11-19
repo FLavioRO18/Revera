@@ -79,10 +79,18 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
     /** One range from the CDN, trying the storage-resolve URLs in order from the last good one. */
     suspend fun fetch(range: LongRange, prefetch: Boolean = false): ByteArray {
         val urls = media.cdnUrls
+        val now = System.currentTimeMillis()
+        val ordered = (0 until urls.size)
+            .map { (urlIndex + it) % urls.size }
+            .sortedBy { idx ->
+                val h = urls[idx].substringAfter("://").substringBefore('/')
+                val until = hostPenalties[h] ?: 0L
+                if (until > now) 1 else 0
+            }
         var last: Exception? = null
-        repeat(urls.size) { attempt ->
-            val i = (urlIndex + attempt) % urls.size
+        for (i in ordered) {
             val url = urls[i]
+            val host = url.substringAfter("://").substringBefore('/')
             val rangeHeader = if (range.last == Long.MAX_VALUE) "bytes=${range.first}-" else "bytes=${range.first}-${range.last}"
             val t0 = System.currentTimeMillis()
             try {
@@ -94,10 +102,14 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
                     res.body
                 }
                 val ms = System.currentTimeMillis() - t0
-                val host = url.substringAfter("://").substringBefore('/')
                 val via = if (RustAudioTransport.available && range.last != Long.MAX_VALUE) "rust cdn" else "cdn"
                 log("$via $rangeHeader -> ${body.size} B in $ms ms ($host${if (prefetch) ", preload" else ""})")
-                urlIndex = i
+                if (ms > SLOW_HOST_MS && urls.size > 1) {
+                    hostPenalties[host] = System.currentTimeMillis() + PENALTY_MS
+                } else {
+                    hostPenalties.remove(host)
+                    urlIndex = i
+                }
                 totalBytes.addAndGet(body.size.toLong())
                 fetchMs.addAndGet(ms)
                 if (range.first >= media.firstSegmentOffset && media.firstSegmentOffset > 0) segmentsFetched.incrementAndGet()
@@ -107,7 +119,8 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
                 throw InterruptedIOException("cdn fetch interrupted")
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
-                log("cdn $rangeHeader failed on ${url.substringAfter("://").substringBefore('/')}: ${e.message}")
+                hostPenalties[host] = System.currentTimeMillis() + PENALTY_MS
+                log("cdn $rangeHeader failed on $host: ${e.message}")
                 last = e
             }
         }
@@ -116,6 +129,12 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
 
     /** Average transfer rate of the fetches so far, bits per second. */
     fun bandwidthBps(): Long = fetchMs.get().takeIf { it > 0 }?.let { totalBytes.get() * 8_000 / it } ?: 0
+
+    companion object {
+        private const val SLOW_HOST_MS = 5_000L
+        private const val PENALTY_MS = 300_000L
+        private val hostPenalties = ConcurrentHashMap<String, Long>()
+    }
 }
 
 /**

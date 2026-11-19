@@ -59,10 +59,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameMillis
+import com.music.spotui.ui.look.SweptLine
+import com.music.spotui.ui.look.SweptLyricLine
+import com.music.spotui.ui.look.toSwept
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -277,6 +283,8 @@ internal fun CurrentLyricStrip(
 
 internal val LYRIC_LINE_HEIGHT = 28.dp
 
+private data class ActiveInlineLyric(val index: Int, val text: String, val swept: SweptLine?)
+
 @Composable
 internal fun CurrentLyricLine(
     lyricsState: LyricsViewModel.State,
@@ -292,15 +300,39 @@ internal fun CurrentLyricLine(
     }
     val frame = rememberFrameClock(playing && lyricsState is LyricsViewModel.State.Loaded, fps = 8)
     val currentPosition by androidx.compose.runtime.rememberUpdatedState(position)
-    val activeLine by remember(lyricsState, frame) {
+    val loadedLyrics = (lyricsState as? LyricsViewModel.State.Loaded)?.lyrics
+    val wordMode = remember(loadedLyrics) { loadedLyrics?.lines?.any { !it.words.isNullOrEmpty() } == true }
+    val clock = remember { mutableLongStateOf(currentPosition().coerceAtLeast(0L)) }
+    LaunchedEffect(playing, wordMode, loadedLyrics) {
+        clock.longValue = currentPosition().coerceAtLeast(0L)
+        if (!playing || !wordMode) return@LaunchedEffect
+        while (true) {
+            withFrameMillis {
+                clock.longValue = currentPosition().coerceAtLeast(0L)
+            }
+        }
+    }
+    val activeIndex by remember(lyricsState, frame) {
         derivedStateOf {
             frame.value
-            val loaded = lyricsState as? LyricsViewModel.State.Loaded ?: return@derivedStateOf null
-            val lyrics = loaded.lyrics
-            if (!lyrics.synced || lyrics.lines.isEmpty()) return@derivedStateOf null
             val pos = currentPosition().coerceAtLeast(0L)
-            val line = lyrics.lines.lastOrNull { it.timeMs <= pos + 180L }?.text?.trim().orEmpty()
-            line.takeIf { it.isNotBlank() && it != "♪" && it != "•••" && it != "..." }
+            if (!playing || !wordMode) clock.longValue = pos
+            val lyrics = loadedLyrics ?: return@derivedStateOf -1
+            if (!lyrics.synced || lyrics.lines.isEmpty()) return@derivedStateOf -1
+            val idx = lyrics.lines.indexOfLast { it.timeMs <= pos + 180L }
+            if (idx < 0) return@derivedStateOf -1
+            val text = lyrics.lines[idx].text.trim()
+            if (text.isBlank() || text == "♪" || text == "•••" || text == "...") -1 else idx
+        }
+    }
+    val activeLine = remember(loadedLyrics, activeIndex, wordMode) {
+        val lyrics = loadedLyrics
+        if (lyrics == null || activeIndex !in lyrics.lines.indices) null
+        else {
+            val line = lyrics.lines[activeIndex]
+            val nextMs = lyrics.lines.getOrNull(activeIndex + 1)?.timeMs
+            val swept = if (wordMode && !line.words.isNullOrEmpty()) line.toSwept(nextMs).takeIf { it.words.isNotEmpty() } else null
+            ActiveInlineLyric(activeIndex, line.text.trim(), swept)
         }
     }
     Box(
@@ -324,27 +356,48 @@ internal fun CurrentLyricLine(
     ) {
         AnimatedContent(
             targetState = activeLine,
+            contentKey = { it?.index },
             transitionSpec = {
                 (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 3 })
                     .togetherWith(fadeOut(tween(150)) + slideOutVertically(tween(150)) { -it / 3 })
             },
             label = "currentLyricStrip",
-        ) { line ->
-            if (line != null) {
+        ) { item ->
+            if (item != null) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        text = line,
-                        color = Color.White.copy(alpha = 0.92f),
-                        fontSize = 15.sp,
-                        lineHeight = 19.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
+                    if (item.swept != null) {
+                        SweptLyricLine(
+                            line = item.swept,
+                            clock = clock,
+                            style = TextStyle(
+                                color = Color.White.copy(alpha = 0.96f),
+                                fontSize = 15.sp,
+                                lineHeight = 19.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            dimAlpha = 0.42f,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            feather = true,
+                            rise = false,
+                            color = Color.White,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    } else {
+                        Text(
+                            text = item.text,
+                            color = Color.White.copy(alpha = 0.92f),
+                            fontSize = 15.sp,
+                            lineHeight = 19.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
                     Spacer(Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
