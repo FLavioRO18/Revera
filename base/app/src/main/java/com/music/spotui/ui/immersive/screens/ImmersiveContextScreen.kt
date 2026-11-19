@@ -6,10 +6,12 @@ package com.music.spotui.ui.immersive.screens
 
 import com.music.spotui.ui.immersive.shell.immersiveGlassSurface
 import com.music.spotui.ui.immersive.sheets.ImmersiveAlertDialog
+import com.music.spotui.ui.immersive.sheets.ImmersiveGlassSheet
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -53,8 +56,7 @@ import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
@@ -85,6 +87,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -338,6 +341,14 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
     }
 
     if (addingSongs) com.music.spotui.ui.components.AddSongsScreen(p) { added -> addingSongs = false; if (added) vm.reload() }
+    if (sortMenu) TrackSortSheet(
+        sort = sort,
+        onDismiss = { sortMenu = false },
+        onSort = {
+            sort = it
+            TrackOrder.save(context, p.uri, it)
+        },
+    )
     if (albumMenu) com.music.spotui.ui.components.AlbumOptionsSheet(p.uri, p.name, known = p) { albumMenu = false }
     if (playlistMenu) com.music.spotui.ui.components.PlaylistOptionsSheet(
         page = p,
@@ -642,20 +653,12 @@ private fun ImmersiveContextContent(navController: NavController, vm: ContextVie
                         onClick = { finding = !finding },
                         tint = if (finding) Immersive.Accent else Immersive.Text,
                     )
-                    if (findable) Box {
-                        ImmersiveBarAction(
-                            icon = Icons.Rounded.SwapVert,
-                            contentDescription = stringResource(R.string.filter_and_sort_sort_section_title),
-                            onClick = { sortMenu = true },
-                            tint = if (sort.isCustom) Immersive.Text else Immersive.Accent,
-                        )
-                        SortMenu(
-                            open = sortMenu,
-                            sort = sort,
-                            onDismiss = { sortMenu = false },
-                            onSort = { sort = it; TrackOrder.save(context, p.uri, it) },
-                        )
-                    }
+                    if (findable) ImmersiveBarAction(
+                        icon = Icons.Rounded.SwapVert,
+                        contentDescription = stringResource(R.string.filter_and_sort_sort_section_title),
+                        onClick = { sortMenu = true },
+                        tint = if (sort.isCustom) Immersive.Text else Immersive.Accent,
+                    )
                     if (p.type == "playlist" || (!com.music.spotui.data.catalog.CatalogRuntime.isCatalogUri(p.uri) &&
                         (p.type == "album" || p.type == "liked" || p.type == "liked-artist"))) ImmersiveBarAction(
                         icon = Icons.Rounded.MoreHoriz,
@@ -948,36 +951,44 @@ private fun DownloadCircle(downloaded: Int, total: Int, busy: Boolean, kept: Boo
     }
 }
 
-/** The sort menu: picking the sort already chosen flips its direction (the arrow shows it). */
+/** Picking the current sort again reverses its direction. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SortMenu(open: Boolean, sort: TrackOrder, onDismiss: () -> Unit, onSort: (TrackOrder) -> Unit) {
-    DropdownMenu(expanded = open, onDismissRequest = onDismiss, containerColor = Immersive.Raised) {
-        Text(
-            stringResource(R.string.filter_and_sort_sort_section_title),
-            style = Immersive.Caption,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-        )
-        TrackSort.entries.forEach { option ->
-            DropdownMenuItem(
-                text = {
+private fun TrackSortSheet(sort: TrackOrder, onDismiss: () -> Unit, onSort: (TrackOrder) -> Unit) {
+    ImmersiveGlassSheet(onDismiss) {
+        Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+            Text(
+                text = stringResource(R.string.filter_and_sort_sort_section_title),
+                style = Immersive.Title,
+                modifier = Modifier.padding(horizontal = Immersive.Gutter, vertical = 8.dp),
+            )
+            for (option in TrackSort.entries) {
+                val selected = option == sort.sort
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Button) {
+                            onSort(if (selected) sort.copy(reversed = !sort.reversed) else TrackOrder(option))
+                            onDismiss()
+                        }
+                        .padding(horizontal = Immersive.Gutter, vertical = 14.dp),
+                ) {
                     Text(
-                        stringResource(option.label),
-                        style = Immersive.Body.copy(color = if (option == sort.sort) Immersive.Accent else Immersive.Text),
+                        text = stringResource(option.label),
+                        style = Immersive.Body.copy(color = if (selected) Immersive.Accent else Immersive.Text),
+                        modifier = Modifier.weight(1f),
                     )
-                },
-                trailingIcon = if (option == sort.sort) {
-                    {
+                    if (selected) {
                         Icon(
                             if (sort.reversed) Icons.Rounded.ArrowUpward else Icons.Rounded.ArrowDownward,
-                            contentDescription = null, tint = Immersive.Accent, modifier = Modifier.size(18.dp),
+                            contentDescription = null,
+                            tint = Immersive.Accent,
+                            modifier = Modifier.size(20.dp),
                         )
                     }
-                } else null,
-                onClick = {
-                    onDismiss()
-                    onSort(if (option == sort.sort) sort.copy(reversed = !sort.reversed) else TrackOrder(option))
-                },
-            )
+                }
+            }
         }
     }
 }
