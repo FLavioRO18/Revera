@@ -46,7 +46,7 @@ android {
     // "-beta" as in UpdateChecker.isBeta, one predicate for the app id, the label and the log stripping.
     val beta = findProperty("appVersionName") == null || version.contains("-beta")
     defaultConfig {
-        applicationId = if (automixLab) "app.revera.automixlab" else "app.revera"
+        applicationId = if (automixLab) "app.revera.automixlab" else "app.revera.dev"
         manifestPlaceholders["appLabel"] = if (automixLab) "Revera Mix Lab" else "Revera"
         // The adb command line (com.music.spotui.cli): betas and debug builds only.
         manifestPlaceholders["cliEnabled"] = beta.toString()
@@ -102,10 +102,9 @@ android {
     buildTypes {
         debug {
             // Installs next to the release apps (own data, own sign-in).
-            if (!automixLab) applicationIdSuffix = ".dev"
             manifestPlaceholders["appLabel"] = if (automixLab) "Revera Mix Lab" else "Revera dev"
             manifestPlaceholders["cliEnabled"] = "true"
-            buildConfigField("String", "UPDATE_REPO", "\"\"")
+            buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
         }
         release {
             // Real key when provided (CI releases); otherwise the debug key, so a local
@@ -114,9 +113,8 @@ android {
             // -PoverDev: the optimised build under the dev app's id, to measure the speed of a
             // beta on the test phone without replacing the signed beta installed there.
             if (findProperty("overDev") != null && !automixLab) {
-                applicationIdSuffix = ".dev"
                 manifestPlaceholders["appLabel"] = "Revera dev"
-                buildConfigField("String", "UPDATE_REPO", "\"\"")
+                buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
             }
             // The Mix Lab stays drivable from the CLI in its optimised build, as in its debug one.
             if (automixLab) manifestPlaceholders["cliEnabled"] = "true"
