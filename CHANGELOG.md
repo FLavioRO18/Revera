@@ -2,6 +2,15 @@
 
 Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
 
+## 1.0.6
+
+- **New Revera launcher icon**: vector **R** mark across all accent icon variants (`green`, `blue`, `orange`, `pink`, `purple`, monochrome, and Wear OS).
+- **Word-by-word inline lyrics**: live swept word-by-word fill directly in the player's lyric strip above the track title (with line-by-line fallback).
+- **Spotify Connect PC control**: fixed `next`, `previous`, `pause`, `resume`, and `seek` when transferring playback from Revera to a PC or remote Connect device.
+- **Mixed playlists**: local device files and Spotify tracks in the same playlist now stay in a unified queue and hand off cleanly between `LocalPlayer` and Spotify.
+- **Lyrics & BetterLyrics**: added **BetterLyrics** word-by-word provider, fixed Classic lyrics action bar wrapping on wide translations, and fixed empty/whitespace word lists hiding the active line.
+- **CDN failover & reliability**: penalized slow or failing Spotify CDN hosts so subsequent chunks/tracks stay on fast CDNs, added cold-start `library.contains` retry on `page ready`, online listen sync for downloaded Spotify tracks, `Music during calls` focus handling, and hardened badge signature verification.
+
 ## 1.0.4
 
 - **BitChord Immersive Player & dynamic track colors**: full-bleed edge-to-edge hero cover with bottom dissolve, vivid reflected artwork backdrop, live synced lyric preview strip above the seek bar, centered `Lossless` / `Hi-Res Lossless` shimmer badge, rounded BitChord transport glyphs, clean bottom action bar, and dynamic track-tinted mini-player & app-wide accents.
