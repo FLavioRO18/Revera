@@ -26,9 +26,9 @@ static CLIENT: OnceLock<Result<Client, String>> = OnceLock::new();
 
 fn fetch(url: &str, headers: &str, start: u64, end: u64) -> Result<Vec<u8>, String> {
     let client = CLIENT.get_or_init(|| Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(15))
-        .pool_idle_timeout(Duration::from_secs(120))
+        .connect_timeout(Duration::from_secs(3))
+        .timeout(Duration::from_secs(6))
+        .pool_idle_timeout(Duration::from_secs(15))
         .tcp_nodelay(true)
         .build().map_err(|e| e.to_string())).as_ref().map_err(Clone::clone)?;
     let parsed = reqwest::Url::parse(url).map_err(|e| e.to_string())?;

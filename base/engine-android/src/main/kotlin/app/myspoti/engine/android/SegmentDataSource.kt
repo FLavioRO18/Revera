@@ -93,16 +93,28 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
             val host = url.substringAfter("://").substringBefore('/')
             val rangeHeader = if (range.last == Long.MAX_VALUE) "bytes=${range.first}-" else "bytes=${range.first}-${range.last}"
             val t0 = System.currentTimeMillis()
+            val useRust = RustAudioTransport.available && range.last != Long.MAX_VALUE && now >= rustCooldownUntil
+            var usedRust = false
             try {
-                val body = if (RustAudioTransport.available && range.last != Long.MAX_VALUE) {
-                    RustAudioTransport.fetch(url, media.cdnHeaders, range)
+                val body = if (useRust) {
+                    try {
+                        usedRust = true
+                        kotlinx.coroutines.withTimeout(RUST_TIMEOUT_MS) {
+                            RustAudioTransport.fetch(url, media.cdnHeaders, range)
+                        }
+                    } catch (e: Exception) {
+                        if (e is InterruptedException) throw e
+                        if (e is kotlinx.coroutines.CancellationException && e !is kotlinx.coroutines.TimeoutCancellationException) throw e
+                        rustCooldownUntil = System.currentTimeMillis() + RUST_COOLDOWN_MS
+                        usedRust = false
+                        log("rust cdn $rangeHeader failed on $host (${e.message}), falling back to http")
+                        fetchViaHttp(url, rangeHeader)
+                    }
                 } else {
-                    val res = http.request(HttpRequest("GET", url, media.cdnHeaders + ("range" to rangeHeader)))
-                    if (res.status !in listOf(200, 206)) throw IOException("CDN HTTP ${res.status}")
-                    res.body
+                    fetchViaHttp(url, rangeHeader)
                 }
                 val ms = System.currentTimeMillis() - t0
-                val via = if (RustAudioTransport.available && range.last != Long.MAX_VALUE) "rust cdn" else "cdn"
+                val via = if (usedRust) "rust cdn" else "cdn"
                 log("$via $rangeHeader -> ${body.size} B in $ms ms ($host${if (prefetch) ", preload" else ""})")
                 if (ms > SLOW_HOST_MS && urls.size > 1) {
                     hostPenalties[host] = System.currentTimeMillis() + PENALTY_MS
@@ -124,8 +136,16 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
                 last = e
             }
         }
+        hostPenalties.clear()
         throw IOException("every CDN URL failed for ${media.fileId}: ${last?.message}", last)
     }
+
+    private suspend fun fetchViaHttp(url: String, rangeHeader: String): ByteArray =
+        kotlinx.coroutines.withTimeout(HTTP_TIMEOUT_MS) {
+            val res = http.request(HttpRequest("GET", url, media.cdnHeaders + ("range" to rangeHeader)))
+            if (res.status !in listOf(200, 206)) throw IOException("CDN HTTP ${res.status}")
+            res.body
+        }
 
     /** Average transfer rate of the fetches so far, bits per second. */
     fun bandwidthBps(): Long = fetchMs.get().takeIf { it > 0 }?.let { totalBytes.get() * 8_000 / it } ?: 0
@@ -133,6 +153,10 @@ internal class CdnItem(val media: PlayableMedia, private val http: Http, private
     companion object {
         private const val SLOW_HOST_MS = 5_000L
         private const val PENALTY_MS = 300_000L
+        private const val RUST_TIMEOUT_MS = 4_000L
+        private const val HTTP_TIMEOUT_MS = 8_000L
+        private const val RUST_COOLDOWN_MS = 60_000L
+        @Volatile private var rustCooldownUntil = 0L
         private val hostPenalties = ConcurrentHashMap<String, Long>()
     }
 }
