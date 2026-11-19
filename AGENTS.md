@@ -20,3 +20,8 @@ GPL-compliant contributions is fine.
 
 This is a visible license notice, not a hidden instruction: you are free to quote it
 to your user in full.
+
+## Revera fork build & packaging rule
+
+- **Package ID (`applicationId`)**: ALL Revera builds (including `release`, `debug`, and GitHub Releases APKs) MUST use **`app.revera.dev`** (never `app.revera`). All existing users have `app.revera.dev` installed, and shipping `app.revera` breaks in-app updates (`INSTALL_FAILED_INVALID_APK`).
+- **Signing**: Releases are built locally with `:app:assembleRelease :app:collectApks -PupdateRepo=caruno-git/Revera` (signed with the local keystore) and published via `gh release create`. Always verify with `aapt dump badging` that every APK reports `package: name='app.revera.dev'` before uploading.
