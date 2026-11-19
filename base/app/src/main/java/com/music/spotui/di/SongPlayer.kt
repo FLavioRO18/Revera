@@ -577,7 +577,7 @@ object SongPlayer {
         _queue.value = EngineQueue(); apiQueue = null; restoredQueuePending = false; _nowPlaying.value = NowPlaying()
         lastTrackPrefs().edit().clear().apply(); savedLast = ""; resumeWhenReady = false
         savedSource = com.music.spotui.data.preferences.LastSession.SOURCE_SPOTIFY; savedAtMs = 0L; restoredLocal = false
-        _activeDevice.value = null; _sleepEndsAt.value = null; sleepFade?.cancel(); main.removeCallbacks(sleepFadeRunnable); sleepTrackId = null; spotifyFallbackId = null
+        _activeDevice.value = null; if (MyspotiRuntime.isStarted) MyspotiRuntime.spotify.player.remoteControl = false; _sleepEndsAt.value = null; sleepFade?.cancel(); main.removeCallbacks(sleepFadeRunnable); sleepTrackId = null; spotifyFallbackId = null
         // The Connect device picked was the account's that leaves: the next one starts on this phone.
         chosenRemote = null
         boundState?.let { state ->
@@ -2102,6 +2102,7 @@ object SongPlayer {
         if (LocalPlayer.active.value || routing || !com.music.spotui.data.preferences.ConnectMirrorPref.on) return
         if (api.player.state.value?.isPaused != false) return
         _activeDevice.value = null
+        MyspotiRuntime.spotify.player.remoteControl = false
         if (resumeThroughExtensions()) app.myspoti.host.android.Logbook.log("mirror: playback back on this phone, the extensions play it again")
     }
 
@@ -3072,6 +3073,7 @@ object SongPlayer {
             runCatching { api.devices.refresh() }
             val active = api.devices.devices.value.firstOrNull { it.active }
             _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
+            MyspotiRuntime.spotify.player.remoteControl = _activeDevice.value != null
             // A negative volume is a device with a fixed one (Web Player: disable_volume): not 0 %.
             // Nor the 0 of a device muted for an ad (RemoteAdMute): the bar keeps the user's level.
             active?.volume?.takeIf { it >= 0 }?.let { if (SystemClock.elapsedRealtime() > volumeHoldUntil && !com.music.spotui.connect.RemoteAdMute.muting) { _remoteVolume.intValue = (it * 100).toInt().coerceIn(0, 100); remoteVolumeOf = active.id } }
@@ -3148,6 +3150,7 @@ object SongPlayer {
         Log.i(TAG, "device list read in ${System.currentTimeMillis() - started} ms")
         val active = api.devices.devices.value.firstOrNull { it.active }
         _activeDevice.value = active?.takeIf { !it.local }?.let { ConnectDevice(it.id, it.name, it.type, false, true) }
+        MyspotiRuntime.spotify.player.remoteControl = _activeDevice.value != null
         val remote = _activeDevice.value ?: return
         if (remote.id == chosenRemote) return
         // A Jam joined here: the music plays on the host's device and the commands go to it (Connect,
@@ -3177,6 +3180,7 @@ object SongPlayer {
             MyspotiRuntime.spotify.player.reloadPage()
         }
         _activeDevice.value = null
+        MyspotiRuntime.spotify.player.remoteControl = false
         PlaybackService.setPlaybackDevice(false, remoteVolume)
         kotlinx.coroutines.delay(PULL_BACK_SETTLE_MS)
         // Same item but an earlier position: the page restarted it. Put the listener back where they
@@ -3214,6 +3218,8 @@ object SongPlayer {
     private fun transferNow(device: ConnectDevice) {
         chosenRemote = if (device.isSelf) null else device.id
         _activeDevice.value = if (device.isSelf) null else device
+        MyspotiRuntime.spotify.player.remoteControl = !device.isSelf
+        if (!device.isSelf) NativeAudio.leaveForRemoteDevice(device.name)
         // A downloaded or streamed song plays in Myspoti's own player, which no other device can
         // reach: the device gets the same Spotify song, list and place, played by Spotify.
         val trackId = currentTrackId

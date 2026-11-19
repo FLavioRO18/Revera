@@ -84,6 +84,12 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         scope.launch { runCatching { stop() } }
     }
 
+    fun leaveForRemoteDevice(name: String) {
+        if (engine == null) return
+        log("playback transferred to $name: the local engine stops")
+        scope.launch { runCatching { stop() } }
+    }
+
     fun set(context: Context, value: Boolean) {
         enabled = value
         asideUntil = 0L

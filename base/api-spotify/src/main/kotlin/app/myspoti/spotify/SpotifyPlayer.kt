@@ -1714,11 +1714,14 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         }
     private var audioWatch: Job? = null
 
-    /** The native engine plays the account's songs now (not the page's element). */
-    private fun engineHolds(): Boolean = outside()?.holdsPlayback == true
+    /** True while the user is controlling another Spotify Connect device (e.g. PC): commands go to the page, not local AccountAudio. */
+    @Volatile var remoteControl: Boolean = false
 
-    /** [audio] when it plays the account's songs now: turned on, and the page not the unheard mirror. */
-    private fun outside(): AccountAudio? = audio?.takeIf { it.on && !mirroring }
+    /** The native engine plays the account's songs now (not the page's element). */
+    private fun engineHolds(): Boolean = audio?.takeIf { it.on && !mirroring }?.holdsPlayback == true
+
+    /** [audio] when it plays the account's songs now: turned on, not mirrored, and not controlling a remote Connect device. */
+    private fun outside(): AccountAudio? = audio?.takeIf { it.on && !mirroring && !remoteControl && !remoteActive }
 
     override suspend fun play(contextUri: Uri, trackUri: Uri?, index: Int?, positionMs: Long?, order: List<Uri>?) {
         userPlays()
