@@ -2,7 +2,7 @@
 
 Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
 
-## Unreleased
+## 1.0.7
 
 - **A-B loop**: set, fine-tune (`-1s`/`+1s`), and clear A–B loop points from the Now Playing track menu or directly via the player scrubber pill across local, extension, Spotify, and Cast playback.
 - **Android TV improvements**: added **Night Blackout** screen-off mode (wakes on any remote key), **Sleep Timer**, a **Settings** tab (Spotify Connect sync, Autoplay, Battery Saver, Sign Out), Search/Clear remote buttons, and enabled Spotify Connect Wi-Fi phone steering by default on TV.
