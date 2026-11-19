@@ -23,6 +23,7 @@ import app.myspoti.host.android.NativeTokens
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -54,10 +55,66 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.MirrorEngine {
     private const val PREFS = "native_audio"
+    private const val KEY_LAST_DEVICE = "last_device_id"
+    private const val KEY_LAST_SPCLIENT = "last_spclient"
 
     /** The setting: the engine plays the account's songs (on unless turned off). */
     @Volatile var enabled: Boolean = Graph.app.getSharedPreferences(PREFS, 0).getBoolean("on", true)
         private set
+
+    @Volatile private var staleDeviceIds: Set<String> = loadInitialStaleIds()
+
+    private fun loadInitialStaleIds(): Set<String> = runCatching {
+        Graph.app.getSharedPreferences(PREFS, 0).getString(KEY_LAST_DEVICE, null)
+            ?.takeIf { it.isNotBlank() }?.let { setOf(it) }.orEmpty()
+    }.getOrDefault(emptySet())
+
+    private fun rememberDevice(id: String, spclient: String) {
+        staleDeviceIds = (staleDeviceIds + id).toList().takeLast(4).toSet()
+        runCatching {
+            Graph.app.getSharedPreferences(PREFS, 0).edit()
+                .putString(KEY_LAST_DEVICE, id)
+                .putString(KEY_LAST_SPCLIENT, spclient)
+                .apply()
+        }
+    }
+
+    private fun clearRememberedDevice(id: String) {
+        runCatching {
+            val prefs = Graph.app.getSharedPreferences(PREFS, 0)
+            if (prefs.getString(KEY_LAST_DEVICE, null) == id) {
+                prefs.edit().remove(KEY_LAST_DEVICE).remove(KEY_LAST_SPCLIENT).apply()
+            }
+        }
+    }
+
+    private fun deregisterPreviousDevice() {
+        val prefs = runCatching { Graph.app.getSharedPreferences(PREFS, 0) }.getOrNull() ?: return
+        val oldId = prefs.getString(KEY_LAST_DEVICE, null)?.takeIf { it.isNotBlank() } ?: return
+        val oldSpclient = prefs.getString(KEY_LAST_SPCLIENT, null)?.takeIf { it.isNotBlank() } ?: return
+        if (oldId == engine?.deviceId) return
+        scope.launch {
+            runCatching {
+                val spotify = MyspotiRuntime.spotify
+                spotify.ready.first { it }
+                if (oldId == engine?.deviceId) return@runCatching
+                val (code1, _) = spotify.http.send(
+                    "DELETE",
+                    "$oldSpclient/track-playback/v1/devices/$oldId",
+                    """{"seq_num":1,"state_ref":null,"sub_state":{},"previous_position":0,"debug_source":"deregister"}""",
+                )
+                val (code2, _) = spotify.http.send(
+                    "DELETE",
+                    "$oldSpclient/connect-state/v1/devices/hobs_${oldId.take(35)}",
+                )
+                log("previous native device taken off -> $code1 / $code2")
+                if (code1 in 200..299 || code1 == 404) {
+                    clearRememberedDevice(oldId)
+                    staleDeviceIds = staleDeviceIds - oldId
+                }
+            }
+        }
+    }
 
     /** Until when the engine is left aside after it could not play: the page plays meanwhile. */
     @Volatile private var asideUntil = 0L
@@ -125,6 +182,8 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         val spotify = MyspotiRuntime.spotify
         spotify.player.audio = this
         spotify.devices.ownDeviceId = { deviceId }
+        spotify.devices.staleOwnDeviceIds = { staleDeviceIds }
+        deregisterPreviousDevice()
     }
 
     /** The engine, started and registered first if it was not (the account's player, or the listen mirror's device). */
@@ -346,6 +405,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         }
         log("starting: widevine ${WidevineInfo.summary}, ${config.deviceName}, app ${config.appVersion}")
         e.start()
+        rememberDevice(e.deviceId, e.spclient)
         log("registered ${e.deviceId.take(8)}… on ${e.spclient.substringAfter("://")}, http ${chromium.status}")
         engine = e
         _current.value = e
@@ -361,15 +421,18 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
                 player?.release()
                 engine = null; player = null; _current.value = null
             }
+            deregisterPreviousDevice()
         }
     }
 
     private suspend fun stop() = lock.withLock {
+        val stoppedId = engine?.deviceId
         engine?.let { runCatching { it.close() }.onFailure { t -> log("close failed: ${t.message}") } }
         player?.release()
         engine = null
         player = null
         _current.value = null
+        if (stoppedId != null) clearRememberedDevice(stoppedId)
         log("stopped")
     }
 

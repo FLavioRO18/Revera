@@ -1233,6 +1233,13 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         playNow(list ?: song.uri, trackUri = song.uri.takeIf { list != null }, order = lastOrder?.takeIf { list != null && it.first == list }?.second, origin = origin)
     }
 
+    @Volatile private var appUserActedAt = Long.MIN_VALUE / 2
+
+    fun noteUserAction() {
+        appUserActedAt = clock()
+        skipChain.reset()
+    }
+
     private val skipChain = TrackChanges.Chain()
     private val commandsExplained = TrackChanges.Commands()
     private val _skipChained = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -1258,7 +1265,8 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
         // The song a play asked for; a skip (newer than the last play) names none.
         val target = play?.takeIf { it.third >= userMoveAt }?.second
         val used = commandsExplained.used(commandAt, to.uri, target)
-        val cause = TrackChanges.cause(played, from.durationMs, now - commandAt, adJustEnded, crossfadeArmed, commandUsed = used)
+        val measured = TrackChanges.cause(played, from.durationMs, now - commandAt, adJustEnded, crossfadeArmed, commandUsed = used)
+        val cause = if (measured == TrackChanges.Cause.OWN && now - appUserActedAt in 0..TrackChanges.COMMAND_MS) TrackChanges.Cause.COMMAND else measured
         val list = if (old.contextUri == s.contextUri) "in ${s.contextUri}" else "${old.contextUri} -> ${s.contextUri}"
         bridge.logger?.invoke("track change: ${from.name} -> ${to.name} (${cause.text}, left at ${TrackChanges.clock(played)} of ${TrackChanges.clock(from.durationMs)}, $list${if (playbackHeld()) ", playback held" else ""}${if (mirrored) ", mirroring" else ""})")
         // The page only mirrors a song of an extension (heard from the phone's own player): pausing

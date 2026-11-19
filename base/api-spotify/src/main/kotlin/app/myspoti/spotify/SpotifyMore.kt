@@ -490,19 +490,22 @@ class SpotifyTrackExtras(private val gql: Gql, private val bridge: Bridge, priva
 class SpotifyDevices(private val bridge: Bridge, private val http: SpotifyHttp? = null) : Devices {
     /** A device id that is this app too (the native engine's, see [AccountAudio.deviceId]); null: none. */
     @Volatile var ownDeviceId: () -> String? = { null }
+    @Volatile var staleOwnDeviceIds: () -> Set<String> = { emptySet() }
     private val _devices = MutableStateFlow<List<Device>>(emptyList())
     override val devices: StateFlow<List<Device>> = _devices
 
     override suspend fun refresh() {
         val own = ownDeviceId()
+        val stale = staleOwnDeviceIds()
         _devices.value = (bridge.service("ConnectDevicesAPI", "getDevices") as? JsonArray).orEmpty().mapNotNull { d ->
+            val id = d.str("id") ?: return@mapNotNull null
             Device(
-                id = d.str("id") ?: return@mapNotNull null,
+                id = id,
                 name = d.str("name") ?: "",
                 type = d.str("type") ?: "unknown",
                 active = d.bool("isActive") ?: false,
                 volume = d.double("volume"),
-                local = d.bool("isLocal") ?: false || (own != null && d.str("id") == own),
+                local = (d.bool("isLocal") ?: false) || (own != null && id == own) || id in stale,
             )
         }
     }

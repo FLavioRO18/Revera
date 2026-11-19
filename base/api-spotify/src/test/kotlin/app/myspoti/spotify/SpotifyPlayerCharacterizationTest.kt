@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -186,5 +187,43 @@ class SpotifyPlayerCharacterizationTest {
         assertEquals(1, plays.size, "one play: ${host.calls.map { it.first }}")
         assertTrue("spotify:track:P" in plays.single() && "spotify:track:Q" in plays.single(), "the pick, in its order: ${plays.single()}")
         assertTrue(sent("player.resume").isEmpty(), "the pick is played, not the old song resumed: ${host.calls.map { it.first }}")
+    }
+
+    @Test fun `rapid track changes preceded by noteUserAction do not trigger skipChained`() = time.test {
+        var skipEvents = 0
+        val job = scope.launch { player.skipChained.collect { skipEvents++ } }
+        host.post("""{"type":"ready"}""")
+        waitFor("page ready") { bridge.ready.value }
+        host.post(state(track("T1")))
+        waitFor("initial track") { player.state.value?.item?.uri == "spotify:track:T1" }
+        for (name in listOf("T2", "T3", "T4")) {
+            player.noteUserAction()
+            delay(400)
+            host.post(state(track(name)))
+            waitFor("track $name") { player.state.value?.item?.uri == "spotify:track:$name" }
+        }
+        assertEquals(0, skipEvents, "user-driven skips must not trigger skipChained")
+        job.cancel()
+    }
+
+    @Test fun `SpotifyDevices marks stale own native device ids as local`() = time.test {
+        val deviceHost = object : BridgeHost {
+            override val messages = MutableSharedFlow<String>(extraBufferCapacity = 16)
+            override suspend fun evaluate(script: String) {
+                val m = Regex("""Myspoti\.call\((\d+),""").find(script) ?: return
+                val payload = """[{"id":"live-own","name":"This Phone","type":"COMPUTER","isActive":false,"isLocal":false},{"id":"stale-own","name":"Old Phone","type":"COMPUTER","isActive":true,"isLocal":false},{"id":"remote-pc","name":"Desktop","type":"COMPUTER","isActive":false,"isLocal":false}]"""
+                messages.emit("""{"type":"result","id":${m.groupValues[1]},"ok":true,"value":$payload}""")
+            }
+        }
+        val b = Bridge(deviceHost, scope, time::now)
+        val devices = SpotifyDevices(b)
+        devices.ownDeviceId = { "live-own" }
+        devices.staleOwnDeviceIds = { setOf("stale-own") }
+        devices.refresh()
+        val list = devices.devices.value
+        assertEquals(3, list.size)
+        assertTrue(list.first { it.id == "live-own" }.local)
+        assertTrue(list.first { it.id == "stale-own" }.local)
+        assertFalse(list.first { it.id == "remote-pc" }.local)
     }
 }

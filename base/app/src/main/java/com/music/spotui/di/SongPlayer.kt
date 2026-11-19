@@ -1781,6 +1781,7 @@ object SongPlayer {
     @Volatile private var userActedAt = 0L
     private fun userActed() {
         userActedAt = android.os.SystemClock.elapsedRealtime()
+        if (MyspotiRuntime.isStarted) runCatching { MyspotiRuntime.spotify.player.noteUserAction() }
         invalidateHandoff()
     }
 
