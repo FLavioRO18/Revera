@@ -996,6 +996,16 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 ImmersiveSwitchRow(stringResource(R.string.settings_player_lyrics_card_title), checked = com.music.spotui.data.preferences.PlayerLyricsCardPref.on,
                     onChecked = { com.music.spotui.data.preferences.PlayerLyricsCardPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_lyrics_card_detail))
             }
+            if (look == com.music.spotui.data.preferences.Look.IMMERSIVE && com.music.spotui.data.preferences.PlayerLyricsCardPref.on) {
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_player_lyrics_two_lines_title),
+                        checked = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines == 2,
+                        onChecked = { com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.set(ctx, if (it) 2 else 1) },
+                        detail = stringResource(R.string.settings_player_lyrics_two_lines_detail),
+                    )
+                }
+            }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_player_source_title), checked = com.music.spotui.data.preferences.PlayerSourceLinePref.on,
                     onChecked = { com.music.spotui.data.preferences.PlayerSourceLinePref.set(ctx, it) }, detail = stringResource(R.string.settings_player_source_detail))

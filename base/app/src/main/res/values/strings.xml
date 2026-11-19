@@ -41,4 +41,6 @@
     <string name="ab_loop_clear" tools:ignore="MissingTranslation">Clear</string>
     <string name="ab_loop_waiting_b" tools:ignore="MissingTranslation">A: %1$s · Set B</string>
     <string name="ab_loop_active" tools:ignore="MissingTranslation">Loop %1$s – %2$s</string>
+    <string name="settings_player_lyrics_two_lines_title" tools:ignore="MissingTranslation">Two-line lyrics preview</string>
+    <string name="settings_player_lyrics_two_lines_detail" tools:ignore="MissingTranslation">Show up to two lines in the player\u2019s lyric strip instead of one</string>
 </resources>

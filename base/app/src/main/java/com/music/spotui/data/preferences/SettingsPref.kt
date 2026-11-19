@@ -360,6 +360,20 @@ object PlayerLyricsCardPref {
     }
 }
 
+object PlayerLyricsPreviewLinesPref {
+    private const val KEY = "player_lyrics_preview_lines"
+    var lines by androidx.compose.runtime.mutableIntStateOf(
+        prefs(com.music.spotui.di.Graph.app).getInt(KEY, 1).coerceIn(1, 2)
+    )
+        private set
+
+    fun set(c: Context, value: Int) {
+        val clamped = value.coerceIn(1, 2)
+        lines = clamped
+        prefs(c).edit().putInt(KEY, clamped).apply()
+    }
+}
+
 /**
  * "Source and quality in the player" (Settings > Display, both looks): the line that says what
  * plays and how (under the title in the Immersive look, under the device in the Classic one). On

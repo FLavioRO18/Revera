@@ -364,6 +364,7 @@ internal fun CurrentLyricLine(
             label = "currentLyricStrip",
         ) { item ->
             if (item != null) {
+                val previewMaxLines = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
@@ -379,7 +380,7 @@ internal fun CurrentLyricLine(
                                 fontWeight = FontWeight.SemiBold,
                             ),
                             dimAlpha = 0.42f,
-                            maxLines = 1,
+                            maxLines = previewMaxLines,
                             overflow = TextOverflow.Ellipsis,
                             feather = true,
                             rise = false,
@@ -393,7 +394,7 @@ internal fun CurrentLyricLine(
                             fontSize = 15.sp,
                             lineHeight = 19.sp,
                             fontWeight = FontWeight.Medium,
-                            maxLines = 1,
+                            maxLines = previewMaxLines,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
