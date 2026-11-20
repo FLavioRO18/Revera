@@ -4,6 +4,7 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Lyrics appearance**: choose text size (70–140%) and a pastel text colour in Lyrics settings in either layout, with an Automatic option to restore the original colours.
 - **Home recommendations**: choose Spotify, YouTube Music or both without changing the playback source. YouTube Music uses the connected session for its home shelves.
 
 - **Search**: replacing a query while typing no longer treats the cancelled request as a failed search.

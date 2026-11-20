@@ -77,7 +77,7 @@ import com.music.spotui.ui.screens.shareDiagnosticReport
 import kotlinx.coroutines.launch
 
 /** Where the Immersive Settings are: the list of categories, one category, or a choice inside it. */
-private enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, Rotation, Language, LyricsLanguage, App, Accounts, Library }
+internal enum class SettingsPage { Root, Playback, Sources, Lyrics, StreamingWifi, StreamingCell, Crossfade, Downloads, DownloadQuality, Storage, Data, Display, Look, Rotation, Language, LyricsLanguage, App, Accounts, Library }
 
 private val StreamingChoices = listOf(
     Triple(StreamingQuality.AUTO, R.string.quality_streaming_auto, R.string.quality_streaming_auto_detail),
@@ -501,12 +501,13 @@ private fun LibraryPage(navController: NavController, back: () -> Unit) {
 
 /** Lyrics: their sources, word by word or by line, the screen kept on, romanization and translation. */
 @Composable
-private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
+internal fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
     val ctx = LocalContext.current
     var wordSync by remember { mutableStateOf(com.music.spotui.data.preferences.isLyricsWordSync(ctx)) }
     var lyricsExtra by remember { mutableStateOf(com.music.spotui.data.preferences.isLyricsExtraSources(ctx)) }
     ImmersivePage(title = stringResource(R.string.settings_section_lyrics), onBack = back) {
         immersiveGroup("lyrics") {
+            row { com.music.spotui.ui.components.LyricsAppearanceControls() }
             // Lyrics: word by word (karaoke) first, or line by line with Spotify's first.
             row {
                 ImmersiveSwitchRow(

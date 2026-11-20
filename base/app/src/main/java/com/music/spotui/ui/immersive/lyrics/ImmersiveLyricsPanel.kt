@@ -739,11 +739,9 @@ private fun PanelRow(
         return
     }
 
-    val style = if (synced) {
-        Immersive.Lyric
-    } else {
-        Immersive.Lyric.copy(fontSize = 26.sp, lineHeight = 33.sp)
-    }
+    val appearance = com.music.spotui.ui.components.rememberLyricsAppearance()
+    val baseStyle = if (synced) Immersive.Lyric else Immersive.Lyric.copy(fontSize = 26.sp, lineHeight = 33.sp)
+    val style = baseStyle.copy(fontSize = baseStyle.fontSize * appearance.scale, lineHeight = baseStyle.lineHeight * appearance.scale)
     val lane = endLane(row, duet)
     val lineStyle = remember(style, row.text, lane) { voiceStyle(style, row.text, lane) }
     // The stack sits fractionally back and the playing line comes forward to meet you. Rows
@@ -870,7 +868,7 @@ private fun PanelRow(
             val romanized = row.romanization.takeIf { romanizing }
             if (row.background != null) {
                 PanelBackground(
-                    row = row, clock = clock, style = secondaryStyle(BACKGROUND_STYLE, lane),
+                    row = row, clock = clock, style = secondaryStyle(BACKGROUND_STYLE.copy(fontSize = BACKGROUND_STYLE.fontSize * appearance.scale, lineHeight = BACKGROUND_STYLE.lineHeight * appearance.scale), lane),
                     isActive = isActive, sung = sung, synced = synced, lane = lane,
                     modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = if (romanized != null || translation != null) 4.dp else GLOW_ROOM),
                 )
@@ -878,7 +876,7 @@ private fun PanelRow(
             if (romanized != null) {
                 Text(
                     text = romanized,
-                    style = secondaryStyle(ROMANIZATION_STYLE, lane),
+                    style = secondaryStyle(ROMANIZATION_STYLE.copy(fontSize = ROMANIZATION_STYLE.fontSize * appearance.scale, lineHeight = ROMANIZATION_STYLE.lineHeight * appearance.scale), lane),
                     color = Immersive.TextSecondary,
                     modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = if (translation != null) 10.dp else GLOW_ROOM),
                 )
@@ -886,7 +884,7 @@ private fun PanelRow(
             if (translation != null) {
                 Text(
                     text = translation,
-                    style = secondaryStyle(TRANSLATION_STYLE, lane),
+                    style = secondaryStyle(TRANSLATION_STYLE.copy(fontSize = TRANSLATION_STYLE.fontSize * appearance.scale, lineHeight = TRANSLATION_STYLE.lineHeight * appearance.scale), lane),
                     color = Immersive.TextSecondary,
                     modifier = Modifier.fillMaxWidth().padding(start = GLOW_ROOM, end = GLOW_ROOM, bottom = GLOW_ROOM),
                 )
@@ -1088,7 +1086,7 @@ private fun PanelVoice(
     // handover rather than cut, so a line warms as it is reached and cools as it is left.
     // Lyrics with no timing have no line being sung, and stay white throughout.
     val color by animateColorAsState(
-        targetValue = if (isActive || !synced) Color.White else Immersive.TextSecondary.copy(alpha = 0.85f),
+        targetValue = com.music.spotui.ui.components.rememberLyricsAppearance().color(if (isActive || !synced) Color.White else Immersive.TextSecondary.copy(alpha = 0.85f)),
         label = "lyricLineColor",
     )
     if (row.isWordSynced && synced) {
@@ -1146,7 +1144,7 @@ private fun PanelBackground(
     modifier: Modifier = Modifier,
 ) {
     val color by animateColorAsState(
-        targetValue = if (isActive || !synced) Color.White else Immersive.TextSecondary.copy(alpha = 0.85f),
+        targetValue = com.music.spotui.ui.components.rememberLyricsAppearance().color(if (isActive || !synced) Color.White else Immersive.TextSecondary.copy(alpha = 0.85f)),
         label = "lyricBackgroundColor",
     )
     val dimmer = modifier.graphicsLayer { alpha = BACKGROUND_ALPHA }
