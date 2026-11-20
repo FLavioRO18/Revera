@@ -38,7 +38,7 @@ object DiagnosticReport {
     private fun logcat(context: Context): List<String> = runCatching {
         val file = File.createTempFile("revera-logcat-", ".txt", context.cacheDir)
         try {
-            val process = ProcessBuilder("logcat", "-d", "-v", "threadtime", "--pid=${android.os.Process.myPid()}", "-t", "1500")
+            val process = ProcessBuilder("logcat", "-d", "-v", "threadtime", "--pid=${android.os.Process.myPid()}")
                 .redirectErrorStream(true).redirectOutput(file).start()
             if (!process.waitFor(5, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
@@ -46,7 +46,7 @@ object DiagnosticReport {
             }
             if (process.exitValue() != 0) return emptyList()
             file.readText().lineSequence().filter { it.isNotBlank() }
-                .map(app.myspoti.spotify.report.DiagnosticDigest::mask).toList().takeLast(2500)
+                .map(app.myspoti.spotify.report.DiagnosticDigest::mask).toList()
         } finally {
             file.delete()
         }
