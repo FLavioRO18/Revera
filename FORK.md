@@ -4,7 +4,7 @@
 
 Modifications in this fork:
 
-- Rebranded package and app labels to **Revera** (`app.revera.dev` across all debug and release builds, updates via `caruno-git/Revera`).
+- Rebranded package and app labels to **Revera** (`app.revera.dev` across all debug and release builds, updates via `caruno-git/Revera`; APK signing cert `CN=Android Debug, O=Android, C=US`, alias `androiddebugkey`, `SHA-256: 2168918614771421e3247050597896923591cf147edd0ee23bdbd96768a24dac`).
 - Visible downloads saved in `Download/Revera` (with backwards-compatible reading of `Download/Orpheon` and `Music/Orpheon`).
 - Lyrics and cover embedded in the downloaded file (USLT+SYLT / APIC for MP3, ©lyr / covr for M4A, Vorbis LYRICS + PICTURE + `.lrc` sidecar for FLAC), before the public scan or the private encryption.
 - A lyrics badge in the track rows (checked over Wi-Fi only, cached).
