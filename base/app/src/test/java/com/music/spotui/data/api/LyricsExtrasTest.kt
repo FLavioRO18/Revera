@@ -48,6 +48,14 @@ class LyricsExtrasTest {
         assertSame(bare, LyricsExtras.carry(bare, null))
     }
 
+    @Test fun romanizedLyricsKeepTranslationsFromAnotherSource() {
+        val original = Lyrics(listOf(line(0, "Hello", ro = "hello")), synced = true)
+        val other = Lyrics(listOf(line(0, "Hello", tr = "你好")), synced = true, translationLanguage = "zh")
+        val result = LyricsExtras.carry(original, other)
+        assertEquals(listOf("你好"), result.translationsFor("zh"))
+        assertEquals("hello", result.lines.single().romanization)
+    }
+
     @Test fun sourceTranslationsAreUsedOnlyInTheTargetLanguage() {
         val l = Lyrics(listOf(line(0, "a", tr = "A"), line(1, "b")), synced = true, language = "ja", translationLanguage = "en-US")
         assertEquals(listOf("A", null), l.translationsFor("en"))
