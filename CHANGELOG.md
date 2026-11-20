@@ -14,8 +14,9 @@ Each release on GitHub shows its section below. The app shows it too when it off
 - **Lyrics**: a recording with romanized lines can now also show matching translations supplied by another lyrics source.
 
 - **Queue search**: the Immersive queue page can now filter upcoming songs by title or artist without changing playback order.
-- **Save queue as playlist**: save the current queue directly as a Spotify playlist from both the Classic and Immersive queue headers.
-- **Dynamic queue mood chips & Surprise Me**: reshape the upcoming queue by mood/genre without interrupting playback, or launch a one-tap Surprise Me mix from both the Classic and Immersive queue screens.
+- **Dynamic queue mood chips & Surprise Me**: choose `Spotify`, `YT Music`, or `Both` as the recommendation provider for the queue, reshape upcoming tracks by mood/genre (including `Similar` and `Familiar` seeded from the whole queue) without interrupting playback, or launch a one-tap Surprise Me mix from both the Classic and Immersive queue screens.
+- **Playlist suggestions provider**: choose `Spotify`, `YT Music`, or `Both` in the playlist Add Songs recommendations view.
+- **Save queue as playlist**: save the current queue directly as a Spotify playlist from both the Classic and Immersive queue headers, with options to include or exclude the current track and upcoming context (saving only manually queued songs).
 - **Per-output audio profiles & expanded Stats for Nerds**: configure streaming quality per audio output (USB DAC, wired headphones, Bluetooth, speaker) with automatic switching on device connect/disconnect, and view Audio API, resampling, bit-perfect, and active profile status in Stats for Nerds.
 
 - **Lyrics translation**: if a requested translation fails, the player now shows an error instead of silently dismissing the loading indicator.
