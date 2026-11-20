@@ -232,8 +232,8 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                     val showTranslateButton = com.music.spotui.data.preferences.LyricsTranslateButtonPref.on && (canTranslate || current.showTranslation)
                     if (!selecting && (canRomanize || showTranslateButton)) {
                         val layoutDirection = LocalLayoutDirection.current
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(
