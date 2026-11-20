@@ -4,6 +4,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Queue search**: the Immersive queue page can now filter upcoming songs by title or artist without changing playback order.
+
 - **Lyrics translation**: if a requested translation fails, the player now shows an error instead of silently dismissing the loading indicator.
 
 - **Temporary media cache**: optional clearing of the previous session's streamed media when the cache first opens after restarting the app. Downloads, artwork and account data are kept; disabled by default.
