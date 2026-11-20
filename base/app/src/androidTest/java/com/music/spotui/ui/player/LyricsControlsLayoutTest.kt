@@ -22,6 +22,64 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class LyricsControlsLayoutTest {
+    @Test fun longLyricsDoNotPassBehindTranslationControls() = assertProtectedLyricsArea(false, 1f)
+
+    @Test fun largeTranslatedLyricsDoNotPassBehindControls() = assertProtectedLyricsArea(false, 1.5f)
+
+    @Test fun rightToLeftLyricsDoNotPassBehindControls() = assertProtectedLyricsArea(true, 1.5f)
+
+    private fun assertProtectedLyricsArea(rtl: Boolean, fontScale: Float) {
+        val text = "長い歌詞が何行にも折り返されても翻訳ボタンに隠れないように表示領域を確保します".repeat(3)
+        ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val vm = ViewModelProvider(activity)[LyricsViewModel::class.java]
+                val field = LyricsViewModel::class.java.getDeclaredField("_state").apply { isAccessible = true }
+                @Suppress("UNCHECKED_CAST")
+                val state = field.get(vm) as MutableStateFlow<LyricsViewModel.State>
+                state.value = LyricsViewModel.State.Loaded(
+                    lyrics = Lyrics(lines = listOf(LyricLine(0, text, romanization = "long lyric")), synced = false),
+                    sourceLanguage = "ja", translationChecked = true,
+                    translations = listOf("A translated lyric that also remains inside the reading area"),
+                    showTranslation = true,
+                )
+                activity.setContent {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(1f, fontScale),
+                        androidx.compose.ui.platform.LocalLayoutDirection provides if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
+                    ) {
+                        Box(Modifier.size(320.dp, 500.dp)) { ImmersiveLyricsPanel(Modifier.size(320.dp, 500.dp)) }
+                    }
+                }
+            }
+            val instrumentation = InstrumentationRegistry.getInstrumentation()
+            instrumentation.waitForIdleSync()
+            val labels = setOf(
+                instrumentation.targetContext.getString(app.myspoti.engine.R.string.lyrics_romanize),
+                instrumentation.targetContext.getString(app.myspoti.engine.R.string.lyrics_hide_translation),
+            )
+            var lyric: android.graphics.Rect? = null
+            val controls = mutableListOf<android.graphics.Rect>()
+            val deadline = System.currentTimeMillis() + 10000
+            while (System.currentTimeMillis() < deadline) {
+                controls.clear()
+                fun visit(node: android.view.accessibility.AccessibilityNodeInfo) {
+                    val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
+                    if (node.text?.toString() == text) lyric = bounds
+                    if (node.contentDescription?.toString() in labels) controls.add(bounds)
+                    for (i in 0 until node.childCount) node.getChild(i)?.let(::visit)
+                }
+                instrumentation.uiAutomation.rootInActiveWindow?.let(::visit)
+                if (lyric != null && controls.size == 2) break
+                Thread.sleep(100)
+            }
+            assertTrue("Long lyric must be rendered", lyric != null && !lyric!!.isEmpty)
+            assertEquals("Both controls must be rendered", 2, controls.size)
+            controls.forEach { control ->
+                assertTrue("Lyric $lyric must not intersect control $control", !android.graphics.Rect.intersects(lyric!!, control))
+            }
+        }
+    }
+
     @Test fun romanizationAndTranslationShareOneVerticalAxis() {
         ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->

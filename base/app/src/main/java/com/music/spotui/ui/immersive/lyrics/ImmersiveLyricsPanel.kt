@@ -207,6 +207,11 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
             // the lines they were made for.
             key(trackKey) {
                 Box(modifier) {
+                    val target = com.music.spotui.ui.components.readerLanguage()
+                    val canRomanize = current.lyrics.hasRomanization
+                    val canTranslate = !LyricsViewModel.sameLanguage(current.sourceLanguage, target)
+                    val showTranslateButton = com.music.spotui.data.preferences.LyricsTranslateButtonPref.on && (canTranslate || current.showTranslation)
+                    val controlsVisible = !selecting && (canRomanize || showTranslateButton)
                     // Other lyrics for the same song (the line-timed ones shown first, then the
                     // word-timed ones): each has its own list, opened on the line being sung, and the
                     // new one fades in over the old. Reported: the lines jumped when the words came,
@@ -218,7 +223,9 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                         val live = shown === current.lyrics
                         // The translation the song options sheet turned on, line for line with the source's.
                         LyricsList(
-                            shown, trackKey, Modifier.fillMaxSize(), contentPadding, vm,
+                            shown, trackKey,
+                            Modifier.fillMaxSize().padding(end = if (controlsVisible) 48.dp else 0.dp),
+                            contentPadding, vm,
                             translations = current.translations.takeIf { live && current.showTranslation },
                             romanizing = LyricsRomanizationPref.on && shown.hasRomanization,
                         )
@@ -226,11 +233,7 @@ fun ImmersiveLyricsPanel(modifier: Modifier = Modifier, contentPadding: PaddingV
                     // The romanization, when the lyrics have one, then the Classic screen's translation,
                     // with its language setting and its service: the lyrics are only sent when it is
                     // tapped. Not offered for a song already in that language.
-                    val target = com.music.spotui.ui.components.readerLanguage()
-                    val canRomanize = current.lyrics.hasRomanization
-                    val canTranslate = !LyricsViewModel.sameLanguage(current.sourceLanguage, target)
-                    val showTranslateButton = com.music.spotui.data.preferences.LyricsTranslateButtonPref.on && (canTranslate || current.showTranslation)
-                    if (!selecting && (canRomanize || showTranslateButton)) {
+                    if (controlsVisible) {
                         val layoutDirection = LocalLayoutDirection.current
                         Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
