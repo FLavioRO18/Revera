@@ -244,6 +244,10 @@ class LyricsViewModel constructor() : ViewModel() {
                 val latest = _state.value as? State.Loaded ?: return@withContext
                 if (latest.lyrics != cur.lyrics) return@withContext
                 if (result == null) {
+                    if (latest.translationRequested) android.widget.Toast.makeText(
+                        com.music.spotui.di.Graph.app, app.myspoti.engine.R.string.lyrics_translation_unavailable,
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
                     _state.value = latest.copy(
                         translating = false,
                         translationChecked = true,
