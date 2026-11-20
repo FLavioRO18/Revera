@@ -27,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.AutoAwesome
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -78,6 +80,9 @@ fun QueueScreen(navController: NavController) {
             .distinct()
     }
     var saveDialogOpen by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var activeMood by remember { androidx.compose.runtime.mutableStateOf<com.music.spotui.ui.components.QueueMood?>(null) }
+    var moodBusy by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val discoveryScope = androidx.compose.runtime.rememberCoroutineScope()
 
     if (saveDialogOpen) {
         val defaultName = SongPlayer.nowPlaying.value.contextName.ifBlank { stringResource(R.string.action_queue_label) }
@@ -126,7 +131,29 @@ fun QueueScreen(navController: NavController) {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = stringResource(R.string.queue_surprise_me),
+                tint = AppText,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(
+                        enabled = !moodBusy,
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        moodBusy = true
+                        discoveryScope.launch {
+                            try {
+                                com.music.spotui.ui.components.QueueDiscovery.surpriseMe(context)
+                            } finally {
+                                moodBusy = false
+                            }
+                        }
+                    }
+            )
             if (saveableTrackIds.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(12.dp))
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
                     contentDescription = stringResource(R.string.save_queue_as_playlist),
@@ -140,6 +167,26 @@ fun QueueScreen(navController: NavController) {
                 )
             }
         }
+        com.music.spotui.ui.components.QueueMoodChipStrip(
+            activeMood = activeMood,
+            busy = moodBusy,
+            immersive = false,
+            onSelect = { mood ->
+                activeMood = mood
+                moodBusy = true
+                discoveryScope.launch {
+                    try {
+                        val added = com.music.spotui.ui.components.QueueDiscovery.reshapeQueue(context, mood)
+                        val msg = if (added > 0) context.getString(R.string.queue_mood_added, added, context.getString(mood.labelRes))
+                        else context.getString(R.string.queue_mood_empty)
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                    } finally {
+                        moodBusy = false
+                    }
+                }
+            },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
 
         androidx.compose.material3.OutlinedTextField(value = query, onValueChange = { query = it },
             singleLine = true, label = { Text(stringResource(R.string.add_songs_search_hint)) },

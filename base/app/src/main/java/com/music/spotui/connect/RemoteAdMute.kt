@@ -96,6 +96,7 @@ object RemoteAdMute {
     fun start() {
         if (started) return
         started = true
+        com.music.spotui.data.preferences.AudioOutputProfileWatcher.start(Graph.app)
         // The app went away during a muted break: the level is still owed.
         runCatching {
             val p = prefs

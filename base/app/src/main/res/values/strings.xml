@@ -49,4 +49,30 @@
     <string name="save_queue_as_playlist" tools:ignore="MissingTranslation">Save queue as playlist</string>
     <string name="save_queue_saved" tools:ignore="MissingTranslation">Saved queue to %1$s</string>
     <string name="save_queue_failed" tools:ignore="MissingTranslation">Could not save queue to %1$s</string>
+    <string name="output_profiles_title" tools:ignore="MissingTranslation">Output audio profiles</string>
+    <string name="output_profiles_detail" tools:ignore="MissingTranslation">Automatically switch streaming quality when USB DAC, wired headphones, Bluetooth, or speaker connects (for the active network)</string>
+    <string name="output_profile_default" tools:ignore="MissingTranslation">Default</string>
+    <string name="nerd_audio_api" tools:ignore="MissingTranslation">Audio API</string>
+    <string name="nerd_audio_api_direct" tools:ignore="MissingTranslation">AudioTrack · Direct / Hi-Res capable</string>
+    <string name="nerd_audio_api_mixer" tools:ignore="MissingTranslation">AudioTrack · Android mixer</string>
+    <string name="nerd_resampling" tools:ignore="MissingTranslation">Resampling</string>
+    <string name="nerd_resampling_no" tools:ignore="MissingTranslation">None (native rate)</string>
+    <string name="nerd_resampling_yes" tools:ignore="MissingTranslation">Resampled (%1$s → %2$s)</string>
+    <string name="nerd_bit_perfect" tools:ignore="MissingTranslation">Bit-perfect</string>
+    <string name="nerd_bit_perfect_direct" tools:ignore="MissingTranslation">Active (Direct USB)</string>
+    <string name="nerd_bit_perfect_dsp" tools:ignore="MissingTranslation">Bypassed (EQ / DSP active)</string>
+    <string name="nerd_bit_perfect_mixer" tools:ignore="MissingTranslation">No (Android mixer)</string>
+    <string name="nerd_audio_profile" tools:ignore="MissingTranslation">Audio profile</string>
+    <string name="nerd_profile_wifi" tools:ignore="MissingTranslation">Wi-Fi</string>
+    <string name="nerd_profile_cellular" tools:ignore="MissingTranslation">Mobile data</string>
+    <string name="queue_surprise_me" tools:ignore="MissingTranslation">Surprise me</string>
+    <string name="queue_surprise_started" tools:ignore="MissingTranslation">Playing %1$s mix</string>
+    <string name="queue_mood_chill" tools:ignore="MissingTranslation">Chill</string>
+    <string name="queue_mood_workout" tools:ignore="MissingTranslation">Workout</string>
+    <string name="queue_mood_focus" tools:ignore="MissingTranslation">Focus</string>
+    <string name="queue_mood_party" tools:ignore="MissingTranslation">Party</string>
+    <string name="queue_mood_late_night" tools:ignore="MissingTranslation">Late night</string>
+    <string name="queue_mood_discover" tools:ignore="MissingTranslation">Discover</string>
+    <string name="queue_mood_added" tools:ignore="MissingTranslation">Added %1$d %2$s tracks to queue</string>
+    <string name="queue_mood_empty" tools:ignore="MissingTranslation">No new tracks found for this mood</string>
 </resources>

@@ -41,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -74,6 +75,7 @@ import androidx.compose.ui.platform.LocalDensity
 import android.os.SystemClock
 import app.myspoti.host.android.Logbook
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -328,6 +330,9 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
             .distinct()
     }
     var saveDialogOpen by remember { mutableStateOf(false) }
+    var activeMood by remember { mutableStateOf<com.music.spotui.ui.components.QueueMood?>(null) }
+    var moodBusy by remember { mutableStateOf(false) }
+    val discoveryScope = androidx.compose.runtime.rememberCoroutineScope()
 
     if (saveDialogOpen) {
         val defaultName = contextName.ifBlank { stringResource(R.string.action_queue_label) }
@@ -375,6 +380,40 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
                 },
                 onRepeat = { SongPlayer.cycleRepeat() },
                 onSaveAsPlaylist = if (saveableTrackIds.isNotEmpty()) { { saveDialogOpen = true } } else null,
+                onSurpriseMe = {
+                    if (!moodBusy) {
+                        moodBusy = true
+                        discoveryScope.launch {
+                            try {
+                                com.music.spotui.ui.components.QueueDiscovery.surpriseMe(context)
+                            } finally {
+                                moodBusy = false
+                            }
+                        }
+                    }
+                },
+            )
+        }
+        item(key = "mood-chips") {
+            com.music.spotui.ui.components.QueueMoodChipStrip(
+                activeMood = activeMood,
+                busy = moodBusy,
+                immersive = true,
+                onSelect = { mood ->
+                    activeMood = mood
+                    moodBusy = true
+                    discoveryScope.launch {
+                        try {
+                            val added = com.music.spotui.ui.components.QueueDiscovery.reshapeQueue(context, mood)
+                            val msg = if (added > 0) context.getString(R.string.queue_mood_added, added, context.getString(mood.labelRes))
+                            else context.getString(R.string.queue_mood_empty)
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                        } finally {
+                            moodBusy = false
+                        }
+                    }
+                },
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
             )
         }
         if (hasCurrent) {
@@ -610,6 +649,7 @@ private fun QueueHeader(
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
     onSaveAsPlaylist: (() -> Unit)? = null,
+    onSurpriseMe: (() -> Unit)? = null,
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -617,6 +657,10 @@ private fun QueueHeader(
             style = Immersive.Title,
             modifier = Modifier.weight(1f),
         )
+        if (onSurpriseMe != null) {
+            QueueToggle(Icons.Rounded.AutoAwesome, stringResource(R.string.queue_surprise_me), false, onSurpriseMe)
+            Spacer(Modifier.width(8.dp))
+        }
         if (onSaveAsPlaylist != null) {
             QueueToggle(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.save_queue_as_playlist), false, onSaveAsPlaylist)
             Spacer(Modifier.width(8.dp))
