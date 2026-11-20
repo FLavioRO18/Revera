@@ -190,6 +190,19 @@ object YtmParse {
     }
 
     /** Every card of an answer (grids and carousels), in order. */
+    data class RecommendationShelf(val title: String, val items: List<Item>)
+
+    fun home(answer: JsonElement): List<RecommendationShelf> {
+        val seen = mutableSetOf<String>()
+        return deep(answer, "musicCarouselShelfRenderer").mapNotNull { shelf ->
+            val title = text(shelf.o("header")?.o("musicCarouselShelfBasicHeaderRenderer")?.o("title")) ?: return@mapNotNull null
+            val items = shelf.a("contents").orEmpty().mapNotNull { entry ->
+                entry.o()?.let { it.o("musicResponsiveListItemRenderer")?.let(::row) ?: it.o("musicTwoRowItemRenderer")?.let(::twoRow) }
+            }.filter { seen.add(key(it)) }
+            if (items.isEmpty()) null else RecommendationShelf(title, items)
+        }
+    }
+
     fun cards(answer: JsonElement): List<Item> = deep(answer, "musicTwoRowItemRenderer").mapNotNull(::twoRow)
 
     /** The token of the answer's next page, when there is one. */
