@@ -25,6 +25,7 @@ class MyspotiApplication : Application() {
         app.myspoti.host.android.LastExit.install(this)
         app.myspoti.power.EnergySettings.init(this)
         // Spotify session (hidden Web Player + API), caches, downloads, data saver.
+        com.music.spotui.data.MediaCacheStartup.prepareSession(this)
         Graph.init(this)
         SongPlayer.attachEngine(Graph.currentSongState)
         // Headphones or Bluetooth gone: pause rather than play on the speaker.
