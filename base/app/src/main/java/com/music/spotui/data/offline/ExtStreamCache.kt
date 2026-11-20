@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package com.music.spotui.data.offline
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.net.Uri
@@ -87,7 +88,7 @@ object ExtStreamCache {
         if (prefs.all.size >= IDENTITIES_MAX) edit.clear()
         edit.putString(trackId, now).apply()
         runCatching { SongPlayer.mediaCache(context.applicationContext).removeResource(key(trackId)) }
-        if (before != null) app.myspoti.host.android.Logbook.log("stream: $trackId is another file than the one cached, the cache of the song dropped")
+        if (before != null) AppLog.d("stream: $trackId is another file than the one cached, the cache of the song dropped")
         return true
     }
 

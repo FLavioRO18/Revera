@@ -1,4 +1,5 @@
 package com.music.spotui.ui.screens
+import app.myspoti.host.android.AppLog
 
 import com.music.spotui.ui.components.titleMarquee
 import com.music.spotui.ui.components.wideClickable
@@ -366,7 +367,7 @@ class ContextViewModel(
             if (p.type == "playlist") {
                 val listed = withContext(Dispatchers.IO) { com.music.spotui.data.preferences.getCachedLibraryEntries(Graph.app) }
                 if (com.music.spotui.data.api.LibraryEdits.listedButNotSaved(p.uri, saved, listed)) {
-                    app.myspoti.host.android.Logbook.log("library: ${p.uri} listed but not saved, the list is read again")
+                    AppLog.d("library: ${p.uri} listed but not saved, the list is read again")
                     com.music.spotui.data.api.LibraryEdits.reloadSoon()
                 }
             }

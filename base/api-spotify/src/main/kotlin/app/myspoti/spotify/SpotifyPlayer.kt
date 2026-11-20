@@ -1271,7 +1271,7 @@ class SpotifyPlayer(private val bridge: Bridge, private val scope: CoroutineScop
     val skipChained: kotlinx.coroutines.flow.SharedFlow<Unit> = _skipChained
 
     /**
-     * One Logbook line for each change of song with the reason (a command, an ad, the song's end,
+     * One Logcat line for each change of song with the reason (a command, an ad, the song's end,
      * or the page on its own), so a report of songs skipping says which. The page moving on by
      * itself again and again is stopped instead of chained through the list.
      */

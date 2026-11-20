@@ -1,10 +1,10 @@
 package com.music.spotui.podcast
+import app.myspoti.host.android.AppLog
 
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.data.preferences.SponsorBlockPref
 import com.music.spotui.di.SongPlayer
@@ -98,7 +98,7 @@ object SponsorSkip {
             if (target > position) {
                 SongPlayer.seekTo(target)
                 justSkipped = Skipped(segment, position)
-                Logbook.log("sponsorblock: skipped ${segment.category} ${position / 1000}s -> ${target / 1000}s")
+                AppLog.d("sponsorblock: skipped ${segment.category} ${position / 1000}s -> ${target / 1000}s")
             }
             return CHECK_MS
         }
@@ -133,7 +133,7 @@ object SponsorSkip {
     /** The episode's segments by its Spotify id. Null: not asked (no network). */
     private fun segmentsFor(episodeId: String): List<SponsorSegments.Segment>? {
         val spotify = fetch(episodeId, "Spotify") ?: return null
-        if (spotify.isNotEmpty()) Logbook.log("sponsorblock: ${spotify.size} segment(s) for the episode")
+        if (spotify.isNotEmpty()) AppLog.d("sponsorblock: ${spotify.size} segment(s) for the episode")
         return spotify
     }
 

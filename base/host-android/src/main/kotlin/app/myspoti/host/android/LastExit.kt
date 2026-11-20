@@ -48,8 +48,8 @@ object LastExit {
     private fun reportCrashFile(context: Context) {
         val f = File(context.filesDir, FILE)
         if (!f.exists()) return
-        Logbook.log("previous run crashed:")
-        f.readLines().take(60).forEach { Logbook.log("  $it") }
+        AppLog.d("previous run crashed:")
+        f.readLines().take(60).forEach { AppLog.d("  $it") }
         f.delete()
     }
 
@@ -71,19 +71,19 @@ object LastExit {
                 else -> "reason ${e.reason}"
             }
             val at = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(e.timestamp))
-            Logbook.log("previous exit at $at: $reason${e.description?.let { " ($it)" } ?: ""}")
+            AppLog.d("previous exit at $at: $reason${e.description?.let { " ($it)" } ?: ""}")
             // An ANR's trace: the main thread's stack is what was holding it.
             if (e.reason == ApplicationExitInfo.REASON_ANR) runCatching {
                 val trace = e.traceInputStream?.bufferedReader()?.use { it.readText() } ?: return@runCatching
                 val main = trace.substringAfter("\"main\"", "").lineSequence().take(30).toList()
-                main.forEach { Logbook.log("  $it") }
+                main.forEach { AppLog.d("  $it") }
             }
             // A native crash's record is Android's tombstone (a protobuf): its readable strings, the
             // abort message, the signal and the stack's libraries and functions, say where it was
             // (dev 3135 crashed natively and the report had nothing but "native crash").
             if (e.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) runCatching {
                 val bytes = e.traceInputStream?.use { it.readBytes() } ?: return@runCatching
-                tombstoneLines(bytes).forEach { Logbook.log("  $it") }
+                tombstoneLines(bytes).forEach { AppLog.d("  $it") }
             }
         }
     }

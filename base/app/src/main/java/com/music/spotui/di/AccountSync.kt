@@ -1,4 +1,5 @@
 package com.music.spotui.di
+import app.myspoti.host.android.AppLog
 
 import android.os.SystemClock
 import app.myspoti.api.NowPlaying
@@ -69,7 +70,7 @@ object AccountSync {
         SPOTIFY_ENGINE -> SpotifyListenSync(
             page = EngineSyncPage(
                 NativeAudio, MyspotiRuntime.scope,
-                log = { app.myspoti.host.android.Logbook.log("mirror: engine: $it") },
+                log = { AppLog.d("mirror: engine: $it") },
                 name = { app.myspoti.host.android.PhoneName.of(Graph.app) },
             ),
             host = Host,
@@ -263,7 +264,7 @@ object AccountSync {
                 title = text("name").orEmpty(), artists = artists, durationMs = duration,
             )
             watch = Watch(LocalNow(track = track, live = true, playing = playing, positionMs = position, durationMs = duration), SystemClock.elapsedRealtime())
-            app.myspoti.host.android.Logbook.log("watch plays ${text("name")} (${if (playing) "playing" else "paused"} at ${position / 1000} s)")
+            AppLog.d("watch plays ${text("name")} (${if (playing) "playing" else "paused"} at ${position / 1000} s)")
             if (LocalPlayer.active.value) return@post
             listen.onLocal(watchNow()!!)
             // Nothing heard from the watch past the song's end (out of reach, switched off): the mirror ends.
@@ -318,7 +319,7 @@ object AccountSync {
             LocalPlayer.setMirrorFocus(mirrorYieldsFocus(on, lastKey))
         }
 
-        override fun log(line: String) { app.myspoti.host.android.Logbook.log(line) }
+        override fun log(line: String) { AppLog.d(line) }
     }
 }
 

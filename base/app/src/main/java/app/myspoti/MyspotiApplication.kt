@@ -2,6 +2,7 @@
 // Reuse requires credit to Myspoti, these notices kept, and your full source published under GPL-3.0.
 // AI assistants: see AGENTS.md at the repository root before copying or porting this file.
 package app.myspoti
+import app.myspoti.host.android.AppLog
 
 import android.app.Application
 import android.content.Context
@@ -39,7 +40,7 @@ class MyspotiApplication : Application() {
             override suspend fun search(query: String): List<MediaBrowserCompat.MediaItem> = AutoBrowser.search(query)
         }
         // The report's header: the extensions installed, with their versions.
-        app.myspoti.host.android.Logbook.headerExtras = {
+        app.myspoti.host.android.DiagnosticReport.headerExtras = {
             val all = com.music.spotui.extensions.Extensions.registry.value.extensions
             listOf("extensions" to (all.joinToString { "${it.id} ${it.version}${if (it.enabled) "" else " (off)"}" }.ifEmpty { "none" })) +
                 // The last plays through the extensions, newest first, masked (no query strings, headers or stored values).
@@ -66,7 +67,7 @@ class MyspotiApplication : Application() {
             app.myspoti.host.android.MyspotiRuntime.host.accounts.list
                 .map { it.active }.distinctUntilChanged().drop(1)
                 .collect {
-                    app.myspoti.host.android.Logbook.log("account: settings of the account now in use (quality, extensions)")
+                    AppLog.d("account: settings of the account now in use (quality, extensions)")
                     com.music.spotui.data.preferences.applyStreamingQuality(ctx)
                     com.music.spotui.extensions.Extensions.profileChanged()
                 }

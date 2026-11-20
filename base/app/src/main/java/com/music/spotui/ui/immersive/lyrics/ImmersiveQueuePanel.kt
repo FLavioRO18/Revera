@@ -11,6 +11,7 @@
  * the autoplay heading are left out for now.
  */
 package com.music.spotui.ui.immersive.lyrics
+import app.myspoti.host.android.AppLog
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -73,7 +74,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import android.os.SystemClock
-import app.myspoti.host.android.Logbook
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -152,14 +152,14 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
     fun endPending(p: QueueDragMath.Pending<QRow>, why: String) {
         if (pending !== p) return
         pending = null; settling = false
-        Logbook.log("queue order: dropped ($why)")
+        AppLog.d("queue order: dropped ($why)")
     }
     LaunchedEffect(queue, pending) {
         val p = pending ?: return@LaunchedEffect
         val now = SystemClock.elapsedRealtime()
         when (val v = p.report(queue.queued.map { it.uri }, queue.nextUp.map { it.uri }, queue.current?.url, now)) {
             QueueDragMath.Verdict.Keep -> {}
-            QueueDragMath.Verdict.Matched -> { settling = true; Logbook.log("queue order: matched by the engine's report") }
+            QueueDragMath.Verdict.Matched -> { settling = true; AppLog.d("queue order: matched by the engine's report") }
             is QueueDragMath.Verdict.Drop -> endPending(p, v.why)
         }
     }
@@ -167,7 +167,7 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
     LaunchedEffect(pending) {
         val p = pending ?: return@LaunchedEffect
         delay(SLOW_REPORT_MS)
-        if (pending === p && !settling) Logbook.log("queue order: no report yet after ${SLOW_REPORT_MS}ms, kept")
+        if (pending === p && !settling) AppLog.d("queue order: no report yet after ${SLOW_REPORT_MS}ms, kept")
         while (pending === p) {
             delay(250)
             p.expired(SystemClock.elapsedRealtime())?.let { endPending(p, it) }
@@ -316,7 +316,7 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
             row.item.uri, queue.current?.url, SystemClock.elapsedRealtime(), pending?.detach(),
         )
         settling = false
-        Logbook.log("queue order: set (${row.item.uri}: $move)")
+        AppLog.d("queue order: set (${row.item.uri}: $move)")
         // The engine shows the dropped order at once and holds Spotify's reports until the move is done.
         SongPlayer.showQueueOrder(queuedNew.map { it.item }, nextNew.map { it.item })
         call()

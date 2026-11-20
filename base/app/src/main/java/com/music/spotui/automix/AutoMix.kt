@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package com.music.spotui.automix
+import app.myspoti.host.android.AppLog
 
 import android.net.Uri
 import androidx.compose.runtime.getValue
@@ -275,7 +276,7 @@ object AutoMix {
     var journalSnapshot by mutableStateOf<List<String>>(emptyList())
         private set
     fun journal(line: String) {
-        app.myspoti.host.android.Logbook.log("automix: $line")
+        AppLog.d("automix: $line")
         synchronized(lines) {
             lines.addLast(line)
             while (lines.size > 60) lines.removeFirst()

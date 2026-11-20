@@ -110,7 +110,7 @@ class HiddenPageHost(
             // is still used after this returns false: true, and the page is made again at once.
             override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                 if (_view !== view) { runCatching { view.destroy() }; return true }
-                Logbook.log("$profile page: renderer gone (crashed=${detail.didCrash()}): made again")
+                AppLog.d("$profile page: renderer gone (crashed=${detail.didCrash()}): made again")
                 remake(view)
                 return true
             }

@@ -1,4 +1,5 @@
 package com.music.spotui.extensions
+import app.myspoti.host.android.AppLog
 
 import android.app.Application
 import android.os.Handler
@@ -42,7 +43,6 @@ import app.myspoti.extensions.SpotifyDispatcher
 import app.myspoti.extensions.SpotifyRaw
 import app.myspoti.extensions.Storage
 import app.myspoti.extensions.TrackInfo
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.data.entity.Lyrics
 import com.music.spotui.di.SongPlayer
@@ -239,11 +239,11 @@ object Extensions {
      * launch (the extensions on before load then, nothing was asked of them yet) but for the misses.
      */
     private fun providersChanged(before: Provided, now: Provided) {
-        Logbook.log("ext: sources now: audio ${now.audio.ifEmpty { "none" }}, downloads ${now.download.ifEmpty { "none" }}, lyrics ${now.lyrics.ifEmpty { "none" }}, romanize ${now.romanize.ifEmpty { "none" }}")
+        AppLog.d("ext: sources now: audio ${now.audio.ifEmpty { "none" }}, downloads ${now.download.ifEmpty { "none" }}, lyrics ${now.lyrics.ifEmpty { "none" }}, romanize ${now.romanize.ifEmpty { "none" }}")
         if (now.audio != before.audio && before.ready) {
             val added = now.audio.filter { it !in before.audio }
             main.post { runCatching { com.music.spotui.di.SongPlayer.audioSourcesChanged(added, now.audio.isNotEmpty()) }
-                .onFailure { Logbook.log("audio: sources changed, player not updated: $it") } }
+                .onFailure { AppLog.d("audio: sources changed, player not updated: $it") } }
         }
         // A romanizer added or gone changes the lyrics as much as a source: they are read again with it.
         if (now.lyrics != before.lyrics || now.romanize != before.romanize) com.music.spotui.data.api.LyricsApi.sourcesChanged(keepFound = !before.ready)
@@ -301,7 +301,7 @@ object Extensions {
 
                 override fun onLost(network: android.net.Network) { networkLost = true }
             })
-        }.onFailure { Logbook.log("ext: no network callback: ${it.message}") }
+        }.onFailure { AppLog.d("ext: no network callback: ${it.message}") }
     }
 
     // ── Installed extensions ──
@@ -411,7 +411,7 @@ object Extensions {
         ExtensionAuth.forget(id)
         ExtensionAttestation.reset(id)
         File(dir, id).deleteRecursively()
-        Logbook.log("ext $id: uninstalled")
+        AppLog.d("ext $id: uninstalled")
     }
 
     fun setEnabled(id: String, on: Boolean, clashes: List<Clash> = emptyList(), keepNew: (Clash) -> Boolean = { true }) = scope.launch {
@@ -592,7 +592,7 @@ object Extensions {
         val lead = id?.let { SessionSource.pick(it, savedLine(r, Action.AUDIO_SOURCE)) { x -> r.find(x)?.enabled == true } }
         if (lead == _sessionSource.value) return
         _sessionSource.value = lead
-        Logbook.log("audio: ${lead?.let { "$it first for this session" } ?: "back to the order of Settings"}")
+        AppLog.d("audio: ${lead?.let { "$it first for this session" } ?: "back to the order of Settings"}")
         refreshProvided()
     }
 
@@ -601,7 +601,7 @@ object Extensions {
         val lead = _sessionSource.value ?: return
         if (SessionSource.valid(lead, savedLine(r, Action.AUDIO_SOURCE)) { r.find(it)?.enabled == true } != null) return
         _sessionSource.value = null
-        Logbook.log("audio: $lead no longer a source, back to the order of Settings")
+        AppLog.d("audio: $lead no longer a source, back to the order of Settings")
     }
 
     /** Makes [id] the one acting for the exclusive [action]; the others stay installed, idle. */
@@ -842,7 +842,7 @@ object Extensions {
         if (!started.isCompleted) {
             val t0 = System.currentTimeMillis()
             val loaded = withTimeoutOrNull(START_WAIT_MS) { started.await() } != null
-            Logbook.log("download: extensions not loaded yet, waited ${System.currentTimeMillis() - t0} ms${if (loaded) "" else " (still loading)"}")
+            AppLog.d("download: extensions not loaded yet, waited ${System.currentTimeMillis() - t0} ms${if (loaded) "" else " (still loading)"}")
         }
         val input = DownloadQuery.toJson(track, quality)
         probeStale(Hook.DOWNLOAD_SOURCE)
@@ -869,7 +869,7 @@ object Extensions {
             } + downloadNotAsked()
             if (silent.isNotEmpty()) {
                 val why = silent.joinToString("; ") { it.second }
-                Logbook.log("download: ${track.title} not found, not marked unavailable: $why")
+                AppLog.d("download: ${track.title} not found, not marked unavailable: $why")
                 throw NotAnswering(why, silent.map { (id, _) -> manifest(id)?.name ?: id }.distinct())
             }
         }
@@ -939,7 +939,7 @@ object Extensions {
         val attempt = attempts.start(track.id, track.title, ahead)
         // None had it a moment ago: not asked again (a queue reaching it, a replay, a resume).
         if (misses.skips(track.id, ahead)) {
-            Logbook.log("audio: ${track.title}${if (ahead) " (ahead)" else ""} not asked again: no extension had it under a minute ago")
+            AppLog.d("audio: ${track.title}${if (ahead) " (ahead)" else ""} not asked again: no extension had it under a minute ago")
             attempts.update(attempt) { it.copy(fallback = "Spotify: no extension had it under a minute ago, not asked again") }
             return null
         }
@@ -947,7 +947,7 @@ object Extensions {
         if (!audioStarted.isCompleted) {
             val t0 = System.currentTimeMillis()
             val loaded = withTimeoutOrNull(START_AUDIO_MS) { audioStarted.await() } != null
-            Logbook.log("audio: audio sources not loaded yet, waited ${System.currentTimeMillis() - t0} ms${if (loaded) "" else " (still loading)"}")
+            AppLog.d("audio: audio sources not loaded yet, waited ${System.currentTimeMillis() - t0} ms${if (loaded) "" else " (still loading)"}")
         }
         // The same song as a download asks with: its ISRC, which an extension matches recordings by.
         val withIsrc = withIsrc(track)
@@ -962,7 +962,7 @@ object Extensions {
         _registry.value.extensions.filter { it.enabled && health.inactive(it.id) && runtimes[it.id]?.provides(Hook.AUDIO_SOURCE) == true }
             .forEach {
                 val why = "inactive: ${health.last(it.id)?.detail ?: "no detail"}"
-                Logbook.log("audio: ${it.id} skipped ($why)")
+                AppLog.d("audio: ${it.id} skipped ($why)")
                 skipped += PlayAttempt.Ask(it.id, Outcome.Skipped().key, 0, why)
             }
         val asked = available(Hook.AUDIO_SOURCE, skipped)
@@ -971,7 +971,7 @@ object Extensions {
             return null
         }
         val label = "${track.title}${if (ahead) " (ahead)" else ""}"
-        Logbook.log("audio: asked ${asked.joinToString { it.first }} for $label")
+        AppLog.d("audio: asked ${asked.joinToString { it.first }} for $label")
         val t0 = System.currentTimeMillis()
         val answers = ConcurrentHashMap<String, PlayAttempt.Ask>()
 
@@ -984,7 +984,7 @@ object Extensions {
         // A source cut short because one above it answered was not needed.
         val all = skipped + asked.map { (id, _) -> answers[id] ?: PlayAttempt.Ask(id, Outcome.Skipped().key, ms, "not needed: another source answered first") }
         if (found == null) {
-            Logbook.log("audio: no extension had $label ($ms ms)"); if (!noIsrcCold) misses.record(track.id, ahead)
+            AppLog.d("audio: no extension had $label ($ms ms)"); if (!noIsrcCold) misses.record(track.id, ahead)
             attempts.update(attempt) { it.copy(asked = all, fallback = "Spotify: no extension had it") }
             return null
         }
@@ -1015,7 +1015,7 @@ object Extensions {
         val a = ask(id, rt, Hook.AUDIO_SOURCE, AudioQuery.toJson(withIsrc(track), false), AUDIO_MS, AudioStream::parse)
         val asked = listOf(PlayAttempt.Ask(id, a.outcome.key, a.ms, detail = listOfNotNull(picked, a.outcome.detail).joinToString("; ")))
         val found = a.value ?: run {
-            Logbook.log("audio: $id had no ${track.title} (${a.ms} ms), it goes on where it played")
+            AppLog.d("audio: $id had no ${track.title} (${a.ms} ms), it goes on where it played")
             attempts.update(attempt) { it.copy(asked = asked, fallback = "the song goes on where it played") }
             return null
         }
@@ -1058,7 +1058,7 @@ object Extensions {
                 api.catalog.isrc("spotify:track:${track.id}")
             }
         }.getOrNull()?.let(com.music.spotui.data.offline.OfflineDownloader::normalizeIsrc)?.also { isrcs[track.id] = it; saveIsrc(track.id, it) }
-        if (known == null) Logbook.log("audio: no ISRC for ${track.title} (Spotify not ready)")
+        if (known == null) AppLog.d("audio: no ISRC for ${track.title} (Spotify not ready)")
         return if (known == null) track else track.copy(isrc = known)
     }
 
@@ -1094,7 +1094,7 @@ object Extensions {
     private fun available(hook: Hook, skipped: MutableList<PlayAttempt.Ask>? = null): List<Pair<String, ExtensionRuntime>> =
         providing(hook).filter { (id, _) ->
             val why = cooldown.reason(id) ?: return@filter true
-            Logbook.log("${hook.key}: $id skipped (set aside: $why)")
+            AppLog.d("${hook.key}: $id skipped (set aside: $why)")
             skipped?.add(PlayAttempt.Ask(id, Outcome.Skipped().key, 0, "set aside: $why"))
             false
         }
@@ -1261,7 +1261,7 @@ object Extensions {
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Throwable) {
-                    Logbook.log("ext: status round failed: ${e.javaClass.simpleName}: ${e.message}")
+                    AppLog.d("ext: status round failed: ${e.javaClass.simpleName}: ${e.message}")
                 }
             }
         }
@@ -1289,7 +1289,7 @@ object Extensions {
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Throwable) {
-                        Logbook.log("ext: track event failed: ${e.javaClass.simpleName}: ${e.message}")
+                        AppLog.d("ext: track event failed: ${e.javaClass.simpleName}: ${e.message}")
                     }
                 }
         }
@@ -1612,7 +1612,7 @@ object Extensions {
         synchronized(lock) {
             val r = change(_registry.value)
             _registry.value = r
-            runCatching { Registry.write(File(dir, "registry.json"), r) }.onFailure { Logbook.log("ext: registry not saved: ${it.message}") }
+            runCatching { Registry.write(File(dir, "registry.json"), r) }.onFailure { AppLog.d("ext: registry not saved: ${it.message}") }
             keepSessionSource(r)
         }
         // Turned on or off, the order of the sources, the active one: who gives what may have changed.
@@ -1623,7 +1623,7 @@ object Extensions {
         val stamp = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
         logOf(id).add("$stamp $message")
         logTick.value++
-        Logbook.log("ext $id: $message")
+        AppLog.d("ext $id: $message")
     }
 
     private fun logOf(id: String) = logs.getOrPut(id) { ExtensionLog(File(dir, "$id/log.txt")) }

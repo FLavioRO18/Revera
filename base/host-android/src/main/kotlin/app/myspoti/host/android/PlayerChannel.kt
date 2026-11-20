@@ -63,7 +63,7 @@ internal class PlayerChannel(private val name: String, private val onMessage: (S
         val t = token
         if (t.isEmpty() || message.length <= t.length || !message.startsWith(t) || message[t.length] != '.') {
             val n = refused.incrementAndGet()
-            Logbook.logEvery("channel-refused-$name", 60_000, "$name message without the page's secret ignored ($n so far)")
+            AppLog.d("$name message without the page's secret ignored ($n so far)")
             return
         }
         onMessage(message.substring(t.length + 1))

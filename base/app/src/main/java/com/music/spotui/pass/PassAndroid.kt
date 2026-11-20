@@ -1,10 +1,10 @@
 package com.music.spotui.pass
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.pass.PassCookie
 import app.myspoti.pass.PassExtension
@@ -137,7 +137,7 @@ object PassAndroid {
             }
             done.await(5, java.util.concurrent.TimeUnit.SECONDS)
         }
-        Logbook.log("pass: received from ${p.from.take(30)}: ${p.prefs.size} settings files, ${p.extensions.size} extensions, session ${if (p.cookies.isEmpty()) "no" else "yes"}")
+        AppLog.d("pass: received from ${p.from.take(30)}: ${p.prefs.size} settings files, ${p.extensions.size} extensions, session ${if (p.cookies.isEmpty()) "no" else "yes"}")
         return true
     }
 

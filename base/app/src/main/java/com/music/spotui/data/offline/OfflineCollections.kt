@@ -1,4 +1,5 @@
 package com.music.spotui.data.offline
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.util.Log
@@ -238,7 +239,7 @@ object OfflineCollections {
             JSONObject().put("version", 1).put("lists", lists).put("singles", JSONArray(singles.toList())).toString()
         }
         runCatching { com.music.spotui.data.writeTextSafely(file, text) }
-            .onFailure { app.myspoti.host.android.Logbook.log("offline: downloaded lists not saved: ${it.message}") }
+            .onFailure { AppLog.d("offline: downloaded lists not saved: ${it.message}") }
     }
 
     private fun read(text: String) {

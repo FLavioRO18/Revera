@@ -189,7 +189,7 @@ class AccountStore(private val file: File) {
                 val tmp = File(file.parentFile, "${file.name}.tmp")
                 tmp.writeText(next.toJson())
                 if (!tmp.renameTo(file)) { file.writeText(next.toJson()); tmp.delete() }
-            }.onFailure { Logbook.log("accounts: could not be saved (${it.javaClass.simpleName})") }
+            }.onFailure { AppLog.d("accounts: could not be saved (${it.javaClass.simpleName})") }
         }
         next
     }

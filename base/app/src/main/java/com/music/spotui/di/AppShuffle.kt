@@ -1,4 +1,5 @@
 package com.music.spotui.di
+import app.myspoti.host.android.AppLog
 
 import android.os.Handler
 import android.os.Looper
@@ -120,7 +121,7 @@ object AppShuffle {
             whenPlaying {
                 val now = SongPlayer.nowPlaying.value
                 if (now.contextUri != was || !now.uri.startsWith(TRACK)) return@whenPlaying false
-                app.myspoti.host.android.Logbook.log("shuffle: Myspoti's off, $was back in its order")
+                AppLog.d("shuffle: Myspoti's off, $was back in its order")
                 SongPlayer.playSong(now.uri, contextUri = was, order = back, positionMs = SongPlayer.getCurrentPosition(), askExtensions = false)
                 true
             }
@@ -196,7 +197,7 @@ object AppShuffle {
             dealt
         }
         val song = songs.getValue(dealt[from])
-        app.myspoti.host.android.Logbook.log("shuffle: Myspoti's order for $uri, ${dealt.size} songs, playing at ${from + 1}")
+        AppLog.d("shuffle: Myspoti's order for $uri, ${dealt.size} songs, playing at ${from + 1}")
         val state = Graph.currentSongState
         // Spotify's shuffle would mix the order again.
         SongPlayer.setPageShuffle(false)
@@ -245,7 +246,7 @@ object AppShuffle {
         }
         if (restore) SongPlayer.setPageShuffle(true)
         told?.let { l ->
-            app.myspoti.host.android.Logbook.log("shuffle: Spotify keeps its own shuffle on $l, Myspoti's order left")
+            AppLog.d("shuffle: Spotify keeps its own shuffle on $l, Myspoti's order left")
             main.post { android.widget.Toast.makeText(Graph.app, Graph.app.getString(R.string.myspoti_shuffle_imposed), android.widget.Toast.LENGTH_LONG).show() }
         }
         return mine

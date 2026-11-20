@@ -1,4 +1,5 @@
 package com.music.spotui.cast
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.net.nsd.NsdManager
@@ -113,5 +114,5 @@ object CastDiscovery {
         }
     }
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("cast: $line")
+    private fun log(line: String) { AppLog.d("cast: $line") }
 }

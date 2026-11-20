@@ -1,4 +1,5 @@
 package com.music.spotui.video
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.net.Uri
@@ -18,7 +19,6 @@ import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.manifest.DashManifestParser
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.music.spotui.di.Graph
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.di.SongPlayer
 import kotlinx.coroutines.CoroutineScope
@@ -846,7 +846,7 @@ object MusicVideoController {
         hushed = on
         hushedFor = if (on) track else ""
         player?.volume = if (on) 1f else 0f
-        Logbook.log(if (on) "clip sound: the clip is heard, the song plays on unheard" else "clip sound: the song is heard")
+        AppLog.d(if (on) "clip sound: the clip is heard, the song plays on unheard" else "clip sound: the song is heard")
         // Applied in order, the last wish wins (a quick on/off never leaves the song unheard).
         hushWanted = on
     }
@@ -894,7 +894,7 @@ object MusicVideoController {
                         // A seek holds the picture until the frame is decoded (a visible freeze,
                         // reported): seen only, a drift under 2.5 s is caught up by speed instead.
                         (if (hushed) abs(drift) > 600 else abs(drift) > 2_500) -> {
-                            Logbook.log("clip: ${drift} ms off at ${SongPlayer.getCurrentPosition()} ms of the song, put back")
+                            AppLog.d("clip: ${drift} ms off at ${SongPlayer.getCurrentPosition()} ms of the song, put back")
                             p.seekTo(target); p.playbackParameters = PlaybackParameters(rate)
                         }
                         // Heard, the clip is corrected gently (a 10 % change is heard); seen only, firmly.

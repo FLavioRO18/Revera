@@ -1,7 +1,7 @@
 package com.music.spotui.connect
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.spotify.bridge.LogMask
 import com.music.spotui.di.Graph
@@ -200,5 +200,5 @@ object ConnectCode {
 
     private fun prefs() = Graph.app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun log(line: String) = Logbook.log("lan: sonos: $line")
+    fun log(line: String) { AppLog.d("lan: sonos: $line") }
 }

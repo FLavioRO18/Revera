@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 package com.music.spotui.data
+import app.myspoti.host.android.AppLog
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -16,7 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.myspoti.engine.R
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +58,7 @@ object NewReleaseNotifier {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             MyspotiRuntime.api.ready.first { it }
             while (true) {
-                if (on && signedIn(app)) runCatching { checkIfDue(app) }.onFailure { Logbook.log("new releases: not read (${it.javaClass.simpleName})") }
+                if (on && signedIn(app)) runCatching { checkIfDue(app) }.onFailure { AppLog.d("new releases: not read (${it.javaClass.simpleName})") }
                 delay(3_600_000L)
             }
         }
@@ -76,7 +76,7 @@ object NewReleaseNotifier {
         prefs.edit()
             .putString(KEY_SEEN, (feed.map { it.uri } + seen.orEmpty()).distinct().take(SEEN_KEPT).joinToString("\n"))
             .putLong(KEY_AT, now).apply()
-        Logbook.log("new releases: ${feed.size} in the feed, ${fresh.size} new${if (seen == null) " (first read, nothing said)" else ""}")
+        AppLog.d("new releases: ${feed.size} in the feed, ${fresh.size} new${if (seen == null) " (first read, nothing said)" else ""}")
         if (fresh.isNotEmpty()) show(context, fresh.take(MAX_SHOWN))
     }
 

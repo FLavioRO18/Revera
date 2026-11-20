@@ -87,7 +87,7 @@ private val MUSIC: AudioAttributes = AudioAttributes.Builder().setUsage(C.USAGE_
 class Media3DrmPlayer(
     context: Context,
     private val http: Http,
-    /** Where the player's steps go (the debug harness passes the Logbook). */
+    /** Where the player's steps go. */
     private val log: (String) -> Unit = {},
     /** Sets the application certificate on the CDM, as the browser's EME did. */
     private val privacyMode: Boolean = true,

@@ -11,6 +11,7 @@
  * backdropScale and exportedBackdrop to drawBackdrop. Package renamed again for Myspoti.
  */
 package com.music.spotui.ui.immersive.shell.backdrop.backdrops
+import app.myspoti.host.android.AppLog
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -141,7 +142,7 @@ class LayerBackdrop internal constructor(
             val c = s.coordinates ?: continue
             val layer = s.layer ?: continue
             if (layer.isReleased) {
-                app.myspoti.host.android.Logbook.log("glass: backdrop source sampled after release, skipped")
+                AppLog.d("glass: backdrop source sampled after release, skipped")
                 continue
             }
             if (!c.isAttached || layer.size.width <= 0) continue

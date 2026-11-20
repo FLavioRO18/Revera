@@ -12,7 +12,7 @@ package app.myspoti.spotify.report
  * - Tokens, account ids, e-mails and addresses are masked ([mask]).
  * - The whole stays under [maxBytes]: the oldest lines go first.
  *
- * Lines are "HH:mm:ss.SSS text", as the host's Logbook keeps them.
+ * Lines may be timestamped by Android Logcat or the app.
  */
 object DiagnosticDigest {
     private val TIME = Regex("""^(\d\d:\d\d:\d\d\.\d{3}) (.*)$""", RegexOption.DOT_MATCHES_ALL)

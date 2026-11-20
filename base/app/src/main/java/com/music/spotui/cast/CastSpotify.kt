@@ -1,4 +1,5 @@
 package com.music.spotui.cast
+import app.myspoti.host.android.AppLog
 
 import androidx.compose.runtime.mutableStateOf
 import app.myspoti.host.android.MyspotiRuntime
@@ -148,5 +149,5 @@ object CastSpotify {
         log("released the Spotify receiver")
     }
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("cast: spotify: $line")
+    private fun log(line: String) { AppLog.d("cast: spotify: $line") }
 }

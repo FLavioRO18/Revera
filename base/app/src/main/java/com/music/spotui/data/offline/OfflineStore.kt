@@ -1,4 +1,5 @@
 package com.music.spotui.data.offline
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.net.Uri
@@ -224,7 +225,7 @@ object OfflineStore {
             val aside = keepAside(audioDir, names, File(recoveredDir, "audio")) +
                 (if (isPublicAudio) keepAside(publicSongDir, publicNames, File(recoveredDir, "public-audio")) else 0) +
                 keepAside(coverDir, covers, File(recoveredDir, "covers"))
-            if (aside > 0) runCatching { app.myspoti.host.android.Logbook.log("offline: download index not read in full; $aside files the index does not list kept in ${recoveredDir.name}/") }
+            if (aside > 0) runCatching { AppLog.d("offline: download index not read in full; $aside files the index does not list kept in ${recoveredDir.name}/") }
             if (read != null && read.complete) writeIndex()
         }
         return kept.map { audioFile(it) }
@@ -381,6 +382,6 @@ object OfflineStore {
         if (indexFile.exists() && readIndex(indexFile)?.complete == true) indexFile.copyTo(backupFile, overwrite = true)
         // A failed write keeps the last good index (and its backup) rather than a half-moved one.
         runCatching { com.music.spotui.data.writeTextSafely(indexFile, a.toString()) }
-            .onFailure { app.myspoti.host.android.Logbook.log("offline: index not saved: ${it.message}") }
+            .onFailure { AppLog.d("offline: index not saved: ${it.message}") }
     }
 }

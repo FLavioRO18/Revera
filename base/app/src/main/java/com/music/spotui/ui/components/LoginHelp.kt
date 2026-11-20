@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import app.myspoti.engine.R
-import app.myspoti.host.android.Logbook
+import app.myspoti.host.android.DiagnosticReport
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.ui.screens.shareDiagnosticReport
 import com.music.spotui.ui.theme.AppAccent
@@ -41,7 +41,7 @@ import com.music.spotui.ui.theme.AppText
  */
 fun sendLoginReport(context: android.content.Context) {
     MyspotiRuntime.host.noteLoginPage {
-        val file = runCatching { Logbook.export(context) }.getOrNull()
+        val file = runCatching { DiagnosticReport.export(context) }.getOrNull()
         if (file != null) shareDiagnosticReport(context, file)
         else android.widget.Toast.makeText(context, context.getString(R.string.diagnostic_export_failed), android.widget.Toast.LENGTH_SHORT).show()
     }
@@ -95,7 +95,7 @@ fun LoginHelpDialog(onClose: () -> Unit) {
 fun copyLoginError(context: android.content.Context) {
     MyspotiRuntime.host.noteLoginPage {
         val webview = android.webkit.WebView.getCurrentWebViewPackage()?.versionName ?: "unknown"
-        val tail = Logbook.recent().lineSequence().toList().takeLast(80).joinToString("\n")
+        val tail = DiagnosticReport.recent(context).lineSequence().toList().takeLast(80).joinToString("\n")
         val report = buildString {
             append("Revera ").append(app.myspoti.engine.BuildConfig.VERSION_NAME)
                 .append(" (").append(app.myspoti.engine.BuildConfig.VERSION_CODE).append(")\n")
@@ -105,7 +105,7 @@ fun copyLoginError(context: android.content.Context) {
                 .append(" (multiProfile=").append(MyspotiRuntime.host.multiProfile).append(")\n")
             append(app.myspoti.host.android.LoginErrorDetails.summary())
             if (tail.isNotBlank()) {
-                append("\n\n--- Recent Logbook ---\n")
+                append("\n\n--- Recent Logcat ---\n")
                 append(tail)
             }
         }

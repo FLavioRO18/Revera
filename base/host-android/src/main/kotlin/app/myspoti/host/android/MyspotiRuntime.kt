@@ -76,7 +76,7 @@ object MyspotiRuntime {
         AudioModeWatch.install(context.applicationContext)
         spotify = SpotifyApi(host, scope, http = apiHttp, language = Locale.getDefault().language, ops = updater.load(), deviceId = clientDeviceId(context, host.accounts.list.value.active), userAgent = host.userAgent,
             tokenStore = clientTokens(context))
-        spotify.bridge.logger = { line -> Logbook.log(line) }
+        spotify.bridge.logger = { line -> AppLog.d(line) }
         // Each call to the page and its answer (up to a few thousand characters): dev builds only.
         spotify.bridge.verbose = context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
         pageHeld = held
@@ -129,7 +129,7 @@ object MyspotiRuntime {
                 if (!waiting) { notReadySince = 0L; if (spotify.ready.value) notReadyWait = 60_000L }
                 else if (notReadySince == 0L) notReadySince = clock
                 else if (clock - notReadySince >= notReadyWait) {
-                    Logbook.log("player not ready for ${(clock - notReadySince) / 1000} s: loading it again")
+                    AppLog.d("player not ready for ${(clock - notReadySince) / 1000} s: loading it again")
                     notReadySince = 0L
                     notReadyWait = (notReadyWait * 2).coerceAtMost(600_000L)
                     host.reload()
@@ -160,8 +160,8 @@ object MyspotiRuntime {
                             val plan = AccountPlan.fromAnswer(answer)
                             host.accounts.update { it.plan(profile, plan) }
                             if (host.profile == profile) AccountPlan.set(plan)
-                            Logbook.log("account: product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
-                            Logbook.fact("account", "product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
+                            AppLog.d("account: product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
+                            DiagnosticReport.fact("account", "product=${v(a, "product")} country=${v(a, "country")} catalogue=${v(attrs, "catalogue")} onDemand=${v(attrs, "onDemand")} ads=${v(attrs, "ads")}")
                         }
                     }
                 }
@@ -182,7 +182,7 @@ object MyspotiRuntime {
                     "track=${s?.item?.name} paused=${s?.isPaused} buffering=${s?.isBuffering} url=${host.url.value.take(60)}"
                 if (line != last) {
                     last = line
-                    Logbook.log(line)
+                    AppLog.d(line)
                 }
             }
         }
@@ -245,7 +245,7 @@ object MyspotiRuntime {
     private fun loadOnDemand() {
         if (pageHeld || pageWanted || !isStarted) return
         pageWanted = true
-        Logbook.log("spotify: the Web Player is loaded now, at its first use")
+        AppLog.d("spotify: the Web Player is loaded now, at its first use")
         host.load()
     }
 

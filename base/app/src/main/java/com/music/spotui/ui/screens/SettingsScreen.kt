@@ -547,7 +547,7 @@ fun SettingsScreen(navController: NavController) {
             // adb logcat, which the person reporting the bug cannot run.
             Column(
                 Modifier.fillMaxWidth().clickable {
-                    val file = runCatching { app.myspoti.host.android.Logbook.export(ctx) }.getOrNull()
+                    val file = runCatching { app.myspoti.host.android.DiagnosticReport.export(ctx) }.getOrNull()
                     if (file != null) shareDiagnosticReport(ctx, file)
                     else android.widget.Toast.makeText(ctx, ctx.getString(R.string.diagnostic_export_failed), android.widget.Toast.LENGTH_SHORT).show()
                 }.padding(horizontal = 20.dp, vertical = 10.dp),
@@ -1277,7 +1277,6 @@ internal fun OptionRow(label: String, detail: String, checked: Boolean,
 private fun AboutRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    com.music.spotui.ui.components.CopyAppLogButton()
     val check = com.music.spotui.data.api.rememberUpdateCheckState(ctx)
     // Also what "Later" put aside: the card in the app offers it again from here.
     val live = com.music.spotui.updateRelease.value

@@ -1,7 +1,7 @@
 package app.myspoti.spotify
 
 /**
- * Why the song the Web Player plays changed, for the Logbook (a skip report says nothing about
+ * Why the song the Web Player plays changed, for Logcat (a skip report says nothing about
  * it otherwise), and the guard against a page that chains through songs it cannot play.
  */
 internal object TrackChanges {
