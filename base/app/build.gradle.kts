@@ -12,6 +12,8 @@ val keystoreProperties = Properties().apply {
         keystorePropertiesFile.inputStream().use { load(it) }
     }
 }
+val debugKeystoreFile = rootProject.file("keystore/debug.keystore")
+val lineageFile = rootProject.file("keystore/${keystoreProperties.getProperty("lineageFile", "lineage.bin")}")
 
 // -PautomixLab: a test app with its own data, installed alongside every regular/dev build.
 val automixLab = findProperty("automixLab") != null
@@ -84,6 +86,17 @@ android {
     if (stableRelease && !hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(assemble|bundle|package|install)Release").containsMatchIn(it) })
         throw GradleException("A stable release needs the release key: set MYSPOTI_KEYSTORE (CI) or add keystore/keystore.properties.")
     signingConfigs {
+        if (debugKeystoreFile.exists()) {
+            getByName("debug") {
+                storeFile = debugKeystoreFile
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
         create("release") {
             if (envStore != null) {
                 storeFile = file(envStore)
@@ -96,6 +109,9 @@ android {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -277,3 +293,52 @@ tasks.register("collectApks") {
         dst.listFiles()?.sorted()?.forEach { println("${it.name}  ${it.length() / 1024 / 1024} MB") }
     }
 }
+
+// AGP has no SigningConfig option for APK Signature Scheme v3 proof-of-rotation.
+// Release APKs therefore receive the lineage in one final apksigner pass.
+val signReleaseApksWithLineage = tasks.register("signReleaseApksWithLineage") {
+    onlyIf { keystorePropertiesFile.exists() && lineageFile.isFile }
+    doLast {
+        val apksigner = androidComponents.sdkComponents.sdkDirectory.get().asFile.resolve("build-tools").listFiles()
+            ?.sortedBy { it.name }
+            ?.lastOrNull()
+            ?.resolve("apksigner")
+            ?: throw GradleException("Android SDK build-tools with apksigner is required for release signing.")
+        val storeFile = rootProject.file("keystore/${keystoreProperties.getProperty("storeFile")}")
+        val outputDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+        outputDirectory.walkTopDown().filter { it.extension == "apk" }.forEach { apk ->
+            val signedApk = apk.resolveSibling("${apk.nameWithoutExtension}.lineage.apk")
+            val signer = ProcessBuilder(
+                apksigner.absolutePath,
+                "sign",
+                "--ks", debugKeystoreFile.absolutePath,
+                "--ks-key-alias", "androiddebugkey",
+                "--ks-pass", "env:REVERA_DEBUG_KEY_PASSWORD",
+                "--key-pass", "env:REVERA_DEBUG_KEY_PASSWORD",
+                "--lineage", lineageFile.absolutePath,
+                "--next-signer",
+                "--ks", storeFile.absolutePath,
+                "--ks-key-alias", keystoreProperties.getProperty("keyAlias"),
+                "--ks-pass", "env:REVERA_KEYSTORE_PASSWORD",
+                "--key-pass", "env:REVERA_KEY_PASSWORD",
+                "--v1-signing-enabled", "false",
+                "--v2-signing-enabled", "true",
+                "--v3-signing-enabled", "true",
+                "--v4-signing-enabled", "false",
+                "--out", signedApk.absolutePath,
+                apk.absolutePath,
+            ).inheritIO()
+            signer.environment()["REVERA_DEBUG_KEY_PASSWORD"] = "android"
+            signer.environment()["REVERA_KEYSTORE_PASSWORD"] = keystoreProperties.getProperty("storePassword")
+            signer.environment()["REVERA_KEY_PASSWORD"] = keystoreProperties.getProperty("keyPassword")
+            check(signer.start().waitFor() == 0) { "Could not apply signing lineage to ${apk.name}." }
+            check(apk.delete()) { "Could not replace ${apk.name} with its lineage-signed APK." }
+            check(signedApk.renameTo(apk)) { "Could not restore ${apk.name} after signing." }
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == "assembleRelease") finalizedBy(signReleaseApksWithLineage)
+}
+tasks.named("collectApks") { dependsOn(signReleaseApksWithLineage) }
