@@ -4,6 +4,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Voice search**: dictate a query with the device’s speech recognizer and see results directly in Classic or Immersive Search. Google Search is no longer required.
+
 - **Native Spotify playback**: fixed a case where the player stayed silent after an ad break even after Spotify made the next song available.
 - **Two-line lyrics preview**: added a Display setting to switch the Immersive player's inline lyrics preview between 1 and 2 lines.
 - **Immersive UI & translations**: replaced the playlist/album track sort dropdown with a glass bottom sheet (`ImmersiveGlassSheet`) and added missing Simplified Chinese settings and badge translations.
