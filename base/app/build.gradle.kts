@@ -299,11 +299,12 @@ tasks.register("collectApks") {
 val signReleaseApksWithLineage = tasks.register("signReleaseApksWithLineage") {
     onlyIf { keystorePropertiesFile.exists() && lineageFile.isFile }
     doLast {
+        val signerName = if (System.getProperty("os.name").lowercase().contains("win")) "apksigner.bat" else "apksigner"
         val apksigner = androidComponents.sdkComponents.sdkDirectory.get().asFile.resolve("build-tools").listFiles()
             ?.sortedBy { it.name }
             ?.lastOrNull()
-            ?.resolve("apksigner")
-            ?: throw GradleException("Android SDK build-tools with apksigner is required for release signing.")
+            ?.resolve(signerName)
+            ?: throw GradleException("Android SDK build-tools with $signerName is required for release signing.")
         val storeFile = rootProject.file("keystore/${keystoreProperties.getProperty("storeFile")}")
         val outputDirectory = layout.buildDirectory.dir("outputs/apk/release").get().asFile
         outputDirectory.walkTopDown().filter { it.extension == "apk" }.forEach { apk ->
