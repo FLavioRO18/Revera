@@ -80,7 +80,16 @@ class ConnectVolumeTest {
         assertEquals(emptyList<String>(), host.sets.toList())
     }
 
+    @Test fun `a stale active flag with no known volume cannot raise a muted speaker`() = time.test {
+        host.active = true
+        playing()
+        delay(14_000)
+        assertEquals(emptyList<String>(), host.sets.toList())
+    }
+
     @Test fun `this page silent while it is the active device gets its volume back`() = time.test {
+        player.setVolume(0.25)
+        host.sets.clear()
         host.active = true
         playing()
         waitFor("volume set", ms = 14_000) { host.sets.isNotEmpty() }
