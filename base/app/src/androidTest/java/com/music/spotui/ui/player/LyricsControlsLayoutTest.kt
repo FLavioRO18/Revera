@@ -24,12 +24,17 @@ import org.junit.runner.RunWith
 class LyricsControlsLayoutTest {
     @Test fun longLyricsDoNotPassBehindTranslationControls() = assertProtectedLyricsArea(false, 1f)
 
-    @Test fun largeTranslatedLyricsDoNotPassBehindControls() = assertProtectedLyricsArea(false, 1.5f)
+    @Test fun largeWrappedLyricsDoNotPassBehindControls() = assertProtectedLyricsArea(false, 1.5f)
+
+    @Test fun translatedLyricsStayInsideTheReadingArea() = assertProtectedLyricsArea(false, 1.5f, short = true)
+
+    @Test fun rightToLeftTranslationsStayInsideTheReadingArea() = assertProtectedLyricsArea(true, 1.5f, short = true)
 
     @Test fun rightToLeftLyricsDoNotPassBehindControls() = assertProtectedLyricsArea(true, 1.5f)
 
-    private fun assertProtectedLyricsArea(rtl: Boolean, fontScale: Float) {
-        val text = "長い歌詞が何行にも折り返されても翻訳ボタンに隠れないように表示領域を確保します".repeat(3)
+    private fun assertProtectedLyricsArea(rtl: Boolean, fontScale: Float, short: Boolean = false) {
+        val text = if (short) "短い歌詞" else "長い歌詞が何行にも折り返されても翻訳ボタンに隠れないように表示領域を確保します".repeat(3)
+        val translated = "A translated lyric that also remains inside the reading area"
         ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
             scenario.onActivity { activity ->
                 val vm = ViewModelProvider(activity)[LyricsViewModel::class.java]
@@ -39,7 +44,7 @@ class LyricsControlsLayoutTest {
                 state.value = LyricsViewModel.State.Loaded(
                     lyrics = Lyrics(lines = listOf(LyricLine(0, text, romanization = "long lyric")), synced = false),
                     sourceLanguage = "ja", translationChecked = true,
-                    translations = listOf("A translated lyric that also remains inside the reading area"),
+                    translations = listOf(translated),
                     showTranslation = true,
                 )
                 activity.setContent {
@@ -64,7 +69,7 @@ class LyricsControlsLayoutTest {
                 controls.clear()
                 fun visit(node: android.view.accessibility.AccessibilityNodeInfo) {
                     val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
-                    if (node.text?.toString() == text) lyric = bounds
+                    if (node.text?.toString() == if (short) translated else text) lyric = bounds
                     if (node.contentDescription?.toString() in labels) controls.add(bounds)
                     for (i in 0 until node.childCount) node.getChild(i)?.let(::visit)
                 }
