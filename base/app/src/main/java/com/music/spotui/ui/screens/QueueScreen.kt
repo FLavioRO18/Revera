@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
@@ -69,7 +70,30 @@ fun QueueScreen(navController: NavController) {
     fun matches(row: SongPlayer.QueueItem) = row.song.title.contains(term, ignoreCase = true) || row.song.singer.contains(term, ignoreCase = true)
     val queued = remember(q.queued, term) { q.queued.filter(::matches) }
     val upcoming = remember(q.nextUp, term) { q.nextUp.filter(::matches) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val saveableTrackIds = remember(q.current, q.queued, q.nextUp) {
+        (listOfNotNull(q.current?.spotifyTrackId) + q.queued.map { it.song.spotifyTrackId } + q.nextUp.map { it.song.spotifyTrackId })
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+    var saveDialogOpen by remember { androidx.compose.runtime.mutableStateOf(false) }
 
+    if (saveDialogOpen) {
+        val defaultName = SongPlayer.nowPlaying.value.contextName.ifBlank { stringResource(R.string.action_queue_label) }
+        NameDialog(
+            title = stringResource(R.string.save_queue_as_playlist),
+            initial = defaultName,
+            confirm = stringResource(R.string.create_playlist_create_button),
+            onDismiss = { saveDialogOpen = false },
+        ) { name ->
+            saveDialogOpen = false
+            com.music.spotui.data.api.SpotifySync.createPlaylistWithTracks(context, name, saveableTrackIds) { ok ->
+                val msg = context.getString(if (ok) R.string.save_queue_saved else R.string.save_queue_failed, name)
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -95,7 +119,26 @@ fun QueueScreen(navController: NavController) {
                     ) { navController.navigateUp() }
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(stringResource(R.string.action_queue_label), color = AppText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(
+                stringResource(R.string.action_queue_label),
+                color = AppText,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            if (saveableTrackIds.isNotEmpty()) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    contentDescription = stringResource(R.string.save_queue_as_playlist),
+                    tint = AppText,
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { saveDialogOpen = true }
+                )
+            }
         }
 
         androidx.compose.material3.OutlinedTextField(value = query, onValueChange = { query = it },

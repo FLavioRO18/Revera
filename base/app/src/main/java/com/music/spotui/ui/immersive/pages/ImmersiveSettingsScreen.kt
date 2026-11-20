@@ -487,11 +487,20 @@ private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
             }
             if (com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.IMMERSIVE && com.music.spotui.data.preferences.PlayerLyricsCardPref.on) {
                 row {
-                    ImmersiveSwitchRow(
-                        stringResource(R.string.settings_player_lyrics_two_lines_title),
-                        checked = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines == 2,
-                        onChecked = { com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.set(ctx, if (it) 2 else 1) },
+                    val previewLines = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines
+                    val valueRes = when (previewLines) {
+                        2 -> R.string.settings_player_lyrics_lines_2
+                        3 -> R.string.settings_player_lyrics_lines_3
+                        else -> R.string.settings_player_lyrics_lines_1
+                    }
+                    ImmersiveGroupRow(
+                        title = stringResource(R.string.settings_player_lyrics_two_lines_title),
                         detail = stringResource(R.string.settings_player_lyrics_two_lines_detail),
+                        value = stringResource(valueRes),
+                        onClick = {
+                            val next = if (previewLines >= 3) 1 else previewLines + 1
+                            com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.set(ctx, next)
+                        },
                     )
                 }
             }

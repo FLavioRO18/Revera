@@ -40,6 +40,7 @@ import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -319,6 +320,31 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
         call()
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val saveableTrackIds = remember(queue.current, queue.queued, queue.nextUp) {
+        (listOfNotNull(queue.current?.spotifyTrackId) + queue.queued.map { it.song.spotifyTrackId } + queue.nextUp.map { it.song.spotifyTrackId })
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+    var saveDialogOpen by remember { mutableStateOf(false) }
+
+    if (saveDialogOpen) {
+        val defaultName = contextName.ifBlank { stringResource(R.string.action_queue_label) }
+        com.music.spotui.ui.screens.NameDialog(
+            title = stringResource(R.string.save_queue_as_playlist),
+            initial = defaultName,
+            confirm = stringResource(R.string.create_playlist_create_button),
+            onDismiss = { saveDialogOpen = false },
+        ) { name ->
+            saveDialogOpen = false
+            com.music.spotui.data.api.SpotifySync.createPlaylistWithTracks(context, name, saveableTrackIds) { ok ->
+                val msg = context.getString(if (ok) R.string.save_queue_saved else R.string.save_queue_failed, name)
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     val startPad = Immersive.Gutter + contentPadding.calculateStartPadding(direction)
     LazyColumn(
         state = listState,
@@ -348,6 +374,7 @@ fun ImmersiveQueuePanel(modifier: Modifier = Modifier, contentPadding: PaddingVa
                     song.shuffle.value = !shuffle
                 },
                 onRepeat = { SongPlayer.cycleRepeat() },
+                onSaveAsPlaylist = if (saveableTrackIds.isNotEmpty()) { { saveDialogOpen = true } } else null,
             )
         }
         if (hasCurrent) {
@@ -582,6 +609,7 @@ private fun QueueHeader(
     repeatMode: Int,
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
+    onSaveAsPlaylist: (() -> Unit)? = null,
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -589,6 +617,10 @@ private fun QueueHeader(
             style = Immersive.Title,
             modifier = Modifier.weight(1f),
         )
+        if (onSaveAsPlaylist != null) {
+            QueueToggle(Icons.AutoMirrored.Rounded.PlaylistAdd, stringResource(R.string.save_queue_as_playlist), false, onSaveAsPlaylist)
+            Spacer(Modifier.width(8.dp))
+        }
         QueueToggle(Icons.Rounded.Shuffle, stringResource(R.string.immersive_queue_shuffle), shuffle, onShuffle)
         Spacer(Modifier.width(8.dp))
         QueueToggle(

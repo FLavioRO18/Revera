@@ -41,6 +41,12 @@
     <string name="ab_loop_clear" tools:ignore="MissingTranslation">Clear</string>
     <string name="ab_loop_waiting_b" tools:ignore="MissingTranslation">A: %1$s · Set B</string>
     <string name="ab_loop_active" tools:ignore="MissingTranslation">Loop %1$s – %2$s</string>
-    <string name="settings_player_lyrics_two_lines_title" tools:ignore="MissingTranslation">Two-line lyrics preview</string>
-    <string name="settings_player_lyrics_two_lines_detail" tools:ignore="MissingTranslation">Show up to two lines in the player\u2019s lyric strip instead of one</string>
+    <string name="settings_player_lyrics_two_lines_title" tools:ignore="MissingTranslation">Lyrics preview lines</string>
+    <string name="settings_player_lyrics_two_lines_detail" tools:ignore="MissingTranslation">Scroll 1, 2, or 3 lines in the player\u2019s fixed lyric strip</string>
+    <string name="settings_player_lyrics_lines_1" tools:ignore="MissingTranslation">1 line</string>
+    <string name="settings_player_lyrics_lines_2" tools:ignore="MissingTranslation">2 lines</string>
+    <string name="settings_player_lyrics_lines_3" tools:ignore="MissingTranslation">3 lines</string>
+    <string name="save_queue_as_playlist" tools:ignore="MissingTranslation">Save queue as playlist</string>
+    <string name="save_queue_saved" tools:ignore="MissingTranslation">Saved queue to %1$s</string>
+    <string name="save_queue_failed" tools:ignore="MissingTranslation">Could not save queue to %1$s</string>
 </resources>

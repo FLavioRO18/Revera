@@ -41,6 +41,12 @@
     <string name="ab_loop_clear">Сбросить</string>
     <string name="ab_loop_waiting_b">A: %1$s · Точка B</string>
     <string name="ab_loop_active">Повтор %1$s – %2$s</string>
-    <string name="settings_player_lyrics_two_lines_title">Две строки в предпросмотре текста</string>
-    <string name="settings_player_lyrics_two_lines_detail">Показывать до двух строк текста над названием трека вместо одной</string>
+    <string name="settings_player_lyrics_two_lines_title">Строки в предпросмотре текста</string>
+    <string name="settings_player_lyrics_two_lines_detail">Прокручивать 1, 2 или 3 строки в фиксированной области над названием трека</string>
+    <string name="settings_player_lyrics_lines_1">1 строка</string>
+    <string name="settings_player_lyrics_lines_2">2 строки</string>
+    <string name="settings_player_lyrics_lines_3">3 строки</string>
+    <string name="save_queue_as_playlist">Сохранить очередь как плейлист</string>
+    <string name="save_queue_saved">Очередь сохранена в «%1$s»</string>
+    <string name="save_queue_failed">Не удалось сохранить очередь в «%1$s»</string>
 </resources>

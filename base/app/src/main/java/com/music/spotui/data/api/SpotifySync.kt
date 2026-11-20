@@ -150,9 +150,13 @@ object SpotifySync {
      * row that cannot be opened yet, and becomes the real playlist when Spotify has answered;
      * a refused creation takes the row away again.
      */
-    fun createPlaylistWithTrack(context: Context, name: String, trackId: String, folderUri: String? = null, onDone: (Boolean) -> Unit = {}) {
+    fun createPlaylistWithTrack(context: Context, name: String, trackId: String, folderUri: String? = null, onDone: (Boolean) -> Unit = {}) =
+        createPlaylistWithTracks(context, name, if (trackId.isNotBlank()) listOf(trackId) else emptyList(), folderUri, onDone)
+
+    fun createPlaylistWithTracks(context: Context, name: String, trackIds: List<String>, folderUri: String? = null, onDone: (Boolean) -> Unit = {}) {
         val title = name.trim()
         if (title.isBlank()) { onDone(false); return }
+        val cleanIds = trackIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         val app = context.applicationContext
         val placeholderId = LibraryEdits.PENDING_PREFIX + pendingIds.incrementAndGet()
         val edit = LibraryEdits.Add(folderUri, LibraryEntry(
@@ -161,19 +165,22 @@ object SpotifySync {
             coverUri = "", isPlaylist = true, uri = placeholderId,
             addedAt = java.time.Instant.now().toString(),
         ))
-        var trackAdded = true
+        var tracksAdded = true
         LibraryEdits.run(context, edit, write = {
             val uri = api.playlists.create(title, folderUri)
             LibraryEdits.resolve(edit, edit.entry.copy(spotifyId = uri.substringAfterLast(':'), uri = uri))
             Api.HomeCache.libraryRoot = null
             folderUri?.let { Api.HomeCache.folders.remove(it) }
-            if (trackId.isNotBlank()) {
-                // The playlist exists now: a refused track must not take its row away again.
-                trackAdded = runCatching { api.playlists.addTracks(uri, listOf("spotify:track:$trackId")) }
-                    .onFailure { Log.w(TAG, "add $trackId to new playlist '$title' failed: ${it.message}") }.isSuccess
-                if (trackAdded) membershipCache[uri.substringAfterLast(':')] = ConcurrentHashMap.newKeySet<String>().apply { add(trackId) }
+            if (cleanIds.isNotEmpty()) {
+                val added = ConcurrentHashMap.newKeySet<String>()
+                for (chunk in cleanIds.chunked(100)) {
+                    val ok = runCatching { api.playlists.addTracks(uri, chunk.map { "spotify:track:$it" }) }
+                        .onFailure { Log.w(TAG, "add ${chunk.size} tracks to new playlist '$title' failed: ${it.message}") }.isSuccess
+                    if (ok) added.addAll(chunk) else tracksAdded = false
+                }
+                if (added.isNotEmpty()) membershipCache[uri.substringAfterLast(':')] = added
             }
-        }, onDone = { ok -> onDone(ok && trackAdded) })
+        }, onDone = { ok -> onDone(ok && tracksAdded) })
     }
 
     private suspend fun allTracks(uri: String): List<app.myspoti.api.Track> {

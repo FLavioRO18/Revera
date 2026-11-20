@@ -4,6 +4,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Home recommendations**: choose Spotify, YouTube Music or both without changing the playback source. YouTube Music uses the connected session for its home shelves.
+
 - **Search**: replacing a query while typing no longer treats the cancelled request as a failed search.
 
 - **Lyrics readability**: reserve a separate side rail for Immersive romanization and translation controls so long, wrapped lyrics cannot scroll behind them.
@@ -11,6 +13,7 @@ Each release on GitHub shows its section below. The app shows it too when it off
 - **Lyrics**: a recording with romanized lines can now also show matching translations supplied by another lyrics source.
 
 - **Queue search**: the Immersive queue page can now filter upcoming songs by title or artist without changing playback order.
+- **Save queue as playlist**: save the current queue directly as a Spotify playlist from both the Classic and Immersive queue headers.
 
 - **Lyrics translation**: if a requested translation fails, the player now shows an error instead of silently dismissing the loading indicator.
 
@@ -35,7 +38,7 @@ Each release on GitHub shows its section below. The app shows it too when it off
 - **Immersive player controls**: optionally hide the drag handle, add a Stats for nerds shortcut, or show Canvas without playback controls. Tap the video to bring the controls back.
 
 - **Native Spotify playback**: fixed a case where the player stayed silent after an ad break even after Spotify made the next song available.
-- **Two-line lyrics preview**: in Lyrics settings, choose whether the Immersive player shows just the current lyric or also the next line above the track title. Both lines use the same type style and scroll together when the lyric changes.
+- **Multi-line lyrics preview**: in Lyrics settings, choose whether the Immersive player scrolls 1, 2 (current + next), or 3 (previous + current + next) lines inside a fixed lyric strip above the track title.
 - **Immersive UI & translations**: replaced the playlist/album track sort dropdown with a glass bottom sheet (`ImmersiveGlassSheet`) and added missing Simplified Chinese settings and badge translations.
 - **Badges**: allow redeeming and refreshing badges using the cached account ID when the WebView profile is not ready yet, and replace the active badge when redeeming a new code.
 - **A-B loop**: set, fine-tune (`-1s`/`+1s`), and clear A–B loop points from the Now Playing track menu or directly via the player scrubber pill across local, extension, Spotify, and Cast playback.
