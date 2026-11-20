@@ -34,7 +34,12 @@ class CacheSettingsUiTest {
                     var clicked = false
                     while (System.currentTimeMillis() < deadline && !clicked) {
                         val root = instrumentation.uiAutomation.rootInActiveWindow
-                        val node = root?.findAccessibilityNodeInfosByText(title)?.firstOrNull()
+                        fun find(node: android.view.accessibility.AccessibilityNodeInfo): android.view.accessibility.AccessibilityNodeInfo? {
+                            if (node.text?.toString()?.contains(title) == true || node.contentDescription?.toString()?.contains(title) == true) return node
+                            for (i in 0 until node.childCount) node.getChild(i)?.let { child -> find(child)?.let { return it } }
+                            return null
+                        }
+                        val node = root?.let(::find)
                         if (node != null) {
                             var target: android.view.accessibility.AccessibilityNodeInfo = node
                             while (!target.isClickable) target = target.parent ?: break
@@ -44,6 +49,9 @@ class CacheSettingsUiTest {
                     }
                     assertTrue("Cache switch must be reachable", clicked)
                     instrumentation.waitForIdleSync()
+                    val settled = System.currentTimeMillis() + 3000
+                    while (AppStorage.clearMediaOnNewSession != on && System.currentTimeMillis() < settled) Thread.sleep(50)
+                    Thread.sleep(250)
                     assertEquals(on, AppStorage.clearMediaOnNewSession)
                     assertEquals(on, context.getSharedPreferences("myspoti_prefs", 0).getBoolean("clear_media_on_new_session", !on))
                 }
