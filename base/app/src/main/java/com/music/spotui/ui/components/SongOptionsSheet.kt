@@ -131,7 +131,7 @@ fun SongOptionsSheet(
         return
     }
     if (showSpeed) {
-        SpeedSheet(onDismiss = { showSpeed = false; onDismiss() })
+        SpeedSheet(episode = song.url.startsWith("episode:"), onDismiss = { showSpeed = false; onDismiss() })
         return
     }
     if (showSavedIn) {
@@ -328,7 +328,7 @@ fun SongOptionsSheet(
                     onDismiss()
                 }
             }
-            if (nowPlaying && song.url.startsWith("episode:")) {
+            if (nowPlaying && (song.url.startsWith("episode:") || (com.music.spotui.di.LocalPlayer.active.value && !com.music.spotui.cast.CastPlayback.active && !isRadio))) {
                 MenuRow(Icons.Outlined.Speed, stringResource(R.string.playback_speed)) { showSpeed = true }
             }
             // The app's own playback (extensions, downloads, files): its equalizer, speed and silences.
@@ -450,18 +450,18 @@ internal fun CreditsSheet(song: SongsModel, onDismiss: () -> Unit) {
     }
 }
 
-/** Podcast playback speed (Spotify refuses speed changes on music). */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-internal fun SpeedSheet(onDismiss: () -> Unit) {
+internal fun SpeedSheet(episode: Boolean, onDismiss: () -> Unit) {
+    if (episode) { PodcastSpeedSheet(onDismiss); return }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val pref = com.music.spotui.data.preferences.EqualizerPref
+    var draft by remember(pref.speed) { mutableStateOf(pref.speed) }
     LookSheet(onDismissRequest = onDismiss, containerColor = tone(0xFF282828)) {
-        Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-            Text(stringResource(R.string.playback_speed), color = AppText, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                modifier = Modifier.padding(20.dp, 8.dp))
-            listOf(0.5, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 3.0).forEach { speed ->
-                Text("${speed}×", color = AppText, fontSize = 16.sp,
-                    modifier = Modifier.fillMaxWidth().clickable { SongPlayer.setSpeed(speed); onDismiss() }.padding(20.dp, 12.dp))
-            }
+        Column(Modifier.fillMaxWidth().padding(24.dp)) {
+            Text("${stringResource(R.string.playback_speed)} · ${java.text.DecimalFormat("0.##").format(draft)}×", color = AppText)
+            androidx.compose.material3.Slider(value = draft, onValueChange = { draft = it },
+                onValueChangeFinished = { pref.setSpeed(context, draft) }, valueRange = 0.5f..2f, steps = 29)
         }
     }
 }

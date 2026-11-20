@@ -4,6 +4,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Playback speed**: adjust locally played songs from 0.5× to 2× directly in the player menu. Episodes open the podcast speed slider in both layouts.
+
 - **Spotify search**: a failed category no longer discards successful results from the other music categories.
 
 - **Spotify Connect volume**: playback recovery no longer assumes 100% volume when connecting to a device with no known volume setting.
