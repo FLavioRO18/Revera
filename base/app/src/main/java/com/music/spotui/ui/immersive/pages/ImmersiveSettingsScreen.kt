@@ -1010,6 +1010,10 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 ImmersiveSwitchRow(stringResource(R.string.settings_player_source_title), checked = com.music.spotui.data.preferences.PlayerSourceLinePref.on,
                     onChecked = { com.music.spotui.data.preferences.PlayerSourceLinePref.set(ctx, it) }, detail = stringResource(R.string.settings_player_source_detail))
             }
+            row {
+                ImmersiveSwitchRow(stringResource(R.string.artwork_loop_title), checked = com.music.spotui.data.preferences.ArtworkLoopPref.on,
+                    onChecked = { com.music.spotui.data.preferences.ArtworkLoopPref.set(ctx, it) }, detail = stringResource(R.string.artwork_loop_detail))
+            }
             if (look == com.music.spotui.data.preferences.Look.IMMERSIVE) {
                 row {
                     ImmersiveSwitchRow(stringResource(R.string.settings_player_capsule_title), checked = com.music.spotui.data.preferences.PlayerCapsulePref.on,

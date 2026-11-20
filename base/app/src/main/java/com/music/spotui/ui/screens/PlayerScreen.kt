@@ -1,5 +1,7 @@
 package com.music.spotui.ui.screens
 
+import com.music.spotui.ui.components.artworkLoop
+
 import com.music.spotui.ui.components.mixBeat
 import com.music.spotui.ui.immersive.player.CurrentLyricLine
 import com.music.spotui.ui.immersive.player.PlayerTimeLabels
@@ -589,7 +591,7 @@ fun PlayerScreen(navController: NavController) {
                                 val beat = if (page == 1) 1f + 0.025f * (mixPulse?.level() ?: 0f) else 1f
                                 val grow = (1f + (1f - shown) * 0.06f) * beat * (1f - 0.06f * kotlin.math.abs(slideFrac))
                                 scaleX = grow; scaleY = grow
-                            },
+                            }.artworkLoop(page == 1 && songPlayingState && !audioBuffering && !canvasOn && !showLyrics && !adPlaying),
                         model = app.myspoti.host.android.Covers.large(cover),
                         contentScale = ContentScale.Crop,
                         contentDescription = "")

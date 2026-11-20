@@ -379,6 +379,16 @@ object PlayerLyricsPreviewLinesPref {
  * plays and how (under the title in the Immersive look, under the device in the Classic one). On
  * by default; off, the player's menu has the Sound quality row (and Stats for nerds) instead.
  */
+object ArtworkLoopPref {
+    private const val KEY = "artwork_loop"
+    var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, false))
+        private set
+    fun set(c: Context, value: Boolean) {
+        on = value
+        prefs(c).edit().putBoolean(KEY, value).apply()
+    }
+}
+
 object PlayerSourceLinePref {
     private const val KEY = "player_source_line"
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))

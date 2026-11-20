@@ -448,6 +448,12 @@ fun SettingsScreen(navController: NavController) {
                 onChecked = { com.music.spotui.data.preferences.PlayerSourceLinePref.set(ctx, it) },
             )
             OptionRow(
+                label = stringResource(R.string.artwork_loop_title),
+                detail = stringResource(R.string.artwork_loop_detail),
+                checked = com.music.spotui.data.preferences.ArtworkLoopPref.on,
+                onChecked = { com.music.spotui.data.preferences.ArtworkLoopPref.set(ctx, it) },
+            )
+            OptionRow(
                 label = stringResource(R.string.settings_solid_nav_title),
                 detail = stringResource(R.string.settings_solid_nav_detail),
                 checked = com.music.spotui.data.preferences.SolidNavBar.on,

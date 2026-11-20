@@ -13,6 +13,8 @@
  */
 package com.music.spotui.ui.immersive.player
 
+import com.music.spotui.ui.components.artworkLoop
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.ui.graphics.Brush
@@ -862,7 +864,7 @@ fun ImmersivePlayer(
                                 contentScale = ContentScale.Crop,
                                 loading = placeholder(R.drawable.placeholder),
                                 failure = placeholder(R.drawable.placeholder),
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().artworkLoop(PlayerSheet.open.value && state.playing && !state.buffering && !state.adPlaying && !canvasOn && panel == Panel.NONE),
                                 requestBuilderTransform = { it.override(COVER_DECODE_PX) },
                             )
                             if (coverSwipe.overrideCoverUrl == null && coverSwipe.outgoingCoverUrl == null) {
