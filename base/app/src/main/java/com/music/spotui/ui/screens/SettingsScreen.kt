@@ -346,6 +346,7 @@ fun SettingsScreen(navController: NavController) {
                 onChecked = { com.music.spotui.data.preferences.LyricsTranslateButtonPref.set(ctx, it) },
             )
             LyricsTranslationRow()
+            com.music.spotui.ui.components.LyricsAppearanceControls()
             }
             if (tab == TAB_DOWNLOADS) {
             Section(R.string.settings_section_downloads)

@@ -328,9 +328,11 @@ private fun LyricLineText(
     /** Picked to be shared: the line sits on a soft pill. */
     selected: Boolean = false,
 ) {
+    val appearance = com.music.spotui.ui.components.rememberLyricsAppearance()
+    val shownPalette = palette.copy(text = appearance.color(palette.text), highlight = appearance.color(palette.highlight))
     val target = when (state) {
-        1 -> palette.text
-        else -> palette.highlight
+        1 -> shownPalette.text
+        else -> shownPalette.highlight
     }
     val color by animateColorAsState(target, tween(220), label = "lyricColor")
     // Explained by Genius: a light dotted line under each row of the text.
@@ -383,7 +385,7 @@ private fun LyricLineText(
                 Text(
                     text = shown,
                     // The words to come keep the colour of the lines to come; sung, they turn white.
-                    color = palette.text,
+                    color = shownPalette.text,
                     fontSize = fontSize,
                     lineHeight = fontSize * 1.25f,
                     fontWeight = FontWeight.Bold,
@@ -393,7 +395,7 @@ private fun LyricLineText(
                 )
                 Text(
                     text = shown,
-                    color = palette.highlight,
+                    color = shownPalette.highlight,
                     fontSize = fontSize,
                     lineHeight = fontSize * 1.25f,
                     fontWeight = FontWeight.Bold,
@@ -454,7 +456,7 @@ private fun LyricLineText(
             Text(
                 text = romanization.orEmpty(),
                 color = color.copy(alpha = color.alpha * 0.7f),
-                fontSize = 15.sp,
+                fontSize = 15.sp * appearance.scale,
                 fontWeight = FontWeight.Normal,
                 fontStyle = FontStyle.Italic,
                 textAlign = align,
@@ -469,7 +471,7 @@ private fun LyricLineText(
             Text(
                 text = translation.orEmpty(),
                 color = color.copy(alpha = color.alpha * 0.7f),
-                fontSize = 15.sp,
+                fontSize = 15.sp * appearance.scale,
                 fontWeight = FontWeight.Normal,
                 textAlign = align,
                 modifier = Modifier.fillMaxWidth().padding(top = if (romanization.isNullOrBlank()) 2.dp else 8.dp),
@@ -666,7 +668,7 @@ fun LyricsScreen(
                                 line = line,
                                 state = lineState(l, i, active),
                                 palette = palette,
-                                fontSize = 24.sp,
+                                fontSize = 24.sp * com.music.spotui.ui.components.rememberLyricsAppearance().scale,
                                 position = position,
                                 translation = if (state.showTranslation) state.translations?.getOrNull(i) else null,
                                 romanization = if (romanizing) line.romanization?.trim()?.takeIf { it.isNotEmpty() && !it.equals(line.text.trim(), ignoreCase = true) } else null,
@@ -1002,7 +1004,7 @@ fun InlineLyrics(
                     line = line,
                     state = lineState(l, i, active),
                     palette = palette,
-                    fontSize = 22.sp,
+                    fontSize = 22.sp * com.music.spotui.ui.components.rememberLyricsAppearance().scale,
                     position = position,
                     translation = null,
                     onTap = null,

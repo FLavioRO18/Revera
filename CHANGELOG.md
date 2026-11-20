@@ -4,6 +4,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Lyrics appearance**: choose text size (70–140%) and a pastel text colour in Lyrics settings in either layout, with an Automatic option to restore the original colours.
+
 - **Search**: replacing a query while typing no longer treats the cancelled request as a failed search.
 
 - **Lyrics readability**: reserve a separate side rail for Immersive romanization and translation controls so long, wrapped lyrics cannot scroll behind them.
