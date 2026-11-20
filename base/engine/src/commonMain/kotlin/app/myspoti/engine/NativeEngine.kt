@@ -587,9 +587,21 @@ class NativeEngine(
                     val ref = next.transitions.skipNext ?: next.transitions.advance ?: break
                     next = sm.states.getOrNull(ref.stateIndex ?: break) ?: break
                     val candidate = sm.tracks.getOrNull(next.track) ?: break
-                    if (candidate.contentType != "AD" && candidate.metadata.uri.startsWith("spotify:track:")) {
+                    if (candidate.contentType != "AD" && (candidate.metadata.uri.startsWith("spotify:track:") || candidate.metadata.uri.startsWith("spotify:episode:"))) {
                         target = candidate
                         break
+                    }
+                }
+                if (target == null && sm != null) {
+                    val curIdx = sm.states.indexOfFirst { it.id == state.id }.coerceAtLeast(0)
+                    val ordered = sm.states.drop(curIdx + 1) + sm.states.take(curIdx)
+                    for (st in ordered) {
+                        val candidate = sm.tracks.getOrNull(st.track) ?: continue
+                        if (candidate.contentType != "AD" && (candidate.metadata.uri.startsWith("spotify:track:") || candidate.metadata.uri.startsWith("spotify:episode:"))) {
+                            next = st
+                            target = candidate
+                            break
+                        }
                     }
                 }
                 val uri = target?.metadata?.uri
@@ -606,8 +618,23 @@ class NativeEngine(
             blockedAdUri = track.metadata.uri
             adStallReported = false
             emit(EngineEvent.AdBreak(track.metadata.uri, track.metadata.duration))
-            // On to the next song (outside this handler: a command waits for the lock it holds).
-            scope.launch { runCatching { command("skip_next") }.onFailure { emit(EngineEvent.Failure("ad not passed: ${it.message}")) } }
+            scope.launch {
+                runCatching { command("skip_next") }.onFailure { err ->
+                    val sm = machine
+                    val nextPair = sm?.states?.firstNotNullOfOrNull { st ->
+                        val tr = sm.tracks.getOrNull(st.track)
+                        if (tr != null && tr.contentType != "AD" && (tr.metadata.uri.startsWith("spotify:track:") || tr.metadata.uri.startsWith("spotify:episode:"))) st to tr else null
+                    }
+                    if (nextPair != null) {
+                        lock.withLock {
+                            stateIndex = sm.states.indexOfFirst { it.id == nextPair.first.id }
+                            load(nextPair.first, nextPair.second, 0, paused, "remote", previousPosition)
+                        }
+                    } else {
+                        emit(EngineEvent.Failure("ad not passed: ${err.message}"))
+                    }
+                }
+            }
             return
         }
         blockedAdUri = null

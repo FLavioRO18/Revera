@@ -58,7 +58,7 @@ object RemoteAdMute {
             ad: Boolean, elsewhere: Boolean, activeId: String?, chosenId: String?, level: Double?,
             jamMember: Boolean, setAside: Set<String>,
         ): Boolean =
-            ad && AdBlock.activeFor(elsewhere, activeId, chosenId, jamMember, premium = false) &&
+            ad && elsewhere && AdBlock.activeFor(elsewhere, activeId, chosenId, jamMember, premium = false) &&
                 level != null && level > 0.0 && activeId !in setAside
 
         /**
@@ -113,7 +113,7 @@ object RemoteAdMute {
                     AdBlock.activeFor(elsewhere, activeId, SongPlayer.chosenRemoteId, jamMember = jam?.isHost == false)
                 }.distinctUntilChanged().collect { on ->
                     AdBlock.setActive(on)
-                    log(if (on) "on (the music plays on a Spotify Connect device sent from the app)" else "off")
+                    log(if (on) "on" else "off")
                 }
             }
             combine(player.adPlaying, player.playsElsewhere) { ad, elsewhere -> ad to elsewhere }

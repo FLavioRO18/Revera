@@ -38,6 +38,7 @@ Each release on GitHub shows its section below. The app shows it too when it off
 - **Immersive player controls**: optionally hide the drag handle, add a Stats for nerds shortcut, or show Canvas without playback controls. Tap the video to bring the controls back.
 
 - **Native Spotify playback**: fixed a case where the player stayed silent after an ad break even after Spotify made the next song available.
+- **Local Spotify ad blocker**: enabled ad host filtering, state-machine ad transition rewriting (`advance -> skip_next`), pre-end ad bypass, reload fallback on stuck ads, and native engine `ad_disallow` recovery for local free-account playback in addition to Spotify Connect.
 - **Multi-line lyrics preview**: in Lyrics settings, choose whether the Immersive player scrolls 1, 2 (current + next), or 3 (previous + current + next) lines inside a fixed lyric strip above the track title.
 - **Immersive UI & translations**: replaced the playlist/album track sort dropdown with a glass bottom sheet (`ImmersiveGlassSheet`) and added missing Simplified Chinese settings and badge translations.
 - **Badges**: allow redeeming and refreshing badges using the cached account ID when the WebView profile is not ready yet, and replace the active badge when redeeming a new code.
