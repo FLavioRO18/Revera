@@ -1295,6 +1295,38 @@ object Extensions {
         }
     }
 
+    private fun watchQueue() {
+        CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
+            val delivered = java.util.IdentityHashMap<ExtensionRuntime, String>()
+            while (true) {
+                delay(1_000)
+                val listeners = runtimes.values.filter { it.listens(ExtensionRuntime.EVENT_QUEUE) }
+                delivered.keys.retainAll(listeners.toSet())
+                if (listeners.isEmpty() || SongPlayer.routing) continue
+                val q = SongPlayer.engineQueue.value
+                val next = app.myspoti.extensions.QueueLookahead.next(q.queued + q.nextUp).map { item ->
+                    val s = item.song
+                    val info = trackInfo(s.spotifyTrackId, s.title, s.singer, s.album, s.durationMs.toLong(), s.coverUri)
+                    kotlinx.serialization.json.Json.parseToJsonElement(info.copy(uri = item.uri).toJson())
+                }
+                val json = JsonObject(mapOf("next" to kotlinx.serialization.json.JsonArray(next))).toString()
+                for (rt in listeners) {
+                    if (delivered[rt] == json) continue
+                    delivered[rt] = json
+                    try {
+                        withContext(Dispatchers.IO) {
+                            runInterruptible { rt.emit(ExtensionRuntime.EVENT_QUEUE, json, TRACK_MS) }
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        failed(rt.manifest.id, e.javaClass.simpleName)
+                    }
+                }
+            }
+        }
+    }
+
     private val playback = PlaybackTracker()
     private val playbackOut = kotlinx.coroutines.channels.Channel<String>(256, kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
 
@@ -1309,6 +1341,7 @@ object Extensions {
      * live), only while an extension listens; delivered in order, one at a time.
      */
     private fun watchPlayback() {
+        watchQueue()
         scope.launch {
             for (json in playbackOut) {
                 runtimes.forEach { (id, rt) ->

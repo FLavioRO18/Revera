@@ -69,6 +69,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -228,7 +229,7 @@ internal fun PlayerDismissStrip(tint: Color, onClose: () -> Unit) {
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.width(36.dp).height(5.dp).clip(CircleShape).background(tint.copy(alpha = 0.35f)))
+        if (com.music.spotui.data.preferences.ImmersiveChromePref.handle) Box(Modifier.width(36.dp).height(5.dp).clip(CircleShape).background(tint.copy(alpha = 0.35f)))
     }
 }
 
@@ -668,6 +669,10 @@ fun ImmersivePlayer(
                     .background(CanvasShade),
             )
         }
+        var canvasControls by remember(canvasOn, canvasUrl, com.music.spotui.data.preferences.ImmersiveChromePref.canvas) { mutableStateOf(false) }
+        if (canvasOn && com.music.spotui.data.preferences.ImmersiveChromePref.canvas && !canvasControls) {
+            Box(Modifier.fillMaxSize().clickable(onClickLabel = stringResource(R.string.chrome_canvas_detail)) { canvasControls = true })
+        } else {
         Box(Modifier.fillMaxSize().mixSqueeze(mixMotion)) {
         CompositionLocalProvider(LocalPlayerTint provides tint) {
             if (landscape) LandscapePlayer(
@@ -702,7 +707,8 @@ fun ImmersivePlayer(
                 }
 
                 val lyricPreview = com.music.spotui.data.preferences.PlayerLyricsCardPref.shown && !state.adPlaying
-                val titleGap = ART_TITLE_GAP + if (lyricPreview) LYRIC_LINE_HEIGHT else 0.dp
+                val stripHeight = lyricPreviewHeight()
+                val titleGap = ART_TITLE_GAP + if (lyricPreview) stripHeight else 0.dp
                 val blockMax = if (window.large) minOf(playerWidth - PLAYER_GUTTER * 2, PLAYER_MAX_WIDTH) +
                     ART_BOX_TOP_PAD + titleGap + HEADER_HEIGHT + 16.dp else Dp.Infinity
                 Column(Modifier.weight(1f).fillMaxWidth().zIndex(1f), verticalArrangement = Arrangement.Center) {
@@ -879,7 +885,7 @@ fun ImmersivePlayer(
                         onOpenLyrics = { panel = Panel.LYRICS },
                         modifier = Modifier
                             .zIndex(2f)
-                            .offset { IntOffset(left.roundToPx(), (titleTop() - LYRIC_LINE_HEIGHT).roundToPx()) }
+                            .offset { IntOffset(left.roundToPx(), (titleTop() - stripHeight).roundToPx()) }
                             .width(contentWidth),
                     )
                     Row(
@@ -946,6 +952,12 @@ fun ImmersivePlayer(
                     )
                 }
                 }
+            }
+        }
+        }
+        if (com.music.spotui.data.preferences.ImmersiveChromePref.stats && panel == Panel.NONE) {
+            androidx.compose.material3.IconButton(onClick = { showNerd = true }, modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(end = 4.dp)) {
+                androidx.compose.material3.Icon(Icons.Rounded.Equalizer, stringResource(R.string.nerd_title), tint = tint)
             }
         }
         }

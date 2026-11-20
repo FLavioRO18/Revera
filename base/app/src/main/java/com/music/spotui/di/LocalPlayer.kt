@@ -301,7 +301,7 @@ object LocalPlayer {
                 val at = p.currentPosition
                 prefetch.launch {
                     runCatching { com.music.spotui.extensions.ExtensionAudio.resolve(item, again = true) }
-                    handler.post { if (exo === p && p.currentMediaItem?.localConfiguration?.uri == item) { p.prepare(); p.seekTo(at); p.play() } }
+                    handler.post { if (exo === p && p.currentMediaItem?.localConfiguration?.uri == item) { p.prepare(); p.seekTo(at) } }
                 }
                 return
             }

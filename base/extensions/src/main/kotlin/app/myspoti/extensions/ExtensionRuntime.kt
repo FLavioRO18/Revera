@@ -688,6 +688,7 @@ class ExtensionRuntime(
     private class LimitedContext(f: ContextFactory) : Context(f)
 
     companion object {
+        const val EVENT_QUEUE = "queue"
         const val EVENT_TRACK = "track"
         /** Start, progress, pause, resume, seek, skip, end of a song (docs/extensions/API.md §3). */
         const val EVENT_PLAYBACK = "playback"
@@ -702,6 +703,7 @@ class ExtensionRuntime(
         const val EVENT_SETTING = "setting"
         /** Each event, and the action an extension needs to receive it. */
         val EVENTS: Map<String, Action> = mapOf(
+            EVENT_QUEUE to Action.PLAYBACK_EVENTS,
             EVENT_TRACK to Action.PLAYBACK_EVENTS,
             EVENT_PLAYBACK to Action.PLAYBACK_EVENTS,
             EVENT_AUTH to Action.WEBVIEW_AUTH,

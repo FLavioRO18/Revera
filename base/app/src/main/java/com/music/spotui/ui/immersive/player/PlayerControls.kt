@@ -73,6 +73,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -281,9 +282,12 @@ internal fun CurrentLyricStrip(
     )
 }
 
-internal val LYRIC_LINE_HEIGHT = 28.dp
+@Composable
+internal fun lyricPreviewHeight() = with(androidx.compose.ui.platform.LocalDensity.current) {
+    maxOf(28.dp, 19.sp.toDp() + 8.dp) * com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines
+}
 
-private data class ActiveInlineLyric(val index: Int, val text: String, val swept: SweptLine?)
+private data class ActiveInlineLyric(val index: Int, val text: String, val swept: SweptLine?, val nextText: String?)
 
 @Composable
 internal fun CurrentLyricLine(
@@ -295,7 +299,7 @@ internal fun CurrentLyricLine(
     visible: Boolean = true,
 ) {
     if (!visible) {
-        Spacer(modifier.height(LYRIC_LINE_HEIGHT))
+        Spacer(modifier.height(lyricPreviewHeight()))
         return
     }
     val frame = rememberFrameClock(playing && lyricsState is LyricsViewModel.State.Loaded, fps = 8)
@@ -332,13 +336,13 @@ internal fun CurrentLyricLine(
             val line = lyrics.lines[activeIndex]
             val nextMs = lyrics.lines.getOrNull(activeIndex + 1)?.timeMs
             val swept = if (wordMode && !line.words.isNullOrEmpty()) line.toSwept(nextMs).takeIf { it.words.isNotEmpty() } else null
-            ActiveInlineLyric(activeIndex, line.text.trim(), swept)
+            ActiveInlineLyric(activeIndex, line.text.trim(), swept, lyrics.lines.getOrNull(activeIndex + 1)?.text?.trim()?.takeUnless { it.isBlank() || it == "♪" || it == "•••" || it == "..." })
         }
     }
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(LYRIC_LINE_HEIGHT)
+            .height(lyricPreviewHeight())
             .then(
                 if (activeLine != null) {
                     Modifier.clickable(
@@ -354,50 +358,55 @@ internal fun CurrentLyricLine(
             ),
         contentAlignment = Alignment.CenterStart,
     ) {
+        val previewMaxLines = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines
+        val lyricStyle = TextStyle(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
         AnimatedContent(
+            modifier = Modifier.clipToBounds(),
             targetState = activeLine,
             contentKey = { it?.index },
             transitionSpec = {
-                (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 3 })
+                val from = initialState
+                val to = targetState
+                if (previewMaxLines == 2 && from != null && to != null) {
+                    val direction = to.index - from.index
+                    if (kotlin.math.abs(direction) == 1) {
+                        (fadeIn(tween(260)) + slideInVertically(tween(260)) { direction * it / 2 })
+                            .togetherWith(fadeOut(tween(260)) + slideOutVertically(tween(260)) { -direction * it / 2 })
+                    } else fadeIn(tween(150)).togetherWith(fadeOut(tween(150)))
+                } else (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 3 })
                     .togetherWith(fadeOut(tween(150)) + slideOutVertically(tween(150)) { -it / 3 })
             },
             label = "currentLyricStrip",
         ) { item ->
             if (item != null) {
-                val previewMaxLines = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    if (item.swept != null) {
-                        SweptLyricLine(
-                            line = item.swept,
-                            clock = clock,
-                            style = TextStyle(
-                                color = Color.White.copy(alpha = 0.96f),
-                                fontSize = 15.sp,
-                                lineHeight = 19.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            dimAlpha = 0.42f,
-                            maxLines = previewMaxLines,
-                            overflow = TextOverflow.Ellipsis,
-                            feather = true,
-                            rise = false,
-                            color = Color.White,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                    } else {
-                        Text(
-                            text = item.text,
-                            color = Color.White.copy(alpha = 0.92f),
-                            fontSize = 15.sp,
-                            lineHeight = 19.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = previewMaxLines,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
+                    val showNext = previewMaxLines == 2 && item.nextText != null
+                    Column(Modifier.weight(1f, fill = false)) {
+                        if (item.swept != null) {
+                            SweptLyricLine(
+                                line = item.swept,
+                                clock = clock,
+                                style = lyricStyle,
+                                dimAlpha = 0.42f,
+                                maxLines = if (showNext) 1 else previewMaxLines,
+                                overflow = TextOverflow.Ellipsis,
+                                feather = true,
+                                rise = false,
+                                color = Color.White,
+                            )
+                        } else {
+                            Text(
+                                text = item.text,
+                                color = Color.White.copy(alpha = 0.92f),
+                                style = lyricStyle,
+                                maxLines = if (showNext) 1 else previewMaxLines,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (showNext) Text(item.nextText.orEmpty(), color = Color.White.copy(alpha = 0.65f), style = lyricStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Spacer(Modifier.width(4.dp))
                     Icon(

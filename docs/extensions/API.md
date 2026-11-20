@@ -580,6 +580,18 @@ nothing is delivered). Return values are ignored; an error in a listener is swal
 and later listeners of the same event do not run. Time limit 3 s per delivery. There is no way to
 remove a listener.
 
+### `queue` event
+
+`myspoti.on('queue', function (e) { ... })` receives `{ next: [track, ...] }` for up to
+five upcoming entries in the app's published queue: manually queued entries first, then
+context entries. The current song is excluded; duplicates retain their queue positions.
+The event requires declared and granted `playback.events`, just like `track`.
+The app samples the published queue about once a second, sends an initial snapshot to
+new listeners and sends another only when that snapshot changes. Rapid intermediate
+queue edits can be coalesced. An empty queue produces `next: []`; this does not fetch
+or predict recommendations the provider has not published. No source URLs or credentials
+are included. This is separate from the on-demand `spotify.player.queue()` API.
+
 ### `playback` event
 
 `myspoti.on('playback', function (e) { ... })`: what happens to the song playing, in Myspoti's own
@@ -1056,7 +1068,7 @@ type means optional/nullable. Returns of "—" mean `null`.
 | Call | Returns | Right | Asks the user |
 |---|---|---|---|
 | `state()` | PlayerState? | library.read |  |
-| `queue()` | Queue? | library.read |  |
+| `queue()` | Queue? | playback.events | Read the current Spotify queue. For a five-song lookahead, take the first five entries from `queued` followed by `nextUp`; do not include `current`. This is a snapshot, not a guarantee that those songs will play. |
 | `volume()` | number | library.read |  |
 | `media(trackUri: string)` | Media? | playback.events |  |
 | `play(contextUri: string, trackUri: string?, index: number?, positionMs: number?, order: string[]?)` | — | write |  |

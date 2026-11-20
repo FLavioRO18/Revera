@@ -138,7 +138,14 @@ android {
             isUniversalApk = true
         }
     }
-    packaging { jniLibs { excludes += listOf("lib/x86/**", "lib/x86_64/**") } }
+    packaging {
+        jniLibs {
+            if ((findProperty("abis") as String?)?.split(",")?.contains("x86_64") != true) {
+                excludes += "lib/x86_64/**"
+            }
+            excludes += "lib/x86/**"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

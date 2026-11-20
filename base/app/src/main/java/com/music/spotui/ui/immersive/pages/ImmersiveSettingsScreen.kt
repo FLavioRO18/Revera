@@ -481,6 +481,20 @@ private fun LyricsPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     detail = stringResource(if (wordSync) R.string.lyrics_word_sync_on else R.string.lyrics_word_sync_off),
                 )
             }
+            row {
+                ImmersiveSwitchRow(stringResource(R.string.settings_player_lyrics_card_title), checked = com.music.spotui.data.preferences.PlayerLyricsCardPref.on,
+                    onChecked = { com.music.spotui.data.preferences.PlayerLyricsCardPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_lyrics_card_detail))
+            }
+            if (com.music.spotui.data.preferences.LookPref.look == com.music.spotui.data.preferences.Look.IMMERSIVE && com.music.spotui.data.preferences.PlayerLyricsCardPref.on) {
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.settings_player_lyrics_two_lines_title),
+                        checked = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines == 2,
+                        onChecked = { com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.set(ctx, if (it) 2 else 1) },
+                        detail = stringResource(R.string.settings_player_lyrics_two_lines_detail),
+                    )
+                }
+            }
             // NetEase and Genius after Spotify and LRCLIB (also in the lyrics' own menu).
             row {
                 ImmersiveSwitchRow(
@@ -972,6 +986,11 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                     onChecked = app.myspoti.power.EnergySettings::setBlackBackground, detail = stringResource(R.string.settings_amoled_theme_subtitle))
             }
             // The looping visuals, as in the Classic settings: off while the energy saver holds them.
+            if (look == com.music.spotui.data.preferences.Look.IMMERSIVE) {
+                row { ImmersiveSwitchRow(stringResource(R.string.chrome_handle), checked = com.music.spotui.data.preferences.ImmersiveChromePref.handle, onChecked = { com.music.spotui.data.preferences.ImmersiveChromePref.handle(it) }, detail = stringResource(R.string.chrome_handle_detail)) }
+                row { ImmersiveSwitchRow(stringResource(R.string.chrome_stats), checked = com.music.spotui.data.preferences.ImmersiveChromePref.stats, onChecked = { com.music.spotui.data.preferences.ImmersiveChromePref.stats(it) }, detail = stringResource(R.string.chrome_stats_detail)) }
+                row { ImmersiveSwitchRow(stringResource(R.string.chrome_canvas), checked = com.music.spotui.data.preferences.ImmersiveChromePref.canvas, onChecked = { com.music.spotui.data.preferences.ImmersiveChromePref.canvas(it) }, detail = stringResource(R.string.chrome_canvas_detail)) }
+            }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_item_canvas_title),
                     checked = energy.canvasEnabled && !energy.policy.saverEnabled,
@@ -1000,20 +1019,7 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 ImmersiveSwitchRow(stringResource(R.string.settings_hide_podcasts_title), checked = com.music.spotui.data.preferences.HidePodcastsPref.on,
                     onChecked = { com.music.spotui.data.preferences.HidePodcastsPref.set(ctx, it) }, detail = stringResource(R.string.settings_hide_podcasts_detail))
             }
-            row {
-                ImmersiveSwitchRow(stringResource(R.string.settings_player_lyrics_card_title), checked = com.music.spotui.data.preferences.PlayerLyricsCardPref.on,
-                    onChecked = { com.music.spotui.data.preferences.PlayerLyricsCardPref.set(ctx, it) }, detail = stringResource(R.string.settings_player_lyrics_card_detail))
-            }
-            if (look == com.music.spotui.data.preferences.Look.IMMERSIVE && com.music.spotui.data.preferences.PlayerLyricsCardPref.on) {
-                row {
-                    ImmersiveSwitchRow(
-                        stringResource(R.string.settings_player_lyrics_two_lines_title),
-                        checked = com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.lines == 2,
-                        onChecked = { com.music.spotui.data.preferences.PlayerLyricsPreviewLinesPref.set(ctx, if (it) 2 else 1) },
-                        detail = stringResource(R.string.settings_player_lyrics_two_lines_detail),
-                    )
-                }
-            }
+
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_player_source_title), checked = com.music.spotui.data.preferences.PlayerSourceLinePref.on,
                     onChecked = { com.music.spotui.data.preferences.PlayerSourceLinePref.set(ctx, it) }, detail = stringResource(R.string.settings_player_source_detail))

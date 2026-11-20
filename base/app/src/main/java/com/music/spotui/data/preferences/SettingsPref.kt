@@ -389,6 +389,19 @@ object ArtworkLoopPref {
     }
 }
 
+object ImmersiveChromePref {
+    private val store get() = prefs(com.music.spotui.di.Graph.app)
+    var handle by androidx.compose.runtime.mutableStateOf(store.getBoolean("player_handle_visible", true))
+        private set
+    var stats by androidx.compose.runtime.mutableStateOf(store.getBoolean("player_stats_shortcut", false))
+        private set
+    var canvas by androidx.compose.runtime.mutableStateOf(store.getBoolean("player_canvas_focus", false))
+        private set
+    fun handle(value: Boolean) { handle = value; store.edit().putBoolean("player_handle_visible", value).apply() }
+    fun stats(value: Boolean) { stats = value; store.edit().putBoolean("player_stats_shortcut", value).apply() }
+    fun canvas(value: Boolean) { canvas = value; store.edit().putBoolean("player_canvas_focus", value).apply() }
+}
+
 object PlayerSourceLinePref {
     private const val KEY = "player_source_line"
     var on by androidx.compose.runtime.mutableStateOf(prefs(com.music.spotui.di.Graph.app).getBoolean(KEY, true))

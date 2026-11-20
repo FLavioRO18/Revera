@@ -460,6 +460,23 @@ class SandboxTest {
         }
     }
 
+    @Test fun queueEventsRequirePlaybackEventsGrant() {
+        val m = manifest(provides = emptyList(), permissions = listOf(PermissionRequest("player.read", why = "Upcoming songs")))
+        val script = "myspoti.on('queue', function (e) { myspoti.log(e.next.length + ' ' + e.next[0].title); });"
+        val host = FakeHost()
+        runtime(script, m, host).use {
+            assertTrue(it.listens("queue"))
+            it.emit("queue", """{"next":[{"title":"Upcoming"}]}""")
+        }
+        assertEquals(listOf("1 Upcoming"), host.logs)
+        val quiet = FakeHost()
+        runtime(script, m, quiet, granted = emptySet()).use {
+            assertFalse(it.listens("queue"))
+            it.emit("queue", """{"next":[{"title":"Upcoming"}]}""")
+        }
+        assertTrue(quiet.logs.isEmpty())
+    }
+
     @Test fun downloadSourceAnswersAreChecked() {
         val m = manifest(provides = listOf("download-source"), permissions = listOf(PermissionRequest("download-source", why = "Finds where each song can be downloaded")))
         assertTrue(m.problems().toString(), m.problems().isEmpty())
