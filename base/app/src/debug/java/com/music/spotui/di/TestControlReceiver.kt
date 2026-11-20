@@ -84,7 +84,7 @@ class TestControlReceiver : BroadcastReceiver() {
             // Debug builds: the same report the Settings row writes, so an unattended run can check
             // that the export really produces a readable file (and where it lands).
             "diagnose" -> runCatching {
-                val file = app.myspoti.host.android.Logbook.export(context)
+                val file = app.myspoti.host.android.DiagnosticReport.export(context)
                 Log.i("MspPlayer", "diagnostic report: ${file.absolutePath} (${file.length()} bytes)")
             }.onFailure { Log.i("MspPlayer", "diagnostic report failed: $it") }
             // Debug: the friend feed on each host and the typed result, as shapes and counts only

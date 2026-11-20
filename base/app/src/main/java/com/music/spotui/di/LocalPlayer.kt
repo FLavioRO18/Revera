@@ -1,4 +1,5 @@
 package com.music.spotui.di
+import app.myspoti.host.android.AppLog
 
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -2254,7 +2255,7 @@ object LocalPlayer {
 
     private const val LENGTH_GAP_MS = 2_000L
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("local: $line")
+    private fun log(line: String) { AppLog.d("local: $line") }
 
     /** An error's text without the addresses it may carry. */
     private fun generic(text: String) = text.replace(Regex("\\b\\w+://\\S+"), "<address>").take(200)

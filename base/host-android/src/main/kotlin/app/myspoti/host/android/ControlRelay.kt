@@ -64,7 +64,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         channel = view.exposeToPlayer("MyspotiNet", ::onMessage)
         val documentStart = androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT)
         if (documentStart) androidx.webkit.WebViewCompat.addDocumentStartJavaScript(view, SCRIPT, setOf("https://open.spotify.com"))
-        Logbook.log("control relay installed (document start: $documentStart)")
+        AppLog.d("control relay installed (document start: $documentStart)")
     }
 
     /** Fallback for WebViews without document-start scripts; harmless when already installed. */
@@ -106,32 +106,32 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         val m = runCatching { JSONObject(json) }.getOrNull() ?: return
         if (m.optString("type") == "identity") {
             identity = m.optJSONObject("value")
-            Logbook.log("page identity: ${identity.toString().take(320)}")
+            AppLog.d("page identity: ${identity.toString().take(320)}")
             return
         }
         // A relayed answer that came back after its page was replaced: the new page left it alone.
         if (m.optString("type") == "stale") {
-            Logbook.log("relay reply #${m.optInt("id")} for a previous page ignored")
+            AppLog.d("relay reply #${m.optInt("id")} for a previous page ignored")
             return
         }
         if (m.optString("type") == "direct") {
             if (m.has("kept")) {
-                Logbook.log("commands from the page: ${if (m.optBoolean("kept")) "kept, the music plays" else "dropped, nothing played in 10 s"}")
+                AppLog.d("commands from the page: ${if (m.optBoolean("kept")) "kept, the music plays" else "dropped, nothing played in 10 s"}")
                 app.myspoti.spotify.report.Refusal402.pageKept(m.optBoolean("kept"))
                 // A page fetch answered 200 can still be dropped (X-Requested-With): the matrix says which.
                 matrixPageLine?.let { line ->
                     matrixPageLine = null
-                    Logbook.fact("402 matrix", "$line (page: ${if (m.optBoolean("kept")) "played" else "nothing played"})")
+                    DiagnosticReport.fact("402 matrix", "$line (page: ${if (m.optBoolean("kept")) "played" else "nothing played"})")
                 }
             } else {
-                Logbook.log("refused command sent again from the page -> ${m.optInt("status")}")
+                AppLog.d("refused command sent again from the page -> ${m.optInt("status")}")
                 app.myspoti.spotify.report.Refusal402.pageFetch(m.optInt("status"))
                 // The matrix's last row: the same command through the page's own fetch.
                 if (matrixPage) {
                     matrixPage = false
                     val line = "$matrixRows; page fetch=${m.optInt("status")}"
-                    Logbook.log("402 matrix: $line")
-                    Logbook.fact("402 matrix", line)
+                    AppLog.d("402 matrix: $line")
+                    DiagnosticReport.fact("402 matrix", line)
                     if (m.optInt("status") in 200..299) matrixPageLine = line
                 }
             }
@@ -153,14 +153,14 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         // own (see [deviceName]) replaces "Web Player (Chrome)".
         val registration = body != null && app.myspoti.spotify.bridge.DeviceRegistration.isDeviceRegistration(method, url)
         if (debuggable && body != null && url.contains("/connect-state/"))
-            Logbook.log("connect-state body: ${body.take(500)}")
+            AppLog.d("connect-state body: ${body.take(500)}")
         if (registration) runCatching { JSONObject(body!!).optJSONObject("device")?.optString("device_id") }
             .getOrNull()?.takeIf { it.isNotEmpty() }?.let { self = it }
         // The device the previous page left behind (app swiped away or killed before its unload
         // handler ran) is taken off the account alongside this registration, not after it: the
         // cluster the page joins next then lists this player alone.
         if (registration) self?.let { mine ->
-            if (debuggable) Logbook.log("player device #${shortHash(mine)}")
+            if (debuggable) AppLog.d("player device #${shortHash(mine)}")
             devices.registering(mine)?.let { (old, seq) ->
                 staleOwn = old
                 sayGoodbye(url, built, old, seq)
@@ -172,12 +172,12 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
             val names = headerNames(given)
             if (names != commandHeaders) {
                 commandHeaders = names
-                Logbook.log("command headers: $names")
+                AppLog.d("command headers: $names")
             }
         }
         val sent = if (registration) {
             val rewritten = app.myspoti.spotify.bridge.DeviceRegistration.withDeviceName(body!!, deviceName)
-            if (debuggable && rewritten != body) Logbook.log("device registered as \"$deviceName\"")
+            if (debuggable && rewritten != body) AppLog.d("device registered as \"$deviceName\"")
             rewritten
         } else body
         val asked = android.os.SystemClock.uptimeMillis()
@@ -195,8 +195,8 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
             matrixRows = rows.joinToString("; ")
             if (page) matrixPage = true
             val line = matrixRows + if (page) "; page fetch=pending" else "; page fetch=not needed"
-            Logbook.log("402 matrix (first refused command): $line")
-            Logbook.fact("402 matrix", line)
+            AppLog.d("402 matrix (first refused command): $line")
+            DiagnosticReport.fact("402 matrix", line)
         }
         val command = COMMAND.containsMatchIn(url)
         val kind = if (command) commandKind(url, body) else ""
@@ -214,7 +214,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
                     answer?.headers.orEmpty(), answer?.text.orEmpty())
                 rows += "${routeLabel(route)}=${answer?.code ?: "failed (${error?.take(60)})"}"
                 if (answer == null) {
-                    Logbook.log("relay $method ${shortPath(url)} failed$via: $error")
+                    AppLog.d("relay $method ${shortPath(url)} failed$via: $error")
                     val first = refusal
                     when {
                         first != null -> routes.next(tried, null)?.let { attempt(it) } ?: finish(first)
@@ -230,11 +230,11 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
                     if (refusal == null) {
                         refusal = answer
                         logRefusal(answer, body)
-                        Logbook.fact("ads", adsMode())
+                        DiagnosticReport.fact("ads", adsMode())
                     }
                     val next = routes.next(tried, answer.family)
                     if (next != null) {
-                        Logbook.log("relay $method ${shortPath(url)} -> ${answer.code}$via (${answer.family ?: "family unknown"}): sent again via $next")
+                        AppLog.d("relay $method ${shortPath(url)} -> ${answer.code}$via (${answer.family ?: "family unknown"}): sent again via $next")
                         attempt(next)
                         return@fetch
                     }
@@ -242,10 +242,10 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
                 if (refusal != null) {
                     if (answer.code in 200..299) {
                         routes.won(route)
-                        Logbook.log("relay: $route answered ${answer.code} where ${tried.first()} was refused: kept for this session")
-                        Logbook.fact("relay route", "$route (taken after a refusal on ${tried.first()})")
+                        AppLog.d("relay: $route answered ${answer.code} where ${tried.first()} was refused: kept for this session")
+                        DiagnosticReport.fact("relay route", "$route (taken after a refusal on ${tried.first()})")
                         if (command) checkAudio(shortRoute(route))
-                    } else Logbook.log("relay: refused on every route (${tried.joinToString()})")
+                    } else AppLog.d("relay: refused on every route (${tried.joinToString()})")
                 }
                 finish(answer)
             }
@@ -311,8 +311,8 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         val heads = answer.headers.map { it.first }.distinct()
             .filterNot { n -> n.equals("set-cookie", true) || n.startsWith("authorization", true) }
             .joinToString(", ") { n -> "$n=${answer.header(n)?.take(80)}" }
-        Logbook.log("refusal headers (${answer.protocol}, ${answer.tls ?: "no tls"}, ${answer.family ?: "family unknown"}): $heads")
-        if (body != null) Logbook.log("refused command: ${commandSummary(body)}")
+        AppLog.d("refusal headers (${answer.protocol}, ${answer.tls ?: "no tls"}, ${answer.family ?: "family unknown"}): $heads")
+        if (body != null) AppLog.d("refused command: ${commandSummary(body)}")
     }
 
     /** What the page gets back, and what the logs keep of it. */
@@ -325,18 +325,18 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         // Steady streams answered 2xx (play reports, playback state and volume PUTs: hundreds per
         // report, never read in an analysis) are logged once a minute; failures always.
         val steady = STEADY.find(path)?.value
-        if (steady != null && it.code in 200..299) Logbook.logEvery("relay $method $steady", 60_000, "relay $method $path -> ${it.code} in $net ms")
-        else Logbook.log("relay $method $path -> ${it.code} in $net ms")
-        if (it.code >= 400) Logbook.log("relay error body: ${text.take(400)}")
+        if (steady != null && it.code in 200..299) AppLog.d("relay $method $path -> ${it.code} in $net ms")
+        else AppLog.d("relay $method $path -> ${it.code} in $net ms")
+        if (it.code >= 400) AppLog.d("relay error body: ${text.take(400)}")
         // The page's token went stale (a network change seen to do it): the player reloads the page.
         if (it.code == 401) app.myspoti.spotify.bridge.PageAuth.unauthorized("relay $method $path")
         // A command sent before the page's device joined: the player sends its play again once it has.
         if (it.code == 404 && COMMAND.containsMatchIn(url) && "DEVICE_NOT_FOUND" in text) app.myspoti.spotify.bridge.PageDevice.commandLost()
         if (it.code in 200..299 && method == "POST" && url.substringBefore('?').endsWith("/track-playback/v1/devices")) onDeviceRegistered?.invoke()
         if (it.code == 402 && !(COMMAND.containsMatchIn(url) || registration)) logRefusal(it, body)
-        if (registration) effectiveLicense(text)?.let { Logbook.log("registration: effective_license=$it") }
+        if (registration) effectiveLicense(text)?.let { AppLog.d("registration: effective_license=$it") }
         if (registration) app.myspoti.spotify.report.Refusal402.registered(it.code)
-        if (registration && it.code in 200..299) Logbook.log("registration answer: ${registrationSummary(text)}")
+        if (registration && it.code in 200..299) AppLog.d("registration answer: ${registrationSummary(text)}")
         // The page's connect-state PUT (joining the cluster): its status and its answer's header names.
         if (method == "PUT" && url.contains("/connect-state/v1/devices/"))
             app.myspoti.spotify.report.Refusal402.connectStatePut(it.code, it.headers.map { h -> h.first.lowercase() }.distinct().sorted().joinToString(","))
@@ -345,32 +345,32 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
             app.myspoti.spotify.bridge.PageDevice.joined()
         if (registration && it.code in 200..299) runCatching { JSONObject(text).optLong("initial_seq_num", 0) }.getOrNull()?.let(devices::answered)
         if (method == "DELETE" && it.code in 200..299 && url.contains("/track-playback/v1/devices/")) devices.deregistered(url)
-        if (registration) Logbook.fact("registration", "${it.code}" + (effectiveLicense(text)?.let { " effective_license=$it" } ?: ""))
+        if (registration) DiagnosticReport.fact("registration", "${it.code}" + (effectiveLicense(text)?.let { " effective_license=$it" } ?: ""))
         // What Spotify holds for this account's devices (this player's license, whether
         // it may play, another device active): the cluster comes back on joining and
         // on every cluster read, the one the page makes after a refused command.
         if (it.code in 200..299 && (url.contains("/connect-state/v1/cluster") || (method == "PUT" && url.contains("/connect-state/v1/devices/"))))
             clusterSummary(text, self, staleOwn)?.let { s ->
                 // The same cluster again (every state PUT and cluster read returns it) is not logged twice.
-                if (s != lastCluster) { lastCluster = s; Logbook.log("cluster: $s") }
+                if (s != lastCluster) { lastCluster = s; AppLog.d("cluster: $s") }
                 clusterBrief(text, self, staleOwn)?.let(app.myspoti.spotify.report.Refusal402::cluster)
-                Logbook.fact("devices", s)
+                DiagnosticReport.fact("devices", s)
                 // Debug builds: which devices these are, as short hashes (a ghost left by a
                 // previous start shows under the hash its own start logged).
                 if (debuggable) runCatching {
                     val c = JSONObject(text).let { j -> j.optJSONObject("cluster") ?: j }
-                    Logbook.log("cluster devices: " + c.getJSONObject("devices").keys().asSequence().joinToString(" ") { k -> "#${shortHash(k)}" })
+                    AppLog.d("cluster devices: " + c.getJSONObject("devices").keys().asSequence().joinToString(" ") { k -> "#${shortHash(k)}" })
                 }
             }
-        if (debuggable && registration) Logbook.log("registration answered: ${text.take(500)}")
+        if (debuggable && registration) AppLog.d("registration answered: ${text.take(500)}")
         if (debuggable && AD_MARK.containsMatchIn(text)) keepAdSample(method, url, body, text)
         val replyText = if (it.code in 200..299 && url.contains("/track-playback/")) {
             app.myspoti.spotify.bridge.MediaManifests.record(text)
             val rewritten = app.myspoti.spotify.bridge.AdBlock.withoutAds(text)
-            if (rewritten !== text) Logbook.log("adblock: rewrote track-playback state machine to skip ad transition")
+            if (rewritten !== text) AppLog.d("adblock: rewrote track-playback state machine to skip ad transition")
             val before = app.myspoti.spotify.bridge.AdSchedule.due.value
             app.myspoti.spotify.bridge.AdSchedule.record(rewritten)
-            app.myspoti.spotify.bridge.AdSchedule.due.value?.takeIf { d -> d != before }?.let { d -> Logbook.log("ad due after this song (${d.songUri}), then ${d.nextUri ?: "a song not named"}") }
+            app.myspoti.spotify.bridge.AdSchedule.due.value?.takeIf { d -> d != before }?.let { d -> AppLog.d("ad due after this song (${d.songUri}), then ${d.nextUri ?: "a song not named"}") }
             rewritten
         } else text
         reply(id, doc, it.code, out.toString(), replyText)
@@ -386,7 +386,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
 
     private fun replyNow(id: Int, script: String, posted: Long) {
         val waited = android.os.SystemClock.uptimeMillis() - posted
-        if (waited > 30) Logbook.log("relay reply #$id waited $waited ms for the main thread")
+        if (waited > 30) AppLog.d("relay reply #$id waited $waited ms for the main thread")
         view.evaluateJavascript(script, null)
     }
 
@@ -401,10 +401,12 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
             .delete(PlayerDeviceRecord.goodbye(seq).toByteArray().toRequestBody(null))
             .build()
         http.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) = Logbook.log("previous player device: goodbye failed: ${e.message}")
+            override fun onFailure(call: Call, e: IOException) {
+                AppLog.d("previous player device: goodbye failed: ${e.message}")
+            }
             override fun onResponse(call: Call, response: Response) = response.use {
-                Logbook.log("previous player device${if (debuggable) " #${shortHash(old)}" else ""} taken off -> ${it.code}")
-                if (it.code >= 400) Logbook.log("goodbye error body: ${it.body.string().take(200)}")
+                AppLog.d("previous player device${if (debuggable) " #${shortHash(old)}" else ""} taken off -> ${it.code}")
+                if (it.code >= 400) AppLog.d("goodbye error body: ${it.body.string().take(200)}")
             }
         })
     }
@@ -427,7 +429,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
     private fun checkAudio(route: String) = main.postDelayed({
         view.evaluateJavascript(PLAYING) { r ->
             val started = r == "true"
-            Logbook.log("audio after the $route retry: ${if (started) "playing" else "nothing played"} within 10 s")
+            AppLog.d("audio after the $route retry: ${if (started) "playing" else "nothing played"} within 10 s")
             app.myspoti.spotify.report.Refusal402.audioAfterRetry(route, started)
         }
     }, 10_000)
@@ -449,7 +451,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         val dir = java.io.File(view.context.cacheDir, "ad-samples").apply { mkdirs() }
         java.io.File(dir, "${System.currentTimeMillis()}.json").writeText(
             JSONObject().put("method", method).put("url", url.substringBefore('?')).put("sent", sent ?: "").put("received", received).toString())
-        Logbook.log("relay: ad in $method ${shortPath(url)} (sample kept)")
+        AppLog.d("relay: ad in $method ${shortPath(url)} (sample kept)")
     }
 
     /** A Connect command's shape, without ids: endpoint, license, picked song, origin. */
@@ -647,7 +649,7 @@ internal class ControlRelay(private val view: WebView, private val fingerprint: 
         private val DECODING: CompressionInterceptor by lazy {
             val zstd = runCatching {
                 okio.Buffer().write(ZSTD_PROBE).let { Zstd.decompress(it) }.let { okio.Buffer().apply { writeAll(it) } }.readUtf8() == "ok"
-            }.getOrElse { e -> Logbook.log("relay: zstd decoder unavailable (${e.javaClass.simpleName}): Accept-Encoding without zstd"); false }
+            }.getOrElse { e -> AppLog.d("relay: zstd decoder unavailable (${e.javaClass.simpleName}): Accept-Encoding without zstd"); false }
             CompressionInterceptor(*DECODERS.filter { zstd || it !== Zstd }.toTypedArray())
         }
 

@@ -84,6 +84,6 @@ object MainThreadWatch {
         val top = seen.maxByOrNull { it.value }?.key
         stalled = false
         seen.clear()
-        if (top != null) Logbook.log("main thread held $ms ms: $top")
+        if (top != null) AppLog.d("main thread held $ms ms: $top")
     }
 }

@@ -1,4 +1,5 @@
 package com.music.spotui.di
+import app.myspoti.host.android.AppLog
 
 import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +30,7 @@ object OutputLag {
                 try {
                     val route = com.music.spotui.ui.components.AudioRoute.current(Graph.app)
                     val l = if (route.kind == com.music.spotui.ui.components.AudioRoute.Kind.BLUETOOTH) BLUETOOTH_MS else 0L
-                    if (l != lag) app.myspoti.host.android.Logbook.log("sound heard $l ms late (${route.kind.name.lowercase()}): clip and lyrics follow")
+                    if (l != lag) AppLog.d("sound heard $l ms late (${route.kind.name.lowercase()}): clip and lyrics follow")
                     lag = l
                 } finally {
                     asking.set(false)

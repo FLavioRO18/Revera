@@ -47,7 +47,7 @@ internal object CronetStack {
             com.google.android.gms.net.CronetProviderInstaller.installProvider(app).addOnCompleteListener { task ->
                 if (!task.isSuccessful) {
                     status = "unavailable: ${task.exception?.javaClass?.simpleName ?: "no Google Play services"}"
-                    Logbook.log("relay: Cronet $status")
+                    AppLog.d("relay: Cronet $status")
                     return@addOnCompleteListener
                 }
                 runCatching {
@@ -57,11 +57,11 @@ internal object CronetStack {
                     engine = provider.createBuilder().enableHttp2(true).enableQuic(true).enableBrotli(true).build()
                     status = "ready (${provider.name} ${provider.version})"
                 }.onFailure { status = "unavailable: ${it.message}" }
-                Logbook.log("relay: Cronet $status")
+                AppLog.d("relay: Cronet $status")
             }
         }.onFailure {
             status = "unavailable: ${it.message}"
-            Logbook.log("relay: Cronet $status")
+            AppLog.d("relay: Cronet $status")
         }
     }
 

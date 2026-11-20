@@ -1,4 +1,5 @@
 package com.music.spotui.extensions
+import app.myspoti.host.android.AppLog
 
 import android.net.Uri
 import app.myspoti.extensions.AudioStream
@@ -301,7 +302,7 @@ object ExtensionAudio {
                         ?: if (wasStarting && Extensions.awaitStarted(START_WAIT_MS)) Extensions.audio(info, timeoutMs = Extensions.AUDIO_MS) else null
                 }
             } finally { picking.decrementAndGet() } ?: run {
-                app.myspoti.host.android.Logbook.log("audio: no timely extension answer for ${picked.title}")
+                AppLog.d("audio: no timely extension answer for ${picked.title}")
                 return false
             }
             if (cached == null) withContext(Dispatchers.Main) { if (isLatest()) keep(picked.spotifyTrackId, first) }
@@ -309,7 +310,7 @@ object ExtensionAudio {
         // A newer tap answered meanwhile: nothing to build. The queue of a list of thousands (Liked
         // Songs) is built off the main thread: built on it, it held the screen until an ANR (#.money0).
         if (!withContext(Dispatchers.Main) { isLatest() }) {
-            app.myspoti.host.android.Logbook.log("audio: ${picked.title} answered after a newer pick, not played")
+            AppLog.d("audio: ${picked.title} answered after a newer pick, not played")
             return true
         }
         val (list, at) = withContext(Dispatchers.Default) { AudioRoute.queue(songs, picked) }
@@ -317,7 +318,7 @@ object ExtensionAudio {
         return withContext(Dispatchers.Main) {
             isLatest().also {
                 if (it) LocalPlayer.play(tracks, at, shuffle = shuffle, context = context, contextUri = contextUri, startMs = startMs, continues = true)
-                else app.myspoti.host.android.Logbook.log("audio: ${picked.title} answered after a newer pick, not played")
+                else AppLog.d("audio: ${picked.title} answered after a newer pick, not played")
             }
         }
     }
@@ -349,7 +350,7 @@ object ExtensionAudio {
         isLatest: () -> Boolean = { true }, shown: (SongsModel) -> Unit = {}, startMs: Long = 0L,
     ): Boolean {
         val list = AudioRoute.songsFor(trackId, songs) { lookup(trackId) }
-            ?: run { app.myspoti.host.android.Logbook.log("audio: $trackId not found on Spotify, the extensions are not asked"); return false }
+            ?: run { AppLog.d("audio: $trackId not found on Spotify, the extensions are not asked"); return false }
         val picked = list.first { it.spotifyTrackId == trackId }
         if (songs?.any { it.spotifyTrackId == trackId } != true) shown(picked)
         return playList(list, picked, context, shuffle, contextUri, isLatest, startMs)

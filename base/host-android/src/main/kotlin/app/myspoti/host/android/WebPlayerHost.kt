@@ -90,7 +90,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         val hold = (LIMIT_HOLD_MS shl limitStreak.coerceAtMost(4)).coerceAtMost(LIMIT_HOLD_MAX_MS)
         limitStreak++
         license429.clear()
-        Logbook.log("Spotify is limiting audio licences (429 x$LIMIT_COUNT in ${LIMIT_WINDOW_MS / 1000} s): playback held ${hold / 1000} s")
+        AppLog.d("Spotify is limiting audio licences (429 x$LIMIT_COUNT in ${LIMIT_WINDOW_MS / 1000} s): playback held ${hold / 1000} s")
         heldLicenses = 0
         _licenseLimitedUntil.value = now + hold
     }
@@ -146,7 +146,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                     setOnline(true)
                     // The first call names the network the app started on: nothing to drop.
                     if (was == null || was == network) return
-                    Logbook.log("network changed: the relay's and the API's idle connections dropped")
+                    AppLog.d("network changed: the relay's and the API's idle connections dropped")
                     ControlRelay.resetConnections()
                     MyspotiRuntime.resetApiConnections()
                 }
@@ -162,7 +162,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                     setOnline(false)
                 }
             })
-        }.onFailure { _online.value = true; Logbook.log("network changes not watched: ${it.message}") }
+        }.onFailure { _online.value = true; AppLog.d("network changes not watched: ${it.message}") }
     }
 
     /*
@@ -180,7 +180,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     private fun setOnline(now: Boolean) {
         if (_online.value == now) return
         _online.value = now
-        Logbook.log(if (now) "network back: repairs resume" else "network lost: repairs held until it is back")
+        AppLog.d(if (now) "network back: repairs resume" else "network lost: repairs held until it is back")
         if (now) main.post {
             if (!mainFrameFailed || !loadAsked || _loginRequired.value) return@post
             pageFailures = 0
@@ -257,9 +257,9 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         // header for a few origins; an empty allowlist is what suppresses it everywhere.
         if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
             androidx.webkit.WebSettingsCompat.setRequestedWithHeaderOriginAllowList(settings, emptySet())
-            Logbook.log("x-requested-with: off for every origin")
+            AppLog.d("x-requested-with: off for every origin")
         } else {
-            Logbook.log("x-requested-with: cannot be turned off on this WebView")
+            AppLog.d("x-requested-with: cannot be turned off on this WebView")
         }
         // Client hints must agree with the desktop user agent: by default the WebView announces
         // "Android WebView" / mobile in Sec-CH-UA headers and navigator.userAgentData.
@@ -302,13 +302,13 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                     // The page's steady console noise (font preloads, storage access refused on
                     // every load) never helped a report: left out.
                     if (CONSOLE_NOISE.none { it.containsMatchIn(message.message()) })
-                        Logbook.log("console ${message.messageLevel()}: ${message.message().take(300)}")
+                        AppLog.d("console ${message.messageLevel()}: ${message.message().take(300)}")
                 }
                 return true
             }
 
             override fun onPermissionRequest(request: PermissionRequest) {
-                Logbook.log("permission request: ${request.resources.joinToString()}")
+                AppLog.d("permission request: ${request.resources.joinToString()}")
                 if (PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID in request.resources) { drmAsked = true; main.removeCallbacks(drmWatch) }
                 val allowed = request.resources.filter { it == PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID }
                 if (allowed.isNotEmpty()) request.grant(allowed.toTypedArray()) else request.deny()
@@ -318,7 +318,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val url = request.url.toString()
                 if (AdBlock.isBlocked(url)) {
-                    Logbook.log("blocked request ${Logbook.noQuery(url).take(120)}")
+                    AppLog.d("blocked request ${url.substringBefore("#").substringBefore("?").take(120)}")
                     // Refused like a blocked request.
                     return WebResourceResponse("text/plain", "utf-8", 403, "Blocked", emptyMap(), ByteArrayInputStream(ByteArray(0)))
                 }
@@ -330,7 +330,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // answer has for the page (log seen, 2.0.2-beta.5: without them the page read a CORS
                 // failure, status 0, not a 429) and the hold's time left.
                 if (request.method == "POST" && licenseLimited() && url.contains(LICENSE_PATH)) {
-                    if (heldLicenses++ == 0) Logbook.log("audio licence requests answered here while Spotify is limiting")
+                    if (heldLicenses++ == 0) AppLog.d("audio licence requests answered here while Spotify is limiting")
                     app.myspoti.spotify.report.Refusal402.licenceHeld()
                     val left = ((_licenseLimitedUntil.value - android.os.SystemClock.elapsedRealtime()) / 1000).coerceAtLeast(1)
                     val headers = mapOf(
@@ -346,17 +346,17 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // onReceivedHttpError below). Reported as B37 and unprovable without this trail.
                 if (url.startsWith("https://accounts.spotify.com/")) {
                     loginSteps++
-                    Logbook.log("login step #$loginSteps ${request.method} ${url.substringAfter("accounts.spotify.com").substringBefore('?').take(90)}")
+                    AppLog.d("login step #$loginSteps ${request.method} ${url.substringAfter("accounts.spotify.com").substringBefore('?').take(90)}")
                 }
                 // The music itself: fetched here, so the WebView's own package-name header never
                 // travels with it (see MediaProxy).
                 if (media.handles(url)) {
                     val proxied = media.fetch(request)
                     if (proxied != null) {
-                        if (debuggable) Logbook.log("audio proxied ${url.substringAfterLast('/').take(12)}…")
+                        if (debuggable) AppLog.d("audio proxied ${url.substringAfterLast('/').take(12)}…")
                         return proxied
                     }
-                    Logbook.log("audio proxy failed, the WebView fetches it: ${Logbook.noQuery(url).take(110)}")
+                    AppLog.d("audio proxy failed, the WebView fetches it: ${url.substringBefore("#").substringBefore("?").take(110)}")
                 }
                 return null
             }
@@ -368,7 +368,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                     view.loadUrl(PLAYER_URL)
                     return
                 }
-                Logbook.log("page start ${Logbook.noQuery(url).take(120)}")
+                AppLog.d("page start ${url.substringBefore("#").substringBefore("?").take(120)}")
                 mainFrameFailed = false
                 // A "finished" comes just before the player's document starts: its wait must not run out on a
                 // page still loading (a page thrown away at 10 s, and a cold start of 30 s, on the test phone).
@@ -394,7 +394,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                     LoginErrorDetails.record("network", error.errorCode)
                 }
                 if (request.url.host?.contains("spotify") == true || isLoginPage(reqUrl))
-                    Logbook.log("load error ${error.errorCode} ${error.description} ${Logbook.noQuery(reqUrl).take(120)}")
+                    AppLog.d("load error ${error.errorCode} ${error.description} ${reqUrl.substringBefore("#").substringBefore("?").take(120)}")
                 if (request.isForMainFrame && request.url.host == PLAYER_HOST && "ERR_ABORTED" !in error.description.toString())
                     playerPageFailed("load error ${error.errorCode}")
                 if (request.isForMainFrame && _loginLoad.value != LoginLoad.NONE &&
@@ -405,7 +405,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
 
             override fun onReceivedSslError(view: WebView, handler: android.webkit.SslErrorHandler, error: android.net.http.SslError) {
                 val url = error.url.orEmpty()
-                Logbook.log("ssl error ${error.primaryError} ${Logbook.noQuery(url).take(120)}")
+                AppLog.d("ssl error ${error.primaryError} ${url.substringBefore("#").substringBefore("?").take(120)}")
                 if (_loginLoad.value != LoginLoad.NONE || isLoginPage(_url.value) || isLoginPage(url)) {
                     LoginErrorDetails.record("ssl", error.primaryError)
                     if (url.isEmpty() || url == _url.value || LoginLoad.isSpotifyAccounts(url) || isLoginPage(url)) {
@@ -425,8 +425,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // Licence answers are counted in the 402 summary and their first ones logged below
                 // with their headers; the same 429 three times per song was the bulk of some reports.
                 if (request.url.host?.contains("spotify") == true && request.url.path?.contains("widevine-license") != true)
-                    Logbook.logEvery("http ${response.statusCode} ${request.url.host}${request.url.path}", 60_000,
-                        "http ${response.statusCode} ${request.method} ${request.url.toString().substringBefore('?').take(120)}")
+                    AppLog.d(                        "http ${response.statusCode} ${request.method} ${request.url.toString().substringBefore('?').take(120)}")
                 // The page's own requests answered 401: its token went stale (see PageAuth). A licence or
                 // its address (melody license_url) so answered leaves the next song silent: at once.
                 if (response.statusCode == 401 && request.url.host?.endsWith("spotify.com") == true && !isLoginPage(_url.value))
@@ -447,13 +446,13 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                         val h = response.responseHeaders.entries
                             .filter { (k, _) -> k.lowercase() in LICENSE_HEADERS }
                             .joinToString(", ") { (k, v) -> "${k.lowercase()}=${v.take(60)}" }
-                        Logbook.log("licence answer ${response.statusCode}: $h")
+                        AppLog.d("licence answer ${response.statusCode}: $h")
                     }
                 }
             }
 
             override fun onPageFinished(view: WebView, url: String) {
-                Logbook.log("page finished ${Logbook.noQuery(url).take(120)}")
+                AppLog.d("page finished ${url.substringBefore("#").substringBefore("?").take(120)}")
                 main.removeCallbacks(loadTimeout)
                 if (url.startsWith(PLAYER_URL) && !mainFrameFailed) { pageFailures = 0; main.removeCallbacks(retryPlayerPage) }
                 _url.value = url
@@ -482,7 +481,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // The page's own loads (loadUrl, about:blank) do not come through here.
                 val secure = request.url.scheme == "https"
                 // A sign-in step that goes nowhere looks like a page that does nothing: say which host was refused.
-                if (!allowed || !secure) Logbook.log("navigation refused: ${host.ifEmpty { request.url.scheme.orEmpty() }}${if (allowed && !secure) " (${request.url.scheme}, not https)" else ""}")
+                if (!allowed || !secure) AppLog.d("navigation refused: ${host.ifEmpty { request.url.scheme.orEmpty() }}${if (allowed && !secure) " (${request.url.scheme}, not https)" else ""}")
                 return !(allowed && secure)
             }
 
@@ -496,7 +495,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 // Killed (memory pressure) or crashed: both end here. A late callback from a view
                 // that was already replaced must not tear down the healthy new one.
                 if (gone !== this@WebPlayerHost.view) return true
-                Logbook.log("renderer gone (crashed=${detail.didCrash()}, priority=${detail.rendererPriorityAtExit()}): rebuilding the page")
+                AppLog.d("renderer gone (crashed=${detail.didCrash()}, priority=${detail.rendererPriorityAtExit()}): rebuilding the page")
                 // The page is gone with it: the calls it had fail now, not each after its timeout.
                 onPageStarting?.invoke()
                 rebuild()
@@ -570,7 +569,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     private fun watchLoad(url: String, attempt: Int, firstWatchMs: Long = LOAD_WATCH_MS) {
         main.postDelayed({
             if (pageStarts > 0 || !loadAsked || attempt > LOAD_RETRIES) return@postDelayed
-            Logbook.log("page never started: loading again (attempt $attempt)")
+            AppLog.d("page never started: loading again (attempt $attempt)")
             if (attempt > 1) view.stopLoading()
             view.loadUrl(url)
             watchLoad(url, attempt + 1)
@@ -603,7 +602,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     fun reload() = main.post {
         // A page whose player never started is not helped by loading it again in the same renderer.
         if (pageStarts > 0 && !drmAsked && _url.value.startsWith(PLAYER_URL) && newViewAllowed()) {
-            Logbook.log("reload: the player never started on this page (no DRM request): new WebView instead")
+            AppLog.d("reload: the player never started on this page (no DRM request): new WebView instead")
             rebuild()
         } else view.loadUrl(playerRoot())
     }
@@ -629,8 +628,8 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
 
     private val drmWatch: Runnable = Runnable {
         if (drmAsked || !loadAsked || !_url.value.startsWith(PLAYER_URL) || isLoginPage(_url.value)) return@Runnable
-        if (!newViewAllowed()) { Logbook.log("player never started on this page (no DRM request); new WebViews used up for now"); return@Runnable }
-        Logbook.log("player never started on this page (no DRM request ${DRM_WATCH_MS / 1000} s after load): new WebView")
+        if (!newViewAllowed()) { AppLog.d("player never started on this page (no DRM request); new WebViews used up for now"); return@Runnable }
+        AppLog.d("player never started on this page (no DRM request ${DRM_WATCH_MS / 1000} s after load): new WebView")
         rebuild()
     }
 
@@ -653,8 +652,8 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     private val retryPlayerPage = Runnable {
         if (!loadAsked || _loginRequired.value) return@Runnable
         // Offline, the load could only fail again: [setOnline] loads it when the network is back.
-        if (!_online.value) { Logbook.log("player page: offline, loaded again when the network is back"); return@Runnable }
-        Logbook.log("player page: load again (attempt ${pageFailures + 1})")
+        if (!_online.value) { AppLog.d("player page: offline, loaded again when the network is back"); return@Runnable }
+        AppLog.d("player page: load again (attempt ${pageFailures + 1})")
         view.stopLoading()
         view.loadUrl(playerRoot())
     }
@@ -668,7 +667,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         mainFrameFailed = true
         val wait = RETRY_PAGE_MS[pageFailures.coerceAtMost(RETRY_PAGE_MS.lastIndex)]
         pageFailures++
-        Logbook.log("player page failed to load ($what): again in ${wait / 1000} s")
+        AppLog.d("player page failed to load ($what): again in ${wait / 1000} s")
         main.removeCallbacks(retryPlayerPage)
         main.postDelayed(retryPlayerPage, wait)
     }
@@ -739,11 +738,11 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         var finished = false
         val finish = { if (!finished) { finished = true; done() } }
         val url = _url.value
-        Logbook.log("report asked from the sign-in: ${Logbook.noQuery(url).take(120)} load=${_loginLoad.value} steps=$loginSteps")
+        AppLog.d("report asked from the sign-in: ${url.substringBefore("#").substringBefore("?").take(120)} load=${_loginLoad.value} steps=$loginSteps")
         if (!isLoginPage(url) && !LoginLoad.isSpotifyAccounts(url)) { finish(); return@post }
         main.postDelayed({ finish() }, 1_500)
         view.evaluateJavascript(LOGIN_PAGE_STATE_JS) { answer ->
-            Logbook.log("sign-in page now: ${answer?.take(600)}")
+            AppLog.d("sign-in page now: ${answer?.take(600)}")
             finish()
         }
     }
@@ -821,7 +820,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
     }
 
     private fun moveTo(profileName: String, open: () -> Unit) = main.post {
-        Logbook.log("account: page moved to another profile")
+        AppLog.d("account: page moved to another profile")
         profile = profileName
         // Both said something of the account that leaves: when it signed in, and its language's root.
         roots.edit().remove(SIGNED_IN_KEY).remove(ROOT_KEY).apply()
@@ -851,7 +850,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
                 } else store.deleteProfile(name)
             }
             if (done.isSuccess) accounts.update { it.deleted(name) }
-            else Logbook.log("account: a removed profile is still in use, deleted later (${done.exceptionOrNull()?.javaClass?.simpleName})")
+            else AppLog.d("account: a removed profile is still in use, deleted later (${done.exceptionOrNull()?.javaClass?.simpleName})")
         }
     }
 
@@ -868,7 +867,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         _loginLoad.value = LoginLoad.LOADING
         view.alpha = 0f
         main.postDelayed(loginTimeout, LoginLoad.TIMEOUT_MS)
-        Logbook.log("sign-in page: opening")
+        AppLog.d("sign-in page: opening")
     }
 
     private fun setLoginLoad(state: LoginLoad) {
@@ -877,12 +876,12 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         if (state != LoginLoad.LOADING) { main.removeCallbacks(loginProbe); main.removeCallbacks(loginTimeout) }
         if (state == LoginLoad.SHOWN || state == LoginLoad.NONE) view.alpha = 1f
         if (state == LoginLoad.NONE) return
-        Logbook.log("sign-in page: ${state.name.lowercase()}")
+        AppLog.d("sign-in page: ${state.name.lowercase()}")
     }
 
     private fun loginFailed(what: String) {
         if (_loginLoad.value == LoginLoad.FAILED) return
-        Logbook.log("sign-in page failed ($what)")
+        AppLog.d("sign-in page failed ($what)")
         if (what.startsWith("no content")) LoginErrorDetails.record("timeout")
         else if (what.startsWith("blank")) LoginErrorDetails.record("blank")
         runCatching { view.stopLoading() }
@@ -909,7 +908,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
             when (LoginLoad.blank(++loginProbes, loginReloaded)) {
                 LoginLoad.Blank.WAIT -> main.postDelayed(loginProbe, LoginLoad.PROBE_EVERY_MS)
                 LoginLoad.Blank.RELOAD -> {
-                    Logbook.log("sign-in page: finished but blank, loading it again")
+                    AppLog.d("sign-in page: finished but blank, loading it again")
                     loginReloaded = true
                     loginProbes = 0
                     view.loadUrl(LOGIN_URL)
@@ -923,7 +922,7 @@ class WebPlayerHost(private val context: Context) : BridgeHost {
         val done = CompletableDeferred<Unit>()
         main.post {
             runCatching { view.evaluateJavascript(script, null) }
-                .onFailure { Logbook.log("script not run in the page: ${it.message}") }
+                .onFailure { AppLog.d("script not run in the page: ${it.message}") }
             done.complete(Unit)
         }
         done.await()

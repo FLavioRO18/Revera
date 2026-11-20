@@ -124,8 +124,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Betas are release builds too, but their log reports read Log.v/d/i.
-            if (!beta) proguardFiles("proguard-strip-logs.pro")
         }
     }
     // One build, every APK a release carries (named by collectApks below): one per ABI, and the

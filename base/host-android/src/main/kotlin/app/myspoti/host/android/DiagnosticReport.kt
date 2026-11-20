@@ -1,87 +1,15 @@
 package app.myspoti.host.android
 
 import android.content.Context
-import app.myspoti.spotify.bridge.LogMask
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
-/**
- * The engine's own log, kept in memory so a tester can hand it back as a file.
- *
- * The WebView bridge is invisible on a phone: the only evidence of a refused playback
- * command (`402 COMMAND_FAILED`) or of a sign-in that stalls is these lines, and until now
- * they were reachable only through `adb logcat` ([WebPlayerHost.LOG]) — which the person
- * reporting the bug cannot run. Every line is mirrored to Logcat with the very same text
- * ([log]) and kept in a bounded ring buffer that [export] writes to a shareable file, so
- * the report a tester sends is the app's own log and nothing else has to change.
- */
-object Logbook {
-    /**
-     * Only the tail is kept: a report is read from the end, and an unbounded buffer would
-     * grow for the whole life of the process (the page can run for hours).
-     */
-    private const val MAX_LINES = 6000
-
-    /** The longest line kept; the longest ones written on purpose (devices, identity) stay under it. */
-    private const val MAX_LINE = 2000
-
-    /** Guarded by its own monitor: [log] is called from the main thread, OkHttp threads and coroutines. */
-    private val lines = ArrayDeque<String>(MAX_LINES)
-    private val stamp = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+/** Builds a shareable diagnostic report from the current process's Logcat history. */
+object DiagnosticReport {
     private val fileStamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US)
-
-    /**
-     * Records [line] and mirrors it to Logcat with the same message, so the exported report
-     * and `adb logcat -s Myspoti` show the same thing. Safe from any thread.
-     */
-    fun log(raw: String) {
-        val line = LogMask.shown(raw, MAX_LINE)
-        val important = line.startsWith("sign-in") ||
-            line.startsWith("login") ||
-            line.startsWith("load error") ||
-            line.startsWith("ssl error") ||
-            line.startsWith("http 4") ||
-            line.startsWith("http 5") ||
-            line.startsWith("account:") ||
-            line.startsWith("session") ||
-            line.startsWith("navigation refused") ||
-            line.startsWith("renderer gone") ||
-            line.startsWith("console ERROR")
-        if (important) android.util.Log.w(WebPlayerHost.LOG, line)
-        else android.util.Log.d(WebPlayerHost.LOG, line)
-        synchronized(lines) {
-            lines.addLast("${stamp.format(Date())} $line")
-            while (lines.size > MAX_LINES) lines.removeFirst()
-        }
-    }
-
-    /**
-     * [url] without its query string and fragment: they carry tokens, ids and search terms, and a
-     * report is handed to other people. For every URL put in a log line.
-     */
-    fun noQuery(url: String): String = url.substringBefore('#').substringBefore('?')
-
-    /** When each [logEvery] key last wrote, and how many lines it held back since. */
-    private val every = HashMap<String, LongArray>()
-
-    /**
-     * [line] at most once per [intervalMs] for [key]: a steady stream (play reports, state PUTs
-     * answered 2xx) shows that it runs and how often, without filling the ring buffer. The next
-     * line written says how many were held back.
-     */
-    fun logEvery(key: String, intervalMs: Long, line: String) {
-        val now = android.os.SystemClock.elapsedRealtime()
-        val held = synchronized(every) {
-            val e = every.getOrPut(key) { longArrayOf(Long.MIN_VALUE / 2, 0) }
-            if (now - e[0] < intervalMs) { e[1]++; return }
-            val n = e[1]
-            e[0] = now; e[1] = 0
-            n
-        }
-        log(if (held > 0) "$line (+$held like it since)" else line)
-    }
 
     /**
      * What the report's header says of this session, kept apart from the log (which may have cut
@@ -89,27 +17,40 @@ object Logbook {
      * where it is known, the latest value wins.
      */
     private val facts = java.util.concurrent.ConcurrentHashMap<String, String>()
-    fun fact(key: String, value: String) { facts[key] = LogMask.redact(value) }
+    fun fact(key: String, value: String) { facts[key] = app.myspoti.spotify.bridge.LogMask.redact(value) }
 
     /** More header lines the app knows of (its extensions), asked when the report is written. */
     @Volatile var headerExtras: (() -> List<Pair<String, String>>)? = null
 
-    /** The buffered lines, oldest first. */
-    fun recent(): String = synchronized(lines) { lines.joinToString("\n") }
-
-    /**
-     * Writes the report (device and version header, then [recent]) to the app's own external
-     * files directory, so it can be handed to the share sheet through the FileProvider.
-     * Returns the file for the caller to share.
-     */
     fun export(context: Context): File {
         // The external dir is what a FileProvider can expose; the internal one is the
         // fallback for a device with no external storage.
         val dir = context.getExternalFilesDir(null) ?: context.filesDir
         val file = File(dir, "diagnostic-${fileStamp.format(Date())}.txt")
-        file.writeText(report(context))
+        file.writeText(text(context))
         return file
     }
+
+    fun text(context: Context): String = report(context, logcat(context))
+
+    fun recent(context: Context): String = logcat(context).joinToString("\n")
+
+    private fun logcat(context: Context): List<String> = runCatching {
+        val file = File.createTempFile("revera-logcat-", ".txt", context.cacheDir)
+        try {
+            val process = ProcessBuilder("logcat", "-d", "-v", "threadtime", "--pid=${android.os.Process.myPid()}", "-t", "1500")
+                .redirectErrorStream(true).redirectOutput(file).start()
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroyForcibly()
+                return emptyList()
+            }
+            if (process.exitValue() != 0) return emptyList()
+            file.readText().lineSequence().filter { it.isNotBlank() }
+                .map(app.myspoti.spotify.report.DiagnosticDigest::mask).toList().takeLast(2500)
+        } finally {
+            file.delete()
+        }
+    }.getOrDefault(emptyList())
 
     /**
      * What the device's Widevine is (security level, HDCP, version): a 403 on the audio licence
@@ -194,14 +135,13 @@ object Logbook {
 
     private val FACT_ORDER = listOf("account", "network", "registration", "devices", "relay route")
 
-    private fun report(context: Context): String {
+    private fun report(context: Context, tail: List<String>): String {
         val info = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
         val versionName = info?.versionName ?: "?"
         val versionCode = info?.let { androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(it) } ?: 0L
         // The player's page URL tells which Spotify screen the app was on; read only when the
         // runtime started, or the not-yet-initialized host would crash the export.
         val pageUrl = if (MyspotiRuntime.isStarted) runCatching { MyspotiRuntime.host.url.value }.getOrNull() else null
-        val tail = synchronized(lines) { lines.toList() }
         val webView = runCatching { android.webkit.WebView.getCurrentWebViewPackage() }.getOrNull()
         val widevine = if (MyspotiRuntime.isStarted) runCatching {
             if (MyspotiRuntime.spotify.player.drmMissing.value) "missing (nothing Spotify streams can play)" else null

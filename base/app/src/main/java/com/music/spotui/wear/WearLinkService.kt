@@ -1,7 +1,7 @@
 package com.music.spotui.wear
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.NativeTokens
 import app.myspoti.pass.PassCrypto
@@ -60,7 +60,7 @@ object WatchAnswers {
         val id = NativeTokens.config(spotify().http)
         // How the watch reaches this phone over the Wi-Fi when the Data Layer is down.
         val lan = WatchLan.ensure(context)
-        Logbook.log("watch: session given (the web token ends in ${(c.accessExpiresAtMs - System.currentTimeMillis()) / 60_000} min)")
+        AppLog.d("watch: session given (the web token ends in ${(c.accessExpiresAtMs - System.currentTimeMillis()) / 60_000} min)")
         return buildJsonObject {
             put("accessToken", c.accessToken); put("accessExpiresAtMs", c.accessExpiresAtMs); put("clientId", c.clientId)
             put("clientToken", c.clientToken); put("clientDeviceId", c.clientDeviceId); put("appVersion", c.appVersion)
@@ -121,7 +121,7 @@ class WearLinkService : WearableListenerService() {
         val out = TaskCompletionSource<ByteArray>()
         scope.launch {
             val answer = runCatching { withTimeout(ANSWER_MS) { WatchAnswers.answer(applicationContext, path, data.decodeToString()) } }
-                .getOrElse { Logbook.log("watch: $path not answered (${it.message})"); "error: ${it.message ?: it.javaClass.simpleName}" }
+                .getOrElse { AppLog.d("watch: $path not answered (${it.message})"); "error: ${it.message ?: it.javaClass.simpleName}" }
             out.setResult(answer.encodeToByteArray())
         }
         return out.task
@@ -134,7 +134,7 @@ class WearLinkService : WearableListenerService() {
             runCatching {
                 val text = runCatching { WatchAnswers.answer(applicationContext, channel.path, "") }.getOrElse { "error: ${it.message}" }
                 client.getOutputStream(channel).await().use { it.write(text.encodeToByteArray()) }
-            }.onFailure { Logbook.log("watch: extensions not sent (${it.message})") }
+            }.onFailure { AppLog.d("watch: extensions not sent (${it.message})") }
             runCatching { client.close(channel).await() }
         }
     }
@@ -177,11 +177,11 @@ object WatchLan {
             prefs.edit().putInt("port", s.port).apply()
             server = s
             announce(app, s.port, id)
-            Logbook.log("watch: Wi-Fi link open on port ${s.port}")
+            AppLog.d("watch: Wi-Fi link open on port ${s.port}")
             s
         }
         Link(secret, running.port, id)
-    }.onFailure { Logbook.log("watch: Wi-Fi link not open (${it.message})") }.getOrNull()
+    }.onFailure { AppLog.d("watch: Wi-Fi link not open (${it.message})") }.getOrNull()
 
     private fun answerer(context: Context): (String, String) -> String = { path, body ->
         runBlocking { withTimeout(25_000) { WatchAnswers.answer(context, path, body) } }
@@ -192,7 +192,7 @@ object WatchLan {
         val info = android.net.nsd.NsdServiceInfo().apply { serviceName = "Revera-$id"; serviceType = "_revera._tcp"; setPort(port) }
         val listener = object : android.net.nsd.NsdManager.RegistrationListener {
             override fun onServiceRegistered(i: android.net.nsd.NsdServiceInfo) {}
-            override fun onRegistrationFailed(i: android.net.nsd.NsdServiceInfo, code: Int) { Logbook.log("watch: not announced on the network ($code)") }
+            override fun onRegistrationFailed(i: android.net.nsd.NsdServiceInfo, code: Int) { AppLog.d("watch: not announced on the network ($code)") }
             override fun onServiceUnregistered(i: android.net.nsd.NsdServiceInfo) {}
             override fun onUnregistrationFailed(i: android.net.nsd.NsdServiceInfo, code: Int) {}
         }

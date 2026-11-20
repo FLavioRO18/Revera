@@ -1,4 +1,5 @@
 package com.music.spotui.data.api
+import app.myspoti.host.android.AppLog
 
 import com.music.spotui.data.entity.LibraryEntry
 import com.music.spotui.di.Graph
@@ -61,7 +62,7 @@ object PagePrefetch {
                 }.getOrNull()
                 val kept = (page as? Response.Success)?.data?.takeIf { it.tracks.isNotEmpty() && it.tracks.size <= MAX_TRACKS }
                 kept?.let { ScreenCache.page(id).write(it) }
-                android.util.Log.d("Myspoti", "prefetch playlist ${id.take(6)}…: ${kept?.tracks?.size?.let { "$it songs kept on storage" } ?: "not kept"}")
+                AppLog.d("prefetch playlist ${id.take(6)}…: ${kept?.tracks?.size?.let { "$it songs kept on storage" } ?: "not kept"}")
                 delay(1_500) // one after the other, gently
             }
             ScreenCache.prunePages(KEEP)

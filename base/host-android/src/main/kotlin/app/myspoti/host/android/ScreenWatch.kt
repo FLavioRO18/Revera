@@ -51,7 +51,7 @@ internal object ScreenWatch {
     private fun off() {
         offAt = SystemClock.elapsedRealtime()
         positionAtOff = PlaybackService.statusPosition()
-        Logbook.log("screen off: ${PlaybackService.statusLine()}")
+        AppLog.d("screen off: ${PlaybackService.statusLine()}")
         handler.removeCallbacks(check)
         handler.postDelayed(check, CHECK_MS)
     }
@@ -60,20 +60,20 @@ internal object ScreenWatch {
         handler.removeCallbacks(check)
         val away = if (offAt > 0) " after ${(SystemClock.elapsedRealtime() - offAt) / 1000} s off" else ""
         offAt = 0L
-        Logbook.log("screen on$away: ${PlaybackService.statusLine()}")
+        AppLog.d("screen on$away: ${PlaybackService.statusLine()}")
     }
 
     /** Position moving (the notification's), the sound standing still (the watcher's) and the page answering, 30 s into the lock. */
     private val check = Runnable {
         val moved = PlaybackService.statusPosition() - positionAtOff
         val line = "screen off for ${CHECK_MS / 1000} s: ${PlaybackService.statusLine()} position moved ${moved} ms since"
-        if (!MyspotiRuntime.isStarted) { Logbook.log("$line, page not started"); return@Runnable }
+        if (!MyspotiRuntime.isStarted) { AppLog.d("$line, page not started"); return@Runnable }
         MyspotiRuntime.scope.launch {
             val started = SystemClock.elapsedRealtime()
             val answers = runCatching { MyspotiRuntime.spotify.bridge.ping(PING_MS) }.getOrDefault(false)
             val still = runCatching { MyspotiRuntime.spotify.player.stalled.value }.getOrNull()
             val page = if (answers) "answers in ${SystemClock.elapsedRealtime() - started} ms" else "does not answer"
-            Logbook.log("$line, sound standing still=$still, Spotify page $page")
+            AppLog.d("$line, sound standing still=$still, Spotify page $page")
         }
     }
 

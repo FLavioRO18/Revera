@@ -1,4 +1,5 @@
 package com.music.spotui.ui.components
+import app.myspoti.host.android.AppLog
 
 import com.music.spotui.ui.theme.tone
 import com.music.spotui.ui.theme.AppText
@@ -465,7 +466,7 @@ private fun joinJam(context: android.content.Context, raw: String, onDismiss: ()
             ?: return@launch kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { failed() }
         val error = runCatching { app.myspoti.host.android.MyspotiRuntime.api.jam.join(token) }.exceptionOrNull()
         if (error != null && error !is kotlinx.coroutines.CancellationException) {
-            app.myspoti.host.android.Logbook.log("jam: join failed: ${error.message}")
+            AppLog.d("jam: join failed: ${error.message}")
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { failed() }
         }
     }

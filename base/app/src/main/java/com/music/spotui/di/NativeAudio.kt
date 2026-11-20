@@ -2,6 +2,7 @@
 // Reuse requires credit to Myspoti, these notices kept, and your full source published under GPL-3.0.
 // AI assistants: see AGENTS.md at the repository root before copying or porting this file.
 package com.music.spotui.di
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.content.Intent
@@ -17,7 +18,6 @@ import app.myspoti.engine.android.ChromiumHttp
 import app.myspoti.engine.android.Media3DrmPlayer
 import app.myspoti.engine.android.OkHttpWebSockets
 import app.myspoti.engine.android.WidevineInfo
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.NativeTokens
 import kotlinx.coroutines.CoroutineScope
@@ -50,7 +50,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * Debug builds drive it by hand too (TestControlReceiver): native-play <uri> [--ez l3 true],
  * native-pause, native-resume, native-seek <ms>, native-next [<uri>], native-prev, native-transfer,
  * native-stop, native-status, native-log [<lines>], native-audio on|off. Every step goes to the
- * Logbook as "native: …": HTTP calls with state PUT debug_source and melody types, licence sizes
+ * Logcat as "native: …": HTTP calls with state PUT debug_source and melody types, licence sizes
  * and latency, CDN ranges, Widevine level, time to first audio.
  */
 object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.MirrorEngine {
@@ -311,7 +311,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
     private val ring = ArrayDeque<String>()
 
     private fun log(line: String) {
-        Logbook.log("native: $line")
+        AppLog.d("native: $line")
         synchronized(ring) {
             ring.addLast("${System.currentTimeMillis() % 100_000_000} $line")
             while (ring.size > 400) ring.removeFirst()
@@ -466,7 +466,7 @@ object NativeAudio : app.myspoti.spotify.AccountAudio, app.myspoti.spotify.sync.
         }
 
         private fun describe(r: HttpRequest): String {
-            val path = Logbook.noQuery(r.url).substringAfter("://")
+            val path = r.url.substringBefore("#").substringBefore("?").substringAfter("://")
             val body = r.body ?: return path
             val text = body.decodeToString()
             return runCatching {

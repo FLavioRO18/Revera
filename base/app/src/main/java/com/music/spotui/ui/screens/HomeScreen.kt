@@ -581,7 +581,6 @@ private fun ProfileSheet(onOpen: (route: String) -> Unit = {}, onDismiss: () -> 
                 Text(stringResource(R.string.account_page_detail), color = AppMuted, fontSize = 12.sp)
             }
             com.music.spotui.ui.components.CommunityMenuButton()
-            com.music.spotui.ui.components.CopyAppLogButton()
             var perks by remember { androidx.compose.runtime.mutableStateOf(false) }
             if (perks) com.music.spotui.ui.components.SupporterSheet(onDismiss = { perks = false })
             androidx.compose.foundation.layout.Column(

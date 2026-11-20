@@ -1,6 +1,6 @@
 package com.music.spotui.connect
+import app.myspoti.host.android.AppLog
 
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.spotify.AccountPlan
 import app.myspoti.spotify.bridge.AdBlock
@@ -205,5 +205,5 @@ object RemoteAdMute {
 
     private fun forget() = runCatching { prefs.edit().clear().apply() }
 
-    private fun log(line: String) = Logbook.log("connect: ad blocker: $line")
+    private fun log(line: String) { AppLog.d("connect: ad blocker: $line") }
 }

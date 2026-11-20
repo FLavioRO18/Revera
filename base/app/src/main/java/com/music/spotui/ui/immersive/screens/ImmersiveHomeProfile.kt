@@ -181,7 +181,6 @@ internal fun ImmersiveProfileSheet(onOpen: (route: String) -> Unit, onDismiss: (
                 AccountBrowser.open(Graph.app, AccountBrowser.ACCOUNT_URL)
             }
             com.music.spotui.ui.components.CommunityMenuButton()
-            com.music.spotui.ui.components.CopyAppLogButton()
             var perks by remember { mutableStateOf(false) }
             if (perks) SupporterSheet(onDismiss = { perks = false })
             SheetRow(stringResource(R.string.badge_sheet_title), stringResource(R.string.badge_row_detail)) {

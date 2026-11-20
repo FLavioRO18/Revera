@@ -1,4 +1,5 @@
 package com.music.spotui.connect
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.net.nsd.NsdManager
@@ -131,5 +132,5 @@ object LanDiscovery {
 
     private const val MAX_ANSWER = 64 * 1024
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("lan: $line")
+    private fun log(line: String) { AppLog.d("lan: $line") }
 }

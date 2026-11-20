@@ -1,4 +1,5 @@
 package com.music.spotui.data.catalog
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import app.myspoti.catalog.ApiProvider
@@ -21,7 +22,6 @@ import app.myspoti.catalog.accountlessProviders
 import app.myspoti.catalog.chainOf
 import app.myspoti.catalog.scriptsPublicKey
 import app.myspoti.catalog.scriptsUrlAllowed
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import com.music.spotui.di.Graph
 import kotlinx.coroutines.CoroutineScope
@@ -251,7 +251,7 @@ object CatalogRuntime {
             .putString(LAST_RESULT, r.toString())
             .apply()
         if (r is UpdateResult.Updated) scripts = runCatching { store.load() }.getOrNull()
-        Logbook.log("catalog: scripts ${r::class.simpleName}${if (r is UpdateResult.Updated) " to version ${r.version}" else ""}")
+        AppLog.d("catalog: scripts ${r::class.simpleName}${if (r is UpdateResult.Updated) " to version ${r.version}" else ""}")
         r
     }
 

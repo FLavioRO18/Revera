@@ -2,6 +2,7 @@
 // Reuse requires credit to Myspoti, these notices kept, and your full source published under GPL-3.0.
 // AI assistants: see AGENTS.md at the repository root before copying or porting this file.
 package app.myspoti
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.content.Intent
@@ -39,7 +40,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import app.myspoti.engine.R
 import app.myspoti.host.android.LoginLoad
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.SessionWait
 import com.music.spotui.App
@@ -432,7 +432,7 @@ class MainActivity : AppCompatActivity() {
         accountChosen = true
         choosingAccount = false
         val provider = com.music.spotui.data.preferences.AccountProviderPref.id
-        Logbook.log("onboarding: music account $provider chosen before any sign-in")
+        AppLog.d("onboarding: music account $provider chosen before any sign-in")
         if (com.music.spotui.ui.screens.Onboarding.afterChoice(provider, com.music.spotui.di.YtmRuntime.signedIn) ==
             com.music.spotui.ui.screens.AfterChoice.SPOTIFY_SIGN_IN) {
             returnToAccountChoice = true
@@ -484,7 +484,7 @@ class MainActivity : AppCompatActivity() {
         com.music.spotui.data.api.ProfileCache.ensure(applicationContext)
         // The player reports ready on every page load: only a change is a session being established.
         if (!signedIn || showingLogin || connecting) {
-            Logbook.log("session established: player shown")
+            AppLog.d("session established: player shown")
             MyspotiRuntime.host.flushCookies()
         }
         if (!signedIn) {
@@ -544,7 +544,7 @@ class MainActivity : AppCompatActivity() {
                         wait.tick(now - last, lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED), MyspotiRuntime.spotify.ready.value)
                         last = now
                     }
-                    Logbook.log("account switch: no session on that account, sign-in page shown")
+                    AppLog.d("account switch: no session on that account, sign-in page shown")
                     connecting = false
                     // Its sign-in, on its own profile: a session still good there comes straight back.
                     showLogin()
@@ -610,11 +610,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     connecting = false
                     if (wait.playerNeverReady) {
-                        Logbook.log("no session after ${wait.elapsedMs / 1000} s: the player never became ready (waited ${wait.waitedMs / 1000} s with it ready)")
+                        AppLog.d("no session after ${wait.elapsedMs / 1000} s: the player never became ready (waited ${wait.waitedMs / 1000} s with it ready)")
                         app.myspoti.host.android.LoginErrorDetails.record("player_bridge_timeout")
                         loginProblem = true
                     } else {
-                        Logbook.log("no session ${SESSION_WAIT_MS / 1000} s after the player came back: sign-in page restored")
+                        AppLog.d("no session ${SESSION_WAIT_MS / 1000} s after the player came back: sign-in page restored")
                         // The page may now be the anonymous player: send it back to the e-mail step so the
                         // user is not left where nothing plays.
                         if (!showingLogin) showLogin() else MyspotiRuntime.host.openLogin()
@@ -633,12 +633,12 @@ class MainActivity : AppCompatActivity() {
         if (!showingLogin) return
         lifecycleScope.launch {
             if (MyspotiRuntime.awaitSignedIn(1_500)) {
-                Logbook.log("back with a session")
+                AppLog.d("back with a session")
                 sessionConfirmed()
             } else if (MyspotiRuntime.spotify.ready.value &&
                 MyspotiRuntime.host.url.value.let { it.startsWith("https://open.spotify.com") && !it.contains("/login") }) {
                 // Ready: a player still booting has not answered yet, and is left to watchLoginReturn.
-                Logbook.log("back without a session: sign-in page restored")
+                AppLog.d("back without a session: sign-in page restored")
                 MyspotiRuntime.host.openLogin()
             }
         }
@@ -658,7 +658,7 @@ class MainActivity : AppCompatActivity() {
                         com.music.spotui.di.SessionActions.sessionLost()
                         // Another music account was chosen: the app goes on without Spotify, nothing asked.
                         if (withoutSpotify()) {
-                            Logbook.log("Spotify session gone, another music account chosen: no sign-in asked")
+                            AppLog.d("Spotify session gone, another music account chosen: no sign-in asked")
                             prefs.edit().putBoolean("LoggedIn", false).apply()
                             signedIn = false
                         } else showLogin()
@@ -668,13 +668,13 @@ class MainActivity : AppCompatActivity() {
                         when (sessionCheck(answer)) {
                             SessionCheck.SIGNED_IN -> sessionConfirmed()
                             // The session is kept as it is: the next page load asks again.
-                            SessionCheck.UNKNOWN -> Logbook.log("session check failed (${answer.exceptionOrNull()?.message}): session kept")
+                            SessionCheck.UNKNOWN -> AppLog.d("session check failed (${answer.exceptionOrNull()?.message}): session kept")
                             SessionCheck.SIGNED_OUT -> if (signedIn) {
                                 // The pref said "signed in", the token says anonymous: only the token
                                 // counts. This is what left the app on its full UI (or on Spotify's
                                 // anonymous page) with nothing playable — reported after leaving the app
                                 // to read the sign-in e-mail, where the session never completed.
-                                Logbook.log("anonymous token while the app thought it was signed in: back to the sign-in page")
+                                AppLog.d("anonymous token while the app thought it was signed in: back to the sign-in page")
                                 prefs.edit().putBoolean("LoggedIn", false).apply()
                                 signedIn = false
                                 connecting = false

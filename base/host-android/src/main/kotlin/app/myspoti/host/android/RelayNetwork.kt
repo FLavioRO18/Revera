@@ -34,7 +34,7 @@ internal object RelayEvents : EventListener() {
         val path = "${RelayRoutes.mask(socket.localAddress)} -> ${RelayRoutes.mask(remote)} (${connection.protocol()})"
         if (path != lastPath) {
             lastPath = path
-            Logbook.log("relay path: $path")
+            AppLog.d("relay path: $path")
         }
     }
 }
@@ -79,9 +79,9 @@ internal object NetworkReport {
             }
             fun yn(b: Boolean) = if (b) "yes" else "no"
             val line = "$transport, IPv4 ${yn(v4)}, IPv6 ${yn(v6)}, CLAT ${yn(clat)}, VPN ${yn(vpn)}, private DNS $privateDns"
-            Logbook.log("network: $line")
-            Logbook.fact("network", line)
-        }.onFailure { Logbook.log("network: not read (${it.message})") }
+            AppLog.d("network: $line")
+            DiagnosticReport.fact("network", line)
+        }.onFailure { AppLog.d("network: not read (${it.message})") }
     }
 }
 
@@ -120,12 +120,12 @@ internal object AudioModeWatch {
                     android.media.AudioManager.MODE_CALL_SCREENING -> "call screening"
                     else -> "mode $mode"
                 }
-                Logbook.log("audio mode: $name")
+                AppLog.d("audio mode: $name")
                 PhoneCall.update(isCallMode(mode))
             }
             // Registration alone does not report a call already in progress at app startup.
             PhoneCall.update(isCallMode(audio.mode))
-        }.onFailure { Logbook.log("audio mode not watched: ${it.javaClass.simpleName}") }
+        }.onFailure { AppLog.d("audio mode not watched: ${it.javaClass.simpleName}") }
     }
 
     private fun isCallMode(mode: Int): Boolean = when (mode) {
@@ -155,10 +155,10 @@ internal object AudioModeWatch {
                         android.telephony.TelephonyManager.CALL_STATE_OFFHOOK -> "in a call"
                         else -> "normal"
                     }
-                    Logbook.log("call state: $name")
+                    AppLog.d("call state: $name")
                     PhoneCall.update(state != android.telephony.TelephonyManager.CALL_STATE_IDLE)
                 }
             }, android.telephony.PhoneStateListener.LISTEN_CALL_STATE)
-        }.onFailure { Logbook.log("call state not watched: ${it.javaClass.simpleName}") }
+        }.onFailure { AppLog.d("call state not watched: ${it.javaClass.simpleName}") }
     } }
 }

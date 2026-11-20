@@ -1,4 +1,5 @@
 package com.music.spotui.connect
+import app.myspoti.host.android.AppLog
 
 import androidx.compose.runtime.mutableStateOf
 import app.myspoti.host.android.MyspotiRuntime
@@ -183,5 +184,5 @@ object LanLogin {
     private fun controllerId(name: String): String =
         java.security.MessageDigest.getInstance("MD5").digest(name.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("lan: login: $line")
+    private fun log(line: String) { AppLog.d("lan: login: $line") }
 }

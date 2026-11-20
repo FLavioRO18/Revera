@@ -11,6 +11,7 @@
  * backdropScale and exportedBackdrop to drawBackdrop. Package renamed again for Myspoti.
  */
 package com.music.spotui.ui.immersive.shell.backdrop.backdrops
+import app.myspoti.host.android.AppLog
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -110,7 +111,7 @@ private class LayerBackdropNode(
         // One recording per source, read in the draw phase so every frame of a transition redraws it.
         val layer = source.layer
         if (layer == null || layer.isReleased) {
-            if (layer != null) app.myspoti.host.android.Logbook.log("glass: backdrop source drawn after release, drawing the page directly")
+            if (layer != null) AppLog.d("glass: backdrop source drawn after release, drawing the page directly")
             return drawContent()
         }
         recordLayer(this@LayerBackdropNode, layer) { backdrop.onDraw(this@draw) }

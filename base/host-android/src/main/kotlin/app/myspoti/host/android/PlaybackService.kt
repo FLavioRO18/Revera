@@ -243,12 +243,12 @@ class PlaybackService : MediaBrowserServiceCompat() {
     private fun ensureStarted() {
         if (foreground) return
         runCatching { androidx.core.content.ContextCompat.startForegroundService(this, Intent(this, PlaybackService::class.java)) }
-            .onFailure { Logbook.log("service not started from a car command: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
+            .onFailure { AppLog.d("service not started from a car command: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
     }
 
     /** Runs a system command on the app's player; a command with nobody to take it is logged, not lost silently. */
     private inline fun command(name: String, wake: Boolean = true, run: PlaybackControls.() -> Unit) {
-        Logbook.log("media session: $name")
+        AppLog.d("media session: $name")
         if (wake) ensureStarted()
         val c = controls
         if (c == null) android.util.Log.w("Myspoti", "media session: $name dropped, the player is not attached yet") else c.run()
@@ -264,13 +264,13 @@ class PlaybackService : MediaBrowserServiceCompat() {
                 val delta = if (action == HeadsetButtons.Action.SEEK_FORWARD) HeadsetButtons.SKIP_MS else -HeadsetButtons.SKIP_MS
                 command(HeadsetButtons.logLine(cmd, episode, action)) { skipBy(delta) }
             }
-            HeadsetButtons.Action.NONE -> Logbook.log("media session: " + HeadsetButtons.logLine(cmd, episode, action))
+            HeadsetButtons.Action.NONE -> AppLog.d("media session: " + HeadsetButtons.logLine(cmd, episode, action))
         }
     }
 
     private val callback = object : MediaSessionCompat.Callback() {
         override fun onPlay() = command("play") { play() }
-        override fun onPrepare() { Logbook.log("media session: prepare") }
+        override fun onPrepare() { AppLog.d("media session: prepare") }
         override fun onPause() = command("pause", wake = false) { pause() }
         override fun onSkipToNext() = headset(HeadsetButtons.Command.NEXT)
         override fun onSkipToPrevious() = headset(HeadsetButtons.Command.PREVIOUS)
@@ -409,7 +409,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
                         cover = bitmap
                         current?.let { apply(it); show(it) }
                         val art = session.controller.metadata?.getBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART)
-                        android.util.Log.d("Myspoti", "cover $url -> ${bitmap.width}x${bitmap.height}, session art ${art?.width}x${art?.height}")
+                        AppLog.d("cover $url -> ${bitmap.width}x${bitmap.height}, session art ${art?.width}x${art?.height}")
                     }
                     return@launch
                 }
@@ -596,7 +596,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification,
                 if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK else 0)
             foreground = true
-        }.onFailure { Logbook.logEvery("foreground-start", 10_000, "foreground not started: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
+        }.onFailure { AppLog.d("foreground not started: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
     }
 
     private fun build(info: NowPlayingInfo?): Notification {
@@ -670,7 +670,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
         // play/pause controls, but browsing and search return nothing.
         val packages = runCatching { packageManager.getPackagesForUid(clientUid)?.toList() }.getOrNull().orEmpty()
         if (clientPackageName != packageName && clientPackageName !in packages) return null
-        if (clientPackageName != packageName) Logbook.log("media browser connected: $clientPackageName (browse: ${if (mayBrowse(clientPackageName)) "yes" else "no"})")
+        if (clientPackageName != packageName) AppLog.d("media browser connected: $clientPackageName (browse: ${if (mayBrowse(clientPackageName)) "yes" else "no"})")
         if (!mayBrowse(clientPackageName)) {
             android.util.Log.w("Myspoti", "media browser: empty root for $clientPackageName")
             return BrowserRoot(EMPTY_ROOT_ID, null)
@@ -872,7 +872,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
         fun ensureStarted(context: Context) {
             if (instance != null) return
             runCatching { androidx.core.content.ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java)) }
-                .onFailure { Logbook.logEvery("service-start", 10_000, "service not started for playback: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
+                .onFailure { AppLog.d("service not started for playback: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
         }
 
         /** Pushes the now-playing state; starts the service when playback starts. */
@@ -884,7 +884,7 @@ class PlaybackService : MediaBrowserServiceCompat() {
                 // song an extension is still resolving starts right after.
                 if (info.makesSound) runCatching {
                     androidx.core.content.ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
-                }.onFailure { Logbook.logEvery("service-start", 10_000, "service not started for playback: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
+                }.onFailure { AppLog.d("service not started for playback: ${it.javaClass.simpleName} ${it.message?.take(80)}") }
                 return
             }
             // The player reports several times per second (position, buffering): only a real

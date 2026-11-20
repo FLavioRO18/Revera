@@ -1,7 +1,7 @@
 package com.music.spotui.di
+import app.myspoti.host.android.AppLog
 
 import app.myspoti.api.account.AccountProviders
-import app.myspoti.host.android.Logbook
 import app.myspoti.host.android.MyspotiRuntime
 import app.myspoti.host.android.PlaybackService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +33,7 @@ object SessionActions {
     fun openSpotifyLogin(context: android.content.Context) {
         val appCtx = context.applicationContext
         com.music.spotui.data.preferences.AccountProviderPref.set(appCtx, AccountProviders.SPOTIFY)
-        Logbook.log("account: opening Spotify sign-in (multiProfile=${MyspotiRuntime.host.multiProfile})")
+        AppLog.d("account: opening Spotify sign-in (multiProfile=${MyspotiRuntime.host.multiProfile})")
         _signedOut.value = true
         _loginRequest.value += 1L
         MyspotiRuntime.host.openLogin()
@@ -42,7 +42,7 @@ object SessionActions {
     fun logout(context: android.content.Context) {
         val host = MyspotiRuntime.host
         val list = host.accounts.list.value
-        Logbook.log("account: logout (multiProfile=${host.multiProfile}, others=${list.others.size})")
+        AppLog.d("account: logout (multiProfile=${host.multiProfile}, others=${list.others.size})")
         if (host.multiProfile && list.others.isNotEmpty()) {
             removeAccount(context, list.active)
             return
@@ -65,7 +65,7 @@ object SessionActions {
         val key = account?.let { com.music.spotui.data.offline.OfflineAccounts.keyOf(it) } ?: MyspotiRuntime.host.accounts.list.value.current?.key
         MyspotiRuntime.scope.launch {
             runCatching { com.music.spotui.data.offline.OfflineAccounts.park(app, account) }
-                .onFailure { Logbook.log("offline: sign-out park failed: ${it.message}") }
+                .onFailure { AppLog.d("offline: sign-out park failed: ${it.message}") }
         }
         app.getSharedPreferences("myspoti_prefs", android.content.Context.MODE_PRIVATE)
             .edit().putBoolean("LoggedIn", false).remove("CurrentAccountName").apply()
@@ -108,7 +108,7 @@ object SessionActions {
         if (!host.multiProfile) { logout(context); return }
         val list = host.accounts.list.value
         if (profile == list.active || list.accounts.none { it.profile == profile }) return
-        Logbook.log("account: switching to another account kept on the phone")
+        AppLog.d("account: switching to another account kept on the phone")
         leaveAccount(context.applicationContext, forget = false)
         _switching.value = true
         host.switchProfile(profile)
@@ -119,7 +119,7 @@ object SessionActions {
         com.music.spotui.data.preferences.AccountProviderPref.set(appCtx, AccountProviders.SPOTIFY)
         val host = MyspotiRuntime.host
         if (!host.multiProfile) { logout(context); return }
-        Logbook.log("account: adding an account")
+        AppLog.d("account: adding an account")
         leaveAccount(appCtx, forget = false)
         _signedOut.value = true
         _loginRequest.value += 1L
@@ -159,12 +159,12 @@ object SessionActions {
                 host.logout()
                 return
             }
-            Logbook.log("account: removing the active account, the one used last takes over")
+            AppLog.d("account: removing the active account, the one used last takes over")
             leaveAccount(context.applicationContext, forget = true)
             _switching.value = true
             host.switchProfile(next.profile)
         } else {
-            Logbook.log("account: removing an account kept on the phone")
+            AppLog.d("account: removing an account kept on the phone")
             gone.key?.let { com.music.spotui.data.local.ListenHistory.forget(it) }
         }
         host.removeProfile(profile)
@@ -179,7 +179,7 @@ object SessionActions {
      * (OfflineAccounts.claim puts another account's aside then). Nothing else of a sign-out is done.
      */
     fun sessionLost() {
-        Logbook.log("session lost without a sign-out: the account is read again at the next session")
+        AppLog.d("session lost without a sign-out: the account is read again at the next session")
         com.music.spotui.data.api.ProfileCache.clearSession()
         com.music.spotui.data.LibraryOutbox.signedOut()
     }

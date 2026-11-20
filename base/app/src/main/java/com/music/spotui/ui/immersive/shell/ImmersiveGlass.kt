@@ -11,6 +11,7 @@
  * The rendering itself is Kyant0/backdrop (Apache-2.0), vendored in ./backdrop.
  */
 package com.music.spotui.ui.immersive.shell
+import app.myspoti.host.android.AppLog
 
 import android.os.Build
 import androidx.compose.foundation.shape.CornerBasedShape
@@ -104,7 +105,7 @@ fun rememberLiquidGlassActive(): Boolean {
             path == GlassPath.LENS -> "Android ${Build.VERSION.SDK_INT}: RuntimeShader lens and live RenderEffect blur"
             else -> "Android ${Build.VERSION.SDK_INT}: live RenderEffect blur, no RuntimeShader for the lens"
         }
-        app.myspoti.host.android.Logbook.log("glass: $path ($why)")
+        AppLog.d("glass: $path ($why)")
     }
     return path != GlassPath.FROST
 }
@@ -312,7 +313,7 @@ internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
     }
 
     /**
-     * One Logbook line per change of state (at most a handful per run): whether the shared page
+     * One Logcat line per change of state (at most a handful per run): whether the shared page
      * recording is attached and non-empty, which a diagnostic report then proves or disproves.
      */
     private fun report(
@@ -343,7 +344,7 @@ internal class PageBackdrop(private val page: LayerBackdrop) : Backdrop {
         if (line == lastReport || reports >= 14) return
         lastReport = line
         reports++
-        app.myspoti.host.android.Logbook.log(line)
+        AppLog.d(line)
     }
 
     private companion object {

@@ -1,9 +1,9 @@
 package com.music.spotui.ui.tv
+import app.myspoti.host.android.AppLog
 
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
-import app.myspoti.host.android.Logbook
 
 /**
  * What a TV can carry, measured once at start: its memory, its cores and whether it runs 64-bit
@@ -43,7 +43,7 @@ object TvCaps {
         // Notifications are not read on a TV.
         if (com.music.spotui.data.NewReleaseNotifier.on) com.music.spotui.data.NewReleaseNotifier.setOn(context, false)
         if (c.weak && !app.myspoti.power.EnergySettings.state.value.manualSaver) app.myspoti.power.EnergySettings.setSaver(true)
-        Logbook.log("tv: ${c.ramMb} MB${if (c.lowRam) " (low RAM)" else ""}, ${c.cores} cores, ${if (c.abi64) "64" else "32"}-bit, Android ${c.sdk}: " +
+        AppLog.d("tv: ${c.ramMb} MB${if (c.lowRam) " (low RAM)" else ""}, ${c.cores} cores, ${if (c.abi64) "64" else "32"}-bit, Android ${c.sdk}: " +
             "AutoMix, clips, Canvas and release notices off${if (c.weak) ", energy saver on (weak)" else ""}")
     }
 }

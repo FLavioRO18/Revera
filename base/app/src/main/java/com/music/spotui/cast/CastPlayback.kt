@@ -1,4 +1,5 @@
 package com.music.spotui.cast
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
 import android.net.Uri
@@ -483,5 +484,5 @@ object CastPlayback {
 
     private fun now() = android.os.SystemClock.elapsedRealtime()
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("cast: $line")
+    private fun log(line: String) { AppLog.d("cast: $line") }
 }

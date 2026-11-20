@@ -1,4 +1,5 @@
 package com.music.spotui.extensions
+import app.myspoti.host.android.AppLog
 
 import app.myspoti.extensions.Archive
 import app.myspoti.extensions.BlockList
@@ -14,7 +15,6 @@ import app.myspoti.extensions.Manifest
 import app.myspoti.extensions.Origin
 import app.myspoti.extensions.Snapshot
 import app.myspoti.extensions.UpdateGate
-import app.myspoti.host.android.Logbook
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -158,7 +158,7 @@ object ExtensionUpdates {
     /** Once at launch, then every few hours while the app runs: the kill switch and the updates that are due. */
     suspend fun daily() {
         while (true) {
-            runCatching { refreshBlocks() }.onFailure { Logbook.log("ext: blocked.json not read: ${it.message}") }
+            runCatching { refreshBlocks() }.onFailure { AppLog.d("ext: blocked.json not read: ${it.message}") }
             runCatching { checkAll(force = false) }
             delay(6 * 3600 * 1000L)
         }
@@ -295,12 +295,18 @@ object ExtensionUpdates {
     /**
      * The user read the card and accepted: the staged version is installed with all it lists
      * granted (but the actions unticked before, still waiting on their own card), and becomes the
-     * accepted snapshot. Each outcome goes to the extension's log and the Logbook.
+     * accepted snapshot. Each outcome goes to the extension's log and Logcat.
      */
     suspend fun accept(id: String) = withContext(Dispatchers.IO) {
-        if (!accepting.add(id)) return@withContext Logbook.log("ext $id: update Accept ignored: already running")
+        if (!accepting.add(id)) {
+            AppLog.d("ext $id: update Accept ignored: already running")
+            return@withContext
+        }
         try {
-            val e = Extensions.registry.value.find(id) ?: return@withContext Logbook.log("ext $id: update Accept: not installed")
+            val e = Extensions.registry.value.find(id) ?: run {
+                AppLog.d("ext $id: update Accept: not installed")
+                return@withContext
+            }
             val wanted = e.pendingUpdate?.kept?.version
             e.updateBlocked?.let {
                 Extensions.log(id, "update to $wanted not accepted: the repository changed owner ($it)")

@@ -1,7 +1,7 @@
 package com.music.spotui.data.offline
+import app.myspoti.host.android.AppLog
 
 import android.content.Context
-import app.myspoti.host.android.Logbook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -45,11 +45,11 @@ object OfflineAccounts {
         val moved = withContext(Dispatchers.IO) { OfflineStore.moving { putAside(dir, parked(context, key)) } }
         if (!moved) {
             // Still in place and still stamped with their account: the next sign-in puts them aside.
-            Logbook.log("offline: downloads not put aside for sign-out")
+            AppLog.d("offline: downloads not put aside for sign-out")
             return@withLock
         }
         reopen(context)
-        Logbook.log("offline: downloads put aside for sign-out")
+        AppLog.d("offline: downloads put aside for sign-out")
     }
 
     /** [userId] is signed in: its downloads are the ones shown; downloads with no stamp yet become its own. */
@@ -66,8 +66,7 @@ object OfflineAccounts {
         stopDownloads(dir)
         val ready = withContext(Dispatchers.IO) { OfflineStore.moving { swap(context, dir, owner, key) } }
         if (ready != Claimed.READY) {
-            Logbook.log(
-                if (ready == Claimed.NOT_CLEARED) "offline: the other account's downloads could not be put aside"
+            AppLog.d(                if (ready == Claimed.NOT_CLEARED) "offline: the other account's downloads could not be put aside"
                 else "offline: this account's downloads could not be brought back; they stay put aside, tried again at the next sign-in"
             )
             reopen(context)
@@ -77,7 +76,7 @@ object OfflineAccounts {
         // Its queues came back with its folder: they go on where they stopped.
         OfflineDownloader.resumePending()
         PodcastDownloader.resumePending()
-        Logbook.log("offline: this account's downloads in place (${OfflineStore.tracks.size} songs)")
+        AppLog.d("offline: this account's downloads in place (${OfflineStore.tracks.size} songs)")
     }
 
     private enum class Claimed { READY, NOT_CLEARED, NOT_BROUGHT_BACK }

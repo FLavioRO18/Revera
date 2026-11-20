@@ -1,4 +1,5 @@
 package com.music.spotui.extensions
+import app.myspoti.host.android.AppLog
 
 import app.myspoti.extensions.Action
 import app.myspoti.extensions.Area
@@ -346,6 +347,6 @@ internal fun writeAtomically(file: File, text: String) {
     try {
         com.music.spotui.data.writeTextSafely(file, text, sync = false)
     } catch (e: com.music.spotui.data.NotReplacedException) {
-        runCatching { app.myspoti.host.android.Logbook.log("ext: ${e.message}, the old copy kept") }
+        runCatching { AppLog.d("ext: ${e.message}, the old copy kept") }
     }
 }

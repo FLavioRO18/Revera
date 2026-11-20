@@ -1,4 +1,5 @@
 package com.music.spotui.connect
+import app.myspoti.host.android.AppLog
 
 import java.net.InetAddress
 
@@ -69,5 +70,5 @@ object SonosLocal {
     private fun call(host: InetAddress, action: String, args: String = ""): Pair<Int, String>? =
         LanDiscovery.call(host, PORT, request(host.hostAddress.orEmpty(), action, args), 4_000)
 
-    private fun log(line: String) = app.myspoti.host.android.Logbook.log("lan: sonos local: $line")
+    private fun log(line: String) { AppLog.d("lan: sonos local: $line") }
 }
