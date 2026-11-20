@@ -4,6 +4,8 @@ Each release on GitHub shows its section below. The app shows it too when it off
 
 ## 1.0.7
 
+- **Local lyrics**: cached lyrics now distinguish recordings by full artist credits, album and duration when there is no track ID.
+
 - **Album artwork**: enable a gentle looping zoom on the playing cover in Classic or Immersive. It uses the cover itself, not a video.
 - **Lyrics controls**: align the Immersive player's romanization and translation toggles vertically along the right edge.
 - **Classic queue screen**: find upcoming songs by title or artist without changing playback order.
