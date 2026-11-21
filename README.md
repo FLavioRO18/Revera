@@ -1,2 +1,1 @@
-fuck spotify 
-https://revera.caruno.wtf/carunodev/Revera
+Moved to https://revera.caruno.wtf/carunodev/Revera
