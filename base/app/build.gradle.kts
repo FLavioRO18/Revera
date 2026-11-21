@@ -29,6 +29,7 @@ val ABI_NAMES = mapOf("arm64-v8a" to "ARMv8", "armeabi-v7a" to "ARMv7")
  * instead of trying an APK it cannot install over itself.
  */
 val APK_NAME = "Revera"
+val projectUrl = "https://revera.caruno.wtf/carunodev/Revera"
 
 android {
     testOptions {
@@ -57,10 +58,8 @@ android {
         // CI release builds pass the tag's version (-PappVersionName / -PappVersionCode).
         versionCode = (findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 209
         versionName = version
-        // GitHub "owner/repo" whose releases the app checks for updates; empty = off
-        // (local builds). CI sets it to the repository it builds.
-        // Not in the dev and Mix Lab builds (below): no release carries their app id.
-        buildConfigField("String", "UPDATE_REPO", "\"${if (automixLab) "" else (findProperty("updateRepo") as String?) ?: System.getenv("MYSPOTI_UPDATE_REPO") ?: "caruno-git/Revera"}\"")
+        buildConfigField("String", "UPDATE_BASE_URL", "\"${if (automixLab) "" else "https://dl.caruno.wtf:8443"}\"")
+        buildConfigField("String", "PROJECT_URL", "\"$projectUrl\"")
         buildConfigField("String", "APK_NAME", "\"$APK_NAME\"")
         val badgeServerUrl = (findProperty("badgeServerUrl") as String?) ?: System.getenv("MYSPOTI_BADGE_SERVER_URL") ?: "https://gta.caruno.wtf:8788"
         val badgePublicKey = (findProperty("badgePublicKey") as String?) ?: System.getenv("MYSPOTI_BADGE_PUBLIC_KEY") ?: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAErM7FKDnQvgklsfDMvNIt9A95Z8ypT5xShhCWLxDHUkTsGbBRczIvwBx0TLNhn8ywTs7y8rNUi060fMN9zIzRlg=="
@@ -120,7 +119,6 @@ android {
             // Installs next to the release apps (own data, own sign-in).
             manifestPlaceholders["appLabel"] = if (automixLab) "Revera Mix Lab" else "Revera dev"
             manifestPlaceholders["cliEnabled"] = "true"
-            buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
         }
         release {
             // Real key when provided (CI releases); otherwise the debug key, so a local
@@ -130,7 +128,6 @@ android {
             // beta on the test phone without replacing the signed beta installed there.
             if (findProperty("overDev") != null && !automixLab) {
                 manifestPlaceholders["appLabel"] = "Revera dev"
-                buildConfigField("String", "UPDATE_REPO", "\"caruno-git/Revera\"")
             }
             // The Mix Lab stays drivable from the CLI in its optimised build, as in its debug one.
             if (automixLab) manifestPlaceholders["cliEnabled"] = "true"

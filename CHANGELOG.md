@@ -2,6 +2,10 @@
 
 Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
 
+## 1.0.8
+
+- **Updates**: Revera now checks for updates on its own Forgejo and downloads APKs directly from the release server. Install this version over 1.0.7 to switch to the new source.
+
 ## 1.0.7
 
 - **Lyrics appearance**: choose text size (70–140%) and a pastel text colour in Lyrics settings in either layout, with an Automatic option to restore the original colours.
