@@ -699,7 +699,9 @@ fun ImmersivePlayer(
                 sidePane = sidePane,
             ) else {
                 val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                val heroMode = !window.large
+                // The contained style shares the large-window square layout, while full screen
+                // keeps the current phone-first artwork treatment.
+                val heroMode = !window.large && com.music.spotui.data.preferences.ImmersivePlayerCoverPref.fullScreen
                 Box(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 Box(Modifier.fillMaxWidth().zIndex(2f)) {

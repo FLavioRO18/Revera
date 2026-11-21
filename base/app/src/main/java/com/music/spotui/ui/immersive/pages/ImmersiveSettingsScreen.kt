@@ -1039,6 +1039,14 @@ private fun DisplayPage(open: (SettingsPage) -> Unit, back: () -> Unit) {
                 row { ImmersiveSwitchRow(stringResource(R.string.chrome_handle), checked = com.music.spotui.data.preferences.ImmersiveChromePref.handle, onChecked = { com.music.spotui.data.preferences.ImmersiveChromePref.handle(it) }, detail = stringResource(R.string.chrome_handle_detail)) }
                 row { ImmersiveSwitchRow(stringResource(R.string.chrome_stats), checked = com.music.spotui.data.preferences.ImmersiveChromePref.stats, onChecked = { com.music.spotui.data.preferences.ImmersiveChromePref.stats(it) }, detail = stringResource(R.string.chrome_stats_detail)) }
                 row { ImmersiveSwitchRow(stringResource(R.string.chrome_canvas), checked = com.music.spotui.data.preferences.ImmersiveChromePref.canvas, onChecked = { com.music.spotui.data.preferences.ImmersiveChromePref.canvas(it) }, detail = stringResource(R.string.chrome_canvas_detail)) }
+                row {
+                    ImmersiveSwitchRow(
+                        stringResource(R.string.player_cover_fullscreen),
+                        checked = com.music.spotui.data.preferences.ImmersivePlayerCoverPref.fullScreen,
+                        onChecked = { com.music.spotui.data.preferences.ImmersivePlayerCoverPref.set(ctx, it) },
+                        detail = stringResource(R.string.player_cover_fullscreen_detail),
+                    )
+                }
             }
             row {
                 ImmersiveSwitchRow(stringResource(R.string.settings_item_canvas_title),
