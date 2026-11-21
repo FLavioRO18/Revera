@@ -47,7 +47,7 @@ For this fork, download updates from [our releases](https://github.com/caruno-gi
 
 This fork publishes **ARM64 (`ARMv8`)**, **32-bit (`ARMv7`)**, **universal**, and **Android TV (`TV`)** APKs.
 
-For Obtainium, add `https://github.com/caruno-git/Revera` and pick `ARMv8` (64-bit) or `ARMv7` (32-bit).
+For Obtainium, open **Add app** and enter `https://revera.caruno.wtf/carunodev/Revera`. Under **Override source**, select **Forgejo (Codeberg)**, then pick `ARMv8` (64-bit) or `ARMv7` (32-bit). If you previously added Revera from GitHub, replace that source in Obtainium; you do not need to uninstall Revera.
 
 ## What you get
 
