@@ -4,9 +4,9 @@ Revera is an independent community fork of Orpheon / Myspoti. Original credits a
 
 This is the **caruno-git fork** of [kota-zo/Orpheon](https://github.com/kota-zo/Orpheon), formerly Myspoti. Original authorship and GPL-3.0 notices are retained.
 
-Download this fork from [our releases](https://github.com/caruno-git/Revera/releases/latest). Report fork-specific bugs in [our issues](https://github.com/caruno-git/Revera/issues).
+Download this fork from [our releases](https://revera.caruno.wtf/carunodev/Revera/releases/latest). Report fork-specific bugs in [our issues](https://github.com/caruno-git/Revera/issues).
 
-[![Download latest](https://img.shields.io/badge/Revera-download_latest-blue)](https://github.com/caruno-git/Revera/releases/latest)
+[![Download latest](https://img.shields.io/badge/Revera-download_latest-blue)](https://revera.caruno.wtf/carunodev/Revera/releases/latest)
 [![License: GPL-3.0](https://img.shields.io/github/license/caruno-git/Revera)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/S5gdMChKfY)
 
@@ -17,7 +17,7 @@ Download this fork from [our releases](https://github.com/caruno-git/Revera/rele
 </p>
 
 <p align="center">
-  <a href="https://github.com/caruno-git/Revera/releases/latest"><b>⬇ Download this fork — ARM64 (ARMv8) &amp; 32-bit (ARMv7) APKs</b></a>
+  <a href="https://revera.caruno.wtf/carunodev/Revera/releases/latest"><b>⬇ Download this fork — ARM64 (ARMv8) &amp; 32-bit (ARMv7) APKs</b></a>
 </p>
 
 <p align="center"><sub>The Immersive look comes from <a href="https://github.com/kushagrasinghx/BitChord">BitChord</a>: see <a href="#bitchord">Credits</a>.</sub></p>
@@ -39,11 +39,11 @@ Under the hood, the official Spotify Web Player plays the music, hidden inside t
 
 ## Get started
 
-1. Download the APK matching your device (`ARMv8` for 64-bit, `ARMv7` for 32-bit, or `universal` / `TV`) from [this fork’s latest release](https://github.com/caruno-git/Revera/releases/latest) and open it (Android 10 or later). Android asks once to allow installs from your browser or file manager.
+1. Download the APK matching your device (`ARMv8` for 64-bit, `ARMv7` for 32-bit, or `universal` / `TV`) from [this fork’s latest release](https://revera.caruno.wtf/carunodev/Revera/releases/latest) and open it (Android 10 or later). Android asks once to allow installs from your browser or file manager.
 2. Tap **Log in with Spotify** and sign in.
 3. Pick the sound quality, allow what you want (notifications, Bluetooth, local files…), and you are in.
 
-For this fork, download updates from [our releases](https://github.com/caruno-git/Revera/releases/latest) or check for updates directly inside Settings.
+For this fork, download updates from [our releases](https://revera.caruno.wtf/carunodev/Revera/releases/latest) or check for updates directly inside Settings.
 
 This fork publishes **ARM64 (`ARMv8`)**, **32-bit (`ARMv7`)**, **universal**, and **Android TV (`TV`)** APKs.
 
