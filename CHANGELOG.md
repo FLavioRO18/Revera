@@ -2,6 +2,11 @@
 
 Each release on GitHub shows its section below. The app shows it too when it offers the update. Every detail: [docs/CHANGELOG-full.md](docs/CHANGELOG-full.md).
 
+## 1.0.9
+
+- **Spotify code sign-in**: send and confirm email-code requests through a dedicated transport while retaining the embedded sign-in page and its session cookies.
+- **Verification note**: code delivery was verified; full sign-in and session retention remain pending confirmation.
+
 ## Unreleased
 
 - **Spotify playback**: Pause now controls the Web Player when it is playing instead of sending the command to an idle native engine.
