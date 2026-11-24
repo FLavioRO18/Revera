@@ -28,6 +28,7 @@ class LyricsEmbedderTest {
     private val plain = Lyrics(lines, synced = false)
     private val lrc = "[00:00.00]Première ligne\n[00:01.50]Deuxième ligne, avec accents : café — naïve\n[00:03.20]Dernière ligne"
     private val plainText = "Première ligne\nDeuxième ligne, avec accents : café — naïve\nDernière ligne"
+    private val metadata = LyricsEmbedder.TrackMetadata("Song Title", "Artist Name", "Album Name")
 
     // ── LRC text ──
 
@@ -122,6 +123,21 @@ class LyricsEmbedderTest {
         assertTrue(embedded.copyOfRange(8, 42).contentEquals(head.copyOfRange(8, 42)))
         // Audio behind the head is not part of this call; the head still parses.
         assertTrue(LyricsEmbedder.flacAudioOffset(embedded) == embedded.size)
+    }
+
+    @Test fun flacTrackMetadataReplacesSourceTags() {
+        val (_, tags) = readVorbis(LyricsEmbedder.rebuildFlacHead(flacHead(withComments = true), "", metadata = metadata))!!
+        assertEquals("Song Title", tags["TITLE"])
+        assertEquals("Artist Name", tags["ARTIST"])
+        assertEquals("Album Name", tags["ALBUM"])
+    }
+
+    @Test fun flacTrackMetadataPreservesLyricsWithoutReplacement() {
+        val head = flacHead(withComments = true, withLyrics = "old lyrics")
+        val updated = LyricsEmbedder.rebuildFlacHead(head, "", metadata = metadata)
+        val (_, tags) = readVorbis(updated)!!
+        assertEquals("Song Title", tags["TITLE"])
+        assertEquals("old lyrics", tags["LYRICS"])
     }
 
     @Test fun flacExistingCommentsAndVendorSurvive() {
@@ -322,6 +338,14 @@ class LyricsEmbedderTest {
         assertEquals(4, rebuilt.tagBytes[3].toInt() and 0xFF)
     }
 
+    @Test fun mp3TrackMetadataReplacesSourceTags() {
+        val tag = id3Tag(3, listOf(textFrame("TIT2", "Old title", 3), textFrame("TPE1", "Old artist", 3)))
+        val frames = readId3Frames(LyricsEmbedder.rebuildMp3Tag(tag, null, metadata = metadata).tagBytes)
+        assertEquals("Song Title", decodeFrameText(frames.single { it.first == "TIT2" }.second))
+        assertEquals("Artist Name", decodeFrameText(frames.single { it.first == "TPE1" }.second))
+        assertEquals("Album Name", decodeFrameText(frames.single { it.first == "TALB" }.second))
+    }
+
     @Test fun mp3V23TagKeepsItsVersionAndFrames() {
         val tag = id3Tag(3, listOf(textFrame("TIT2", "Test Song", 3), textFrame("TPE1", "Test Artist", 3)))
         val rebuilt = LyricsEmbedder.rebuildMp3Tag(tag, synced)
@@ -470,6 +494,21 @@ class LyricsEmbedderTest {
         return payload.copyOfRange(data.first + 16, data.first + data.second).toString(Charsets.UTF_8)
     }
 
+    private fun m4aText(bytes: ByteArray, type: ByteArray): String? {
+        val moov = findAtom(bytes, 0, bytes.size, typeBytes("moov")) ?: return null
+        var current = bytes.copyOfRange(moov.first + 8, moov.first + moov.second)
+        var start = 0
+        for (step in listOf("udta", "meta", "ilst")) {
+            val found = findAtom(current, start, current.size, typeBytes(step)) ?: return null
+            current = current.copyOfRange(found.first + 8, found.first + found.second)
+            start = if (step == "meta") 4 else 0
+        }
+        val atom = findAtom(current, 0, current.size, type) ?: return null
+        val payload = current.copyOfRange(atom.first + 8, atom.first + atom.second)
+        val data = findAtom(payload, 0, payload.size, typeBytes("data")) ?: return null
+        return payload.copyOfRange(data.first + 16, data.first + data.second).toString(Charsets.UTF_8)
+    }
+
     private fun m4aStco(bytes: ByteArray): Long? {
         val moov = findAtom(bytes, 0, bytes.size, typeBytes("moov")) ?: return null
         var current = bytes.copyOfRange(moov.first + 8, moov.first + moov.second)
@@ -509,6 +548,13 @@ class LyricsEmbedderTest {
         val mdatAfter = findAtom(embedded, 0, embedded.size, typeBytes("mdat"))!!
         assertTrue(embedded.copyOfRange(mdatAfter.first + 8, mdatAfter.first + mdatAfter.second)
             .contentEquals(bytes.copyOfRange(mdatBefore.first + 8, mdatBefore.first + mdatBefore.second)))
+    }
+
+    @Test fun m4aTrackMetadataIsWritten() {
+        val embedded = LyricsEmbedder.embedM4a(m4aBytes(), "", metadata = metadata)
+        assertEquals("Song Title", m4aText(embedded, byteArrayOf(0xA9.toByte(), 'n'.code.toByte(), 'a'.code.toByte(), 'm'.code.toByte())))
+        assertEquals("Artist Name", m4aText(embedded, byteArrayOf(0xA9.toByte(), 'A'.code.toByte(), 'R'.code.toByte(), 'T'.code.toByte())))
+        assertEquals("Album Name", m4aText(embedded, byteArrayOf(0xA9.toByte(), 'a'.code.toByte(), 'l'.code.toByte(), 'b'.code.toByte())))
     }
 
     @Test fun m4aChainIsCreatedWhenMissing() {

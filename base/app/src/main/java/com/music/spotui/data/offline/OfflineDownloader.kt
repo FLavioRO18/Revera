@@ -359,12 +359,9 @@ object OfflineDownloader {
                     val c = File(OfflineStore.coverDir, "${r.trackId}.jpg")
                     httpGet(app.myspoti.host.android.Covers.large(meta.coverUrl), c); c
                 }.getOrNull()
-                // The lyrics and the cover, embedded in the file itself for other players
-                // (Musync reads USLT/SYLT and APIC, ©lyr and covr, and a .lrc sidecar
-                // next to a FLAC): looked up once, with a time limit, never failing the
-                // download. Before the encryption (private) or the MediaStore scan
-                // (public), so both see the final file.
-                embedLyricsAndCoverInFile(r, meta, out, ext, coverFile)
+                // Standard metadata, lyrics, and the cover are embedded before encryption
+                // (private) or the MediaStore scan (public), so both see the final file.
+                embedMetadataLyricsAndCoverInFile(r, meta, out, ext, coverFile)
                 if (public) {
                     // In plain in the Download folder: visible in the file manager, playable by
                     // other apps. Announced to MediaStore so it shows up right away.
@@ -391,16 +388,14 @@ object OfflineDownloader {
     }
 
     /**
-     * Embeds the track's lyrics and cover into the just-downloaded [file], for
-     * other players. Lyrics: same setting as keeping them beside the download
-     * ("Download lyrics with songs"), same bar (a real, uncapped result only).
-     * Cover: the [coverFile] downloaded just before (null when it failed). Same
-     * rule for both: the download never fails for lyrics or cover — a timeout,
-     * no lyrics, no cover, or an embedding error just leaves the file as it was.
+     * Embeds the track's standard metadata, lyrics and cover into the just-downloaded [file], for
+     * other players. Metadata always comes from Spotify; lyrics use the same setting as keeping
+     * them beside the download ("Download lyrics with songs"), and the cover is [coverFile].
+     * A timeout, missing lyrics/cover, or an embedding error never fails the download.
      * The lyrics lookup is shared with [LyricsApi.keepForOffline], which runs
      * right after and finds it in the cache.
      */
-    private suspend fun embedLyricsAndCoverInFile(r: Request, meta: Meta, file: File, ext: String, coverFile: File?) {
+    private suspend fun embedMetadataLyricsAndCoverInFile(r: Request, meta: Meta, file: File, ext: String, coverFile: File?) {
         val cover = coverFile?.takeIf { it.isFile }?.let { runCatching { it.readBytes() }.getOrNull() }
         var lyrics: com.music.spotui.data.entity.Lyrics? = null
         if (com.music.spotui.data.preferences.LyricsOfflinePref.on) {
@@ -410,10 +405,10 @@ object OfflineDownloader {
                 runCatching { com.music.spotui.data.api.LyricsApi.fetch(track) }.getOrNull()
             }?.takeIf { com.music.spotui.data.api.LyricsApi.keepable(it) }
         }
-        if (lyrics == null && cover == null) return
-        runCatching { LyricsEmbedder.embed(file, ext, lyrics, cover, OfflineStore.isPublicAudio) }
-            .onSuccess { if (it) Log.i(TAG, "${meta.title}: lyrics and cover embedded in the file") }
-            .onFailure { Log.w(TAG, "${meta.title}: lyrics/cover not embedded: ${it.message}") }
+        val tags = LyricsEmbedder.TrackMetadata(meta.title, meta.artist, meta.album)
+        runCatching { LyricsEmbedder.embed(file, ext, lyrics, cover, OfflineStore.isPublicAudio, tags) }
+            .onSuccess { if (it) Log.i(TAG, "${meta.title}: metadata, lyrics and cover embedded in the file") }
+            .onFailure { Log.w(TAG, "${meta.title}: metadata/lyrics/cover not embedded: ${it.message}") }
     }
 
     private class Fetched(

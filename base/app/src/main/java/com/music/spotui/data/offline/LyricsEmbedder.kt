@@ -59,6 +59,13 @@ object LyricsEmbedder {
     /** One file rewritten at a time: a whole file in memory is fine once, not three times. */
     private val embedMutex = Mutex()
 
+    /** Standard fields shown by MediaStore and players outside Revera. */
+    data class TrackMetadata(val title: String, val artist: String, val album: String) {
+        val entries: List<Pair<String, String>> get() = listOf(
+            "TITLE" to title, "ARTIST" to artist, "ALBUM" to album,
+        ).filter { it.second.isNotBlank() }
+    }
+
     /** A cover image to embed, as downloaded (JPEG or PNG by magic bytes). */
     internal data class CoverImage(val bytes: ByteArray, val mime: String) {
         val isJpeg: Boolean get() = mime == "image/jpeg"
@@ -143,7 +150,7 @@ object LyricsEmbedder {
      * Vorbis comment block is rebuilt (vendor and other fields untouched), or a new
      * one is inserted right after STREAMINFO. STREAMINFO itself is never touched.
      */
-    internal fun rebuildFlacHead(head: ByteArray, lrc: String, cover: CoverImage? = null): ByteArray {
+    internal fun rebuildFlacHead(head: ByteArray, lrc: String, cover: CoverImage? = null, metadata: TrackMetadata? = null): ByteArray {
         val audioOffset = flacAudioOffset(head)
         require(audioOffset in 4..head.size) { "not a FLAC head" }
         require(head.size >= 42 && (head[4].toInt() and 0x7F) == 0) { "no STREAMINFO" }
@@ -160,6 +167,8 @@ object LyricsEmbedder {
         // Existing comments, minus LYRICS; the vendor string is kept as read.
         var vendor = "Revera".toByteArray(Charsets.UTF_8)
         val kept = ArrayList<Pair<String, String>>()
+        val newTags = metadata?.entries.orEmpty()
+        val replaceLyrics = lrc.isNotBlank()
         val commentIndex = blocks.indexOfFirst { it.type == 4 }
         if (commentIndex >= 0) {
             val p = blocks[commentIndex].payload
@@ -182,16 +191,18 @@ object LyricsEmbedder {
                 need(len)
                 val entry = p.copyOfRange(o, o + len).toString(Charsets.UTF_8); o += len
                 val eq = entry.indexOf('=')
-                if (eq > 0 && !entry.substring(0, eq).equals("LYRICS", ignoreCase = true)) {
-                    kept += entry.substring(0, eq) to entry.substring(eq + 1)
-                }
+                if (eq <= 0) return@repeat
+                val key = entry.substring(0, eq)
+                if (replaceLyrics && key.equals("LYRICS", ignoreCase = true)) return@repeat
+                if (newTags.any { (tag, _) -> key.equals(tag, ignoreCase = true) }) return@repeat
+                kept += key to entry.substring(eq + 1)
             }
         }
-        // A blank LRC leaves the comments as they are: no lyrics found must not
-        // fabricate an empty LYRICS field, nor delete one the source file carries.
+        // A blank LRC preserves any lyrics the source file carries.
         var out = ArrayList<Block>(blocks)
-        if (lrc.isNotBlank()) {
-            kept += "LYRICS" to lrc
+        if (replaceLyrics || newTags.isNotEmpty()) {
+            if (replaceLyrics) kept += "LYRICS" to lrc
+            kept += newTags
             val comment = java.io.ByteArrayOutputStream().apply {
                 write(le32Bytes(vendor.size)); write(vendor)
                 write(le32Bytes(kept.size))
@@ -502,6 +513,12 @@ object LyricsEmbedder {
         return Id3Frame("APIC", 0, 0, body)
     }
 
+    /** ID3 text frame: title, lead artist, or album. */
+    private fun buildTextFrame(id: String, text: String, major: Int): Id3Frame {
+        val (encoding, bytes) = encodeText(text, major)
+        return Id3Frame(id, 0, 0, byteArrayOf(encoding.toByte()) + bytes)
+    }
+
     internal data class RebuiltMp3Tag(val tagBytes: ByteArray, val audioOffset: Int, val fitsInPlace: Boolean)
 
     /**
@@ -509,7 +526,9 @@ object LyricsEmbedder {
      * Returns the new tag, where the audio starts behind it, and whether the new tag
      * fits where the old one sat (in-place overwrite, else temp + copy).
      */
-    internal fun rebuildMp3Tag(tagBytes: ByteArray, lyrics: Lyrics?, cover: CoverImage? = null): RebuiltMp3Tag {
+    internal fun rebuildMp3Tag(
+        tagBytes: ByteArray, lyrics: Lyrics?, cover: CoverImage? = null, metadata: TrackMetadata? = null,
+    ): RebuiltMp3Tag {
         val tag = if (tagBytes.isEmpty()) null else parseId3(tagBytes)
         require(tagBytes.isEmpty() || tag != null) { "not an ID3 tag" }
         val major: Int
@@ -529,7 +548,11 @@ object LyricsEmbedder {
         val newFrames = ArrayList<Id3Frame>()
         // A new cover replaces the one the source file carries; without one,
         // the existing cover stays (it was never ours to drop).
-        val kept = frames.filter { it.id != "APIC" || cover == null }
+        val metadataFrames = mapOf("TITLE" to "TIT2", "ARTIST" to "TPE1", "ALBUM" to "TALB")
+        val kept = frames.filter { frame ->
+            (frame.id != "APIC" || cover == null) &&
+                metadata?.entries?.none { (key, _) -> metadataFrames[key] == frame.id } != false
+        }
         if (lyrics != null) {
             // The plain frame carries the timings too, as LRC text: SYLT is the frame
             // the spec intends, but support for it is patchy, and several players read
@@ -542,6 +565,7 @@ object LyricsEmbedder {
             // No lyrics found: the frames the source file carries stay as they are.
             newFrames += kept
         }
+        metadata?.entries?.forEach { (key, value) -> newFrames += buildTextFrame(metadataFrames.getValue(key), value, major) }
         if (cover != null) newFrames += buildApicFrame(cover, major)
         val framesSize = newFrames.sumOf { 10 + it.body.size }
         val fitsInPlace = audioOffset > 0 && !hadFooter && framesSize <= declared
@@ -689,6 +713,9 @@ object LyricsEmbedder {
     }
 
     private val COVR_TYPE = typeBytes("covr")
+    private val TITLE_TYPE = byteArrayOf(0xA9.toByte(), 'n'.code.toByte(), 'a'.code.toByte(), 'm'.code.toByte())
+    private val ARTIST_TYPE = byteArrayOf(0xA9.toByte(), 'A'.code.toByte(), 'R'.code.toByte(), 'T'.code.toByte())
+    private val ALBUM_TYPE = byteArrayOf(0xA9.toByte(), 'a'.code.toByte(), 'l'.code.toByte(), 'b'.code.toByte())
 
     /** A `covr` atom: the image in a `data` child (JPEG = 13, PNG = 14), locale 0. */
     private fun buildCovrAtom(cover: CoverImage): ByteArray {
@@ -700,6 +727,19 @@ object LyricsEmbedder {
             write(cover.bytes)
         }.toByteArray()
         return makeAtom(COVR_TYPE, data)
+    }
+
+    /** An iTunes-style UTF-8 text atom, used for title, artist and album. */
+    private fun buildTextAtom(type: ByteArray, text: String): ByteArray {
+        val bytes = text.toByteArray(Charsets.UTF_8)
+        val data = java.io.ByteArrayOutputStream().apply {
+            write(u32Bytes((16 + bytes.size).toLong()))
+            write(typeBytes("data"))
+            write(u32Bytes(1)) // UTF-8
+            write(u32Bytes(0)) // locale
+            write(bytes)
+        }.toByteArray()
+        return makeAtom(type, data)
     }
 
     /** A `meta` payload with the `hdlr` the iTunes spec requires (handler `mdir`). */
@@ -818,7 +858,9 @@ object LyricsEmbedder {
      * The whole file with the `©lyr` atom replaced/added. Throws when the structure
      * can't be navigated safely.
      */
-    internal fun embedM4a(bytes: ByteArray, lrc: String, cover: CoverImage? = null): ByteArray {
+    internal fun embedM4a(
+        bytes: ByteArray, lrc: String, cover: CoverImage? = null, metadata: TrackMetadata? = null,
+    ): ByteArray {
         val top = parseChildren(bytes, 0, bytes.size)
         val moov = findByType(top, typeBytes("moov")) ?: throw IllegalArgumentException("no moov atom")
         val moovPayload = bytes.copyOfRange(moov.offset + moov.headerSize, (moov.offset + moov.size).toInt())
@@ -827,6 +869,15 @@ object LyricsEmbedder {
             // an empty frame, nor delete one the source file carries.
             var p = ilstPayload
             if (lrc.isNotBlank()) p = rebuildWithChild(p, LYR_TYPE, buildLyrAtom(lrc))
+            metadata?.entries?.forEach { (key, value) ->
+                val type = when (key) {
+                    "TITLE" -> TITLE_TYPE
+                    "ARTIST" -> ARTIST_TYPE
+                    "ALBUM" -> ALBUM_TYPE
+                    else -> return@forEach
+                }
+                p = rebuildWithChild(p, type, buildTextAtom(type, value))
+            }
             if (cover != null) p = rebuildWithChild(p, COVR_TYPE, buildCovrAtom(cover))
             p
         }
@@ -908,23 +959,26 @@ object LyricsEmbedder {
     // ── File level ──
 
     /**
-     * Embeds [lyrics] and [cover] into [file] (format by [ext]: flac, mp3, m4a).
-     * Either may be absent: no lyrics leaves the file's own lyrics frames alone,
-     * no cover leaves its cover alone. Returns true when the file was rewritten
-     * with lyrics and/or cover; false leaves the file untouched.
+     * Embeds [lyrics], [cover], and [metadata] into [file] (format by [ext]: flac, mp3, m4a).
+     * Lyrics and cover may be absent: no lyrics leaves the file's own lyrics frames alone,
+     * and no cover leaves its cover alone. Blank metadata fields are likewise left alone.
+     * Returns true when the file was rewritten; false leaves the file untouched.
      * A visible FLAC also gets a `.lrc` sidecar next to it, which is what Musync
      * reads for FLAC (it does not read Vorbis LYRICS).
      */
-    suspend fun embed(file: File, ext: String, lyrics: Lyrics?, cover: ByteArray?, public: Boolean): Boolean {
+    suspend fun embed(
+        file: File, ext: String, lyrics: Lyrics?, cover: ByteArray?, public: Boolean,
+        metadata: TrackMetadata? = null,
+    ): Boolean {
         val lrc = lyrics?.let { lrcText(it) } ?: ""
         val image = coverImage(cover)
-        if (lrc.isBlank() && image == null) return false
+        if (lrc.isBlank() && image == null && metadata?.entries.orEmpty().isEmpty()) return false
         return embedMutex.withLock {
             val ok = runCatching {
                 when (ext.lowercase()) {
-                    "flac" -> embedFlacFile(file, lrc, image)
-                    "mp3" -> embedMp3File(file, lyrics, lrc, image)
-                    "m4a" -> embedM4aFile(file, lrc, image)
+                    "flac" -> embedFlacFile(file, lrc, image, metadata)
+                    "mp3" -> embedMp3File(file, lyrics, lrc, image, metadata)
+                    "m4a" -> embedM4aFile(file, lrc, image, metadata)
                     else -> false
                 }
             }.getOrDefault(false)
@@ -1007,7 +1061,7 @@ object LyricsEmbedder {
         return buf.toByteArray()
     }
 
-    private fun embedFlacFile(file: File, lrc: String, cover: CoverImage?): Boolean {
+    private fun embedFlacFile(file: File, lrc: String, cover: CoverImage?, metadata: TrackMetadata?): Boolean {
         val temp = uniqueTemp(file)
         try {
             deleteStaleTemps(file)
@@ -1018,7 +1072,7 @@ object LyricsEmbedder {
                 val head = readFlacHead(input) ?: return false
                 audioOffset = flacAudioOffset(head)
                 if (audioOffset < 0 || audioOffset != head.size) return false
-                newHead = rebuildFlacHead(head, lrc, cover)
+                newHead = rebuildFlacHead(head, lrc, cover, metadata)
                 audioLength = file.length() - audioOffset
                 temp.outputStream().use { output ->
                     output.write(newHead)
@@ -1058,9 +1112,9 @@ object LyricsEmbedder {
         }
     }
 
-    private fun embedMp3File(file: File, lyrics: Lyrics?, lrc: String, cover: CoverImage?): Boolean {
+    private fun embedMp3File(file: File, lyrics: Lyrics?, lrc: String, cover: CoverImage?, metadata: TrackMetadata?): Boolean {
         val tagHead = readMp3TagHead(file) ?: return false
-        val rebuilt = runCatching { rebuildMp3Tag(tagHead, lyrics, cover) }.getOrNull() ?: return false
+        val rebuilt = runCatching { rebuildMp3Tag(tagHead, lyrics, cover, metadata) }.getOrNull() ?: return false
         if (rebuilt.fitsInPlace) return overwriteMp3Head(file, rebuilt.tagBytes)
         return embedMp3Slow(file, rebuilt.tagBytes, rebuilt.audioOffset, lrc, cover)
     }
@@ -1113,10 +1167,10 @@ object LyricsEmbedder {
         }
     }
 
-    private fun embedM4aFile(file: File, lrc: String, cover: CoverImage?): Boolean {
+    private fun embedM4aFile(file: File, lrc: String, cover: CoverImage?, metadata: TrackMetadata?): Boolean {
         if (file.length() > MAX_FILE_BYTES) return false
         val bytes = runCatching { file.readBytes() }.getOrNull() ?: return false
-        val newBytes = runCatching { embedM4a(bytes, lrc, cover) }.getOrNull() ?: return false
+        val newBytes = runCatching { embedM4a(bytes, lrc, cover, metadata) }.getOrNull() ?: return false
         val temp = uniqueTemp(file)
         try {
             deleteStaleTemps(file)
