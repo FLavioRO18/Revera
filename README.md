@@ -1,3 +1,4 @@
+Moved to https://revera.caruno.wtf/carunodev/Revera
 # Revera
 
 Revera is an independent community fork of Orpheon / Myspoti. Original credits and GPL-3.0 licensing are preserved.
